@@ -27,6 +27,7 @@ uses
   ATGauge,
   ATStatusBar,
   ATSynEdit,
+  ATSynEdit_Globals,
   ATSynEdit_Edits,
   ATSynEdit_Adapter_EControl,
   proc_customdialog_dummy,
@@ -164,6 +165,19 @@ begin
   end;
 end;
 
+function DoControl_GetState_ScrollBox(C: TScrollBox): string;
+begin
+  Result:= Format('%d,%d,%d,%d,%d,%d', [
+    C.VertScrollBar.Position,
+    C.HorzScrollBar.Position,
+    C.VertScrollBar.Range,
+    C.HorzScrollBar.Range,
+    C.VertScrollBar.Page,
+    C.HorzScrollBar.Page
+    ]);
+end;
+
+
 function DoControl_GetState(C: TControl): string;
 begin
   Result:= '';
@@ -229,6 +243,9 @@ begin
 
   if C is TListViewFilterEdit then
     exit(TListViewFilterEdit(C).Text);
+
+  if C is TScrollBox then
+    exit(DoControl_GetState_ScrollBox(TScrollBox(C)));
 end;
 
 
@@ -637,6 +654,21 @@ begin
   end;
 end;
 
+procedure DoControl_SetState_ScrollBox(C: TScrollbox; const AValue: string);
+var
+  S1, S2: string;
+  N: integer;
+begin
+  SSplitByChar(AValue, ',', S1, S2);
+
+  N:= StrToIntDef(S1, -1);
+  if N>=0 then
+    C.VertScrollBar.Position:= N;
+
+  N:= StrToIntDef(S2, -1);
+  if N>=0 then
+    C.HorzScrollBar.Position:= N;
+end;
 
 function DoControl_GetState_Listview(C: TListView): string;
 // index;check0,check1,
@@ -655,7 +687,6 @@ begin
   end;
 end;
 
-
 procedure DoControl_ApplyEditorProps(Ed: TATSynEdit; AForm: TFormDummy;
   AApplyUnprintedAndWrap, AApplyTabSize, AApplyCentering, AOneLiner: boolean);
 begin
@@ -672,10 +703,10 @@ begin
   Ed.OnClickLink:= @AForm.DoOnEditorClickLink;
   Ed.OnScroll:= @AForm.DoOnEditorScroll;
   Ed.OnPaste:= @AForm.DoOnEditorPaste;
-  Ed.OnCommand:= CustomDialog_OnEditorCommand;
+  Ed.OnCommand:= AppCustomDialog_OnEditorCommand;
 
   Ed.OptBorderFocusedActive:= EditorOps.OpActiveBorderInEditor;
-  Ed.OptBorderWidthFocused:= AppScale(EditorOps.OpActiveBorderWidth);
+  Ed.OptBorderWidthFocused:= ATEditorScale(EditorOps.OpActiveBorderWidth);
 
   Ed.OptThemed:= true;
   EditorApplyTheme(Ed);
@@ -766,6 +797,7 @@ begin
   if S='editor' then
   begin
     Ctl:= TATSynEdit.Create(AForm);
+    TATSynEdit(Ctl).Keymap:= AppKeymapMain;
     DoControl_ApplyEditorProps(TATSynEdit(Ctl), AForm, true, true, false, false);
 
     Adapter:= TATAdapterEControl.Create(Ctl);
@@ -780,6 +812,7 @@ begin
   if S='editor_edit' then
   begin
     Ctl:= TATEdit.Create(AForm);
+    TATSynEdit(Ctl).Keymap:= AppKeymapMain;
     DoControl_ApplyEditorProps(TATSynEdit(Ctl), AForm, false, false, false, true);
     exit;
   end;
@@ -787,6 +820,7 @@ begin
   if S='editor_combo' then
   begin
     Ctl:= TATComboEdit.Create(AForm);
+    TATSynEdit(Ctl).Keymap:= AppKeymapMain;
     DoControl_ApplyEditorProps(TATSynEdit(Ctl), AForm, false, false, false, true);
     exit;
   end;
@@ -941,8 +975,7 @@ begin
     TAppTreeContainer(Ctl).Tree.OnSelectionChanged:= @AForm.DoOnTreeviewSelect;
     TAppTreeContainer(Ctl).Tree.OnCollapsing:= @AForm.DoOnTreeviewCollapsing;
     TAppTreeContainer(Ctl).Tree.OnExpanding:= @AForm.DoOnTreeviewExpanding;
-    TAppTreeContainer(Ctl).Tree.OnDeletion:= @AForm.DoOnTreeviewDeletion;
-    TAppTreeContainer(Ctl).Tree.DefaultItemHeight:= AppScale(DefaultTreeNodeHeight);
+    TAppTreeContainer(Ctl).Tree.DefaultItemHeight:= ATEditorScale(DefaultTreeNodeHeight);
     TAppTreeContainer(Ctl).Invalidate;
     exit
   end;
@@ -1042,6 +1075,14 @@ begin
   if S='paintbox' then
   begin
     Ctl:= TPaintBox.Create(AForm);
+    exit;
+  end;
+
+  if S='scrollbox' then
+  begin
+    Ctl:= TScrollBox.Create(AForm);
+    TScrollBox(Ctl).VertScrollBar.Tracking:= true;
+    TScrollBox(Ctl).HorzScrollBar.Tracking:= true;
     exit;
   end;
 
@@ -1360,24 +1401,6 @@ begin
 end;
 
 
-{
-//deprecated api, to delete
-procedure DoControl_SetPropsFromString_Adv(C: TControl; const AValue: string);
-var
-  Sep: TATStringSeparator;
-  SItem: string;
-  NIndex: integer;
-begin
-  Sep.Init(AValue);
-  NIndex:= 0;
-  repeat
-    if not Sep.GetItemStr(SItem) then Break;
-    DoControl_SetEx(C, SItem, NIndex);
-    Inc(NIndex);
-  until false;
-end;
-}
-
 procedure DoControl_SetColumnsFromString(C: TControl; const S: string);
 begin
   if C is TListView then
@@ -1592,6 +1615,11 @@ begin
   if C is TListViewFilterEdit then
   begin
     TListViewFilterEdit(C).Text:= S;
+    exit
+  end;
+  if C is TScrollBox then
+  begin
+    DoControl_SetState_ScrollBox(TScrollBox(C), S);
     exit
   end;
 end;
@@ -1942,7 +1970,7 @@ begin
   if AName='font_style' then
   begin
     with DoControl_Target(C) do
-      Font.Style:= StringToFontStyles(AValue);
+      Font.Style:= Lexer_StringToFontStyles(AValue);
     exit;
   end;
 
@@ -2129,23 +2157,23 @@ begin
   //if Screen.PixelsPerInch=96 then
   //  ASimpleResize:= false;
 
-  if UiOps.Scale<>100 then
+  if ATEditorScalePercents<>100 then
     if ASimpleResize then
     begin
-      F.Width:= AppScale(F.Width);
-      F.Height:= AppScale(F.Height);
+      F.Width:= ATEditorScale(F.Width);
+      F.Height:= ATEditorScale(F.Height);
       for i:= 0 to F.ControlCount-1 do
         with F.Controls[i] do
         begin
-          Left:= AppScale(Left);
-          Top:= AppScale(Top);
+          Left:= ATEditorScale(Left);
+          Top:= ATEditorScale(Top);
         end;
     end
     else
       F.AutoAdjustLayout(
         lapAutoAdjustForDPI ,
-        96, AppScale(96),
-        F.Width, AppScale(F.Width)
+        96, ATEditorScale(96),
+        F.Width, ATEditorScale(F.Width)
         );
 end;
 
@@ -2304,14 +2332,6 @@ begin
   else
   if AName='tag' then
     F.TagString:= AValue
-  else
-  if AName='resize' then //deprecated!
-  begin
-    if AppStrToBool(AValue) then
-      F.BorderStyle:= bsSizeable
-    else
-      F.BorderStyle:= bsDialog;
-  end
   else
   if AName='border' then
     F.BorderStyle:= TFormBorderStyle(StrToIntDef(AValue, Ord(bsDialog)))
@@ -2574,4 +2594,3 @@ begin
 end;
 
 end.
-

@@ -84,11 +84,16 @@ begin
       if (Tree.Items.Count>0) then
       begin
         bTreeCached:= true;
+
         DoPyEvent_AppState(APPSTATE_CODETREE_BEFORE_FILL);
         DoTreeviewCopy(Tree, CodeTree.Tree);
+        CodeTree.Tree.SortType:= F.CodetreeSortType;
+        if CodeTree.Tree.SortType<>stNone then
+          CodeTree.Tree.AlphaSort;
         DoPyEvent_AppState(APPSTATE_CODETREE_AFTER_FILL);
+
         UpdateTreeFilter;
-        UpdateTreeSelection(F, Ed);
+        UpdateTreeSelection(Ed);
         DoCodetree_UpdateVersion(Ed);
       end;
     end;
@@ -222,13 +227,11 @@ begin
   Gr.SetPagesAndTabIndex(NLocalGroup, NTab);
 end;
 
-procedure TfmMain.FrameOnSaveFile(Sender: TObject);
-var
-  F: TEditorFrame;
-  fn: string;
+procedure TfmMain.FrameOnSaveFile(Sender: TObject; const fn: string);
+//var
+//  Ed: TATSynEdit;
 begin
-  F:= Sender as TEditorFrame;
-  fn:= F.FileName;
+  //Ed:= Sender as TATSynEdit;
   MsgStatus(
     msgStatusSavedFile+' '+
     ExtractFileName_Fixed(fn)+
@@ -257,7 +260,6 @@ procedure TfmMain.FrameParseDone(Sender: TObject);
 var
   Ada: TATAdapterEControl;
   Ed: TATSynEdit;
-  Params: TAppVariantArray;
 begin
   UpdateLexerProgressbar(0, true);
   UpdateTreeByTimer;
@@ -274,10 +276,7 @@ begin
 
   //do on_lexer_parsed only if parsing was long
   if Ada.LexerParsingElapsed>=UiOps.LexerParsingMinTimeForEvent then
-  begin
-    SetLength(Params, 0);
-    DoPyEvent(Ed, cEventOnLexerParsed, Params);
-  end;
+    DoPyEvent(Ed, cEventOnLexerParsed, []);
 end;
 
 function TfmMain.FrameOfPopup: TEditorFrame;
@@ -295,13 +294,14 @@ end;
 
 procedure TfmMain.FrameOnChangeSlow(Sender: TObject);
 var
-  Params: TAppVariantArray;
   Ed: TATSynEdit;
 begin
   Ed:= Sender as TATSynEdit;
+  DoPyEvent(Ed, cEventOnChangeSlow, []);
 
-  SetLength(Params, 0);
-  DoPyEvent(Ed, cEventOnChangeSlow, Params);
+  //run tree-helper for lite lexers
+  if Ed.AdapterForHilite is TATLiteLexer then
+    UpdateTree(true);
 
   //call Find dialog's updating of 'Hi' results
   if Assigned(fmFind) and fmFind.Visible then

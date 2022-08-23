@@ -1,5 +1,20 @@
 See http://wiki.freepascal.org/CudaText#How_to_make_translation
 
+2022.08.18
++ [sc] FileDeletedOutside
+
+2022.04.11
++ [si] FontSizeChanged, LexerDisabledBySize
+
+2022.03.08
++ [m_e] pst_in, pst_hs
+
+2021.11.23
++ [d_f] h_subs
+
+2021.11.10
++ [si] CmdPalette
+
 2021.10.04
 * delete [si] MacroRec
 

@@ -16,13 +16,13 @@ uses
   IniFiles, ColorBox, StdCtrls, ExtCtrls,
   Types, LazUTF8, LazFileUtils,
   LCLType,
+  ATSynEdit_Globals,
   ec_SyntAnal,
   ec_syntax_format,
   formlexerstyle,
   proc_msg,
   proc_globdata,
-  proc_colors,
-  proc_miscutils;
+  proc_colors;
 
 type
   TApplyThemeEvent = procedure(const AColors: TAppTheme) of object;
@@ -49,7 +49,7 @@ type
     procedure HelpButtonClick(Sender: TObject);
     procedure ListKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure ListSelectionChange(Sender: TObject; User: boolean);
-    procedure ListStylesDrawItem(Control: TWinControl; Index: Integer; ARect: TRect; State: TOwnerDrawState);
+    procedure ListStylesDrawItem(Control: TWinControl; AIndex: Integer; ARect: TRect; State: TOwnerDrawState);
     procedure OKButtonClick(Sender: TObject);
   private
     { private declarations }
@@ -77,7 +77,7 @@ var
   ini: TIniFile;
   fn: string;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
   ini:= TIniFile.Create(fn);
   try
@@ -214,10 +214,10 @@ procedure TfmColorSetup.FormShow(Sender: TObject);
 begin
   Localize;
 
-  Width:= AppScale(Width);
-  Height:= AppScale(Height);
-  List.Width:= AppScale(List.Width);
-  ListStyles.Width:= AppScale(ListStyles.Width);
+  Width:= ATEditorScale(Width);
+  Height:= ATEditorScale(Height);
+  List.Width:= ATEditorScale(List.Width);
+  ListStyles.Width:= ATEditorScale(ListStyles.Width);
   UpdateFormOnTop(Self);
 
   PanelUi.Align:= alClient;
@@ -264,7 +264,7 @@ begin
   bNone.Enabled:= (NSel>=0) and (TAppThemeColorId(NSel) in cAppThemeColorsWhichAllowNone);
 end;
 
-procedure TfmColorSetup.ListStylesDrawItem(Control: TWinControl; Index: Integer; ARect: TRect;
+procedure TfmColorSetup.ListStylesDrawItem(Control: TWinControl; AIndex: Integer; ARect: TRect;
   State: TOwnerDrawState);
 const
   cIndent = 6;
@@ -275,8 +275,10 @@ var
   S: string;
   NWidth: integer;
 begin
+  if (AIndex<0) or (AIndex>=ListStyles.Items.Count) then exit;
+
   C:= (Control as TListbox).Canvas;
-  st:= ListStyles.Items.Objects[Index] as TecSyntaxFormat;
+  st:= ListStyles.Items.Objects[AIndex] as TecSyntaxFormat;
 
   C.Brush.Color:= clWindow;
   C.FillRect(ARect);
@@ -305,7 +307,7 @@ begin
   else
     C.Brush.Color:= clNone;
 
-  S:= ListStyles.Items[Index];
+  S:= ListStyles.Items[AIndex];
   C.Font.Color:= clBlack;
   C.Font.Style:= [];
   C.TextOut(ARect.Left+cIndent, ARect.Top, S);
@@ -319,4 +321,3 @@ begin
 end;
 
 end.
-

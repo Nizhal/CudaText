@@ -97,7 +97,7 @@ var
   ini: TIniFile;
   fn: string;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
   ini:= TIniFile.Create(fn);
   try
@@ -383,7 +383,7 @@ begin
       exit;
     end;
 
-  if Key=VK_ESCAPE then
+  if (Key=VK_ESCAPE) and (Shift=[]) then
   begin
     Close;
     Key:= 0;

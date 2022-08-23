@@ -5,6 +5,9 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 Copyright (c) Alexey Torgashin
 *)
+
+//{$define log_index}
+
 unit form_menu_py;
 
 {$mode objfpc}{$H+}
@@ -15,13 +18,15 @@ uses
   Classes, SysUtils, FileUtil, Forms, Controls, Graphics,
   ExtCtrls, Dialogs,
   ATSynEdit,
+  ATSynEdit_Globals,
   ATSynEdit_Edits,
   ATStringProc,
   ATListbox,
   ATCanvasPrimitives,
+  ATButtons,
   LclProc,
   LclType,
-  LclIntf,
+  LclIntf, Buttons,
   proc_globdata,
   proc_colors,
   proc_str,
@@ -31,9 +36,11 @@ type
   { TfmMenuApi }
 
   TfmMenuApi = class(TForm)
+    ButtonCancel: TATButton;
     edit: TATEdit;
     list: TATListbox;
     PanelCaption: TPanel;
+    procedure ButtonCancelClick(Sender: TObject);
     procedure editChange(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -46,6 +53,8 @@ type
     { private declarations }
     FMultiline: boolean;
     listFiltered: TFPList;
+    listFiltered_Simple: TFPList;
+    listFiltered_Fuzzy: TFPList;
     FColorBg: TColor;
     FColorBgSel: TColor;
     FColorFont: TColor;
@@ -54,7 +63,7 @@ type
     FColorFontHilite: TColor;
     procedure DoFilter;
     function GetResultCmd: integer;
-    function IsFiltered(AOrigIndex: integer): boolean;
+    function IsFiltered(AOrigIndex: integer; out AWordMatch: boolean): boolean;
     procedure SetListCaption(const AValue: string);
   public
     { public declarations }
@@ -96,6 +105,8 @@ begin
   DoFilter;
 
   List.ItemIndex:= InitItemIndex; //check of index not needed
+
+  ButtonCancel.Width:= ButtonCancel.Height;
 end;
 
 procedure TfmMenuApi.listClick(Sender: TObject);
@@ -127,7 +138,8 @@ begin
 
   list.Color:= FColorBg;
 
-  edit.Height:= AppScale(UiOps.InputHeight);
+  edit.Keymap:= AppKeymapMain;
+  edit.Height:= ATEditorScale(UiOps.InputHeight);
   edit.Font.Name:= EditorOps.OpFontName;
   edit.Font.Size:= EditorOps.OpFontSize;
   edit.Font.Quality:= EditorOps.OpFontQuality;
@@ -140,18 +152,20 @@ begin
   edit.OptCaretBlinkEnabled:= EditorOps.OpCaretBlinkEn;
   edit.OptCaretBlinkTime:= EditorOps.OpCaretBlinkTime;
 
-  PanelCaption.Height:= AppScale(26);
+  PanelCaption.Height:= ATEditorScale(26);
   PanelCaption.Font.Name:= UiOps.VarFontName;
-  PanelCaption.Font.Size:= AppScaleFont(UiOps.VarFontSize);
+  PanelCaption.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
   PanelCaption.Font.Color:= FColorFont;
 
   self.Color:= FColorBg;
-  self.Width:= AppScale(UiOps.ListboxSizeX);
-  self.Height:= AppScale(UiOps.ListboxSizeY);
+  self.Width:= ATEditorScale(UiOps.ListboxSizeX);
+  self.Height:= ATEditorScale(UiOps.ListboxSizeY);
 
   ResultCode:= -1;
   listItems:= TStringlist.Create;
   listFiltered:= TFPList.Create;
+  listFiltered_Simple:= TFPList.Create;
+  listFiltered_Fuzzy:= TFPList.Create;
 end;
 
 procedure TfmMenuApi.editChange(Sender: TObject);
@@ -159,8 +173,15 @@ begin
   DoFilter;
 end;
 
+procedure TfmMenuApi.ButtonCancelClick(Sender: TObject);
+begin
+  ModalResult:= mrCancel;
+end;
+
 procedure TfmMenuApi.FormDestroy(Sender: TObject);
 begin
+  FreeAndNil(listFiltered_Fuzzy);
+  FreeAndNil(listFiltered_Simple);
   FreeAndNil(listFiltered);
   FreeAndNil(listItems);
 end;
@@ -234,9 +255,12 @@ begin
 end;
 
 function TfmMenuApi.GetResultCmd: integer;
+var
+  n: integer;
 begin
-  if list.ItemIndex>=0 then
-    Result:= PtrInt(listFiltered[list.ItemIndex])
+  n:= list.ItemIndex;
+  if (n>=0) and (n<listFiltered.Count) then
+    Result:= PtrInt(listFiltered[n])
   else
     Result:= -1;
 end;
@@ -247,22 +271,52 @@ const
   IndentFor1stLine = 4;
   IndentFor2ndLine = 10;
 var
+  WordResults: TAppSearchWordsResults;
+  FuzzyResults: TATIntArray;
   buf, part_L, part_R: string;
-  s_name, s_name2, s_right, s_filter: UnicodeString;
+  s_filter, s_name, s_name2, s_right: string;
+  s_name_wide: UnicodeString;
   cl: TColor;
-  ar: TATIntArray;
   pnt: TPoint;
   RectClip: TRect;
   bCurrentFuzzy: boolean;
+  bFound: boolean;
   n, i: integer;
 begin
+  {$ifdef log_index}
+  MsgLogToFilename(
+    'listFiltered index: '+IntToStr(AIndex)+'; count: '+IntToStr(listFiltered.Count),
+    AppDir_Settings+DirectorySeparator+'index.log',
+    true);
+  {$endif}
+
+  //check indexes correctness, for issue #4277
+  if (AIndex<0) or (AIndex>=listFiltered.Count) then exit;
+  n:= PtrInt(listFiltered[AIndex]);
+
+  {$ifdef log_index}
+  MsgLogToFilename(
+  'listItems index: '+IntToStr(AIndex)+'; count: '+IntToStr(listItems.Count),
+    AppDir_Settings+DirectorySeparator+'index.log',
+    true);
+  {$endif}
+
+  if (n<0) or (n>=listItems.Count) then exit;
+  SSplitByChar(listItems[n], #9, part_L, part_R);
+
+  {$ifdef log_index}
+  MsgLogToFilename(
+    'part_L: "'+part_L+'"; part_R: "'+part_R+'"',
+    AppDir_Settings+DirectorySeparator+'index.log',
+    true);
+  {$endif}
+
   if UseEditorFont then
   begin
     c.Font.Name:= EditorOps.OpFontName;
-    c.Font.Size:= AppScaleFont(EditorOps.OpFontSize);
+    c.Font.Size:= ATEditorScaleFont(EditorOps.OpFontSize);
   end;
 
-  if AIndex<0 then exit;
   if AIndex=list.ItemIndex then
   begin
     c.Font.Color:= FColorFontSel;
@@ -276,8 +330,6 @@ begin
   c.Brush.Color:= cl;
   c.Pen.Color:= cl;
   c.FillRect(ARect);
-
-  SSplitByChar(listItems[PtrInt(listFiltered[AIndex])], #9, part_L, part_R);
 
   if not FMultiline then
   begin
@@ -303,8 +355,8 @@ begin
     s_name2:= CanvasCollapseStringByDots(C, part_L, CollapseMode, n - IndentFor1stLine);
   end;
 
-  //text of filter
-  s_filter:= Trim(edit.Text);
+  s_name_wide:= Utf8Decode(s_name);
+  s_filter:= Trim(Utf8Encode(edit.Text));
 
   bCurrentFuzzy:= UiOps.ListboxFuzzySearch and not DisableFuzzy;
   if bCurrentFuzzy and (s_name<>s_name2) then
@@ -316,42 +368,63 @@ begin
 
   c.Font.Color:= FColorFontHilite;
 
-  if bCurrentFuzzy then
+  bFound:= STextListsFuzzyInput(
+             s_name,
+             s_filter,
+             WordResults,
+             FuzzyResults,
+             bCurrentFuzzy);
+
+  if bFound then
   begin
-    ar:= SFindFuzzyPositions(s_name, s_filter);
-    for i:= Low(ar) to High(ar) do
+    if Length(FuzzyResults)>0 then
     begin
-      buf:= Utf8Encode(UnicodeString(s_name[ar[i]]));
-      n:= c.TextWidth(Utf8Encode(Copy(s_name, 1, ar[i]-1)));
-      RectClip:= Rect(pnt.x+n, pnt.y, pnt.x+n+c.TextWidth(buf), ARect.Bottom);
-      ExtTextOut(c.Handle,
-        RectClip.Left, RectClip.Top,
-        ETO_CLIPPED+ETO_OPAQUE,
-        @RectClip,
-        PChar(buf),
-        Length(buf),
-        nil);
+      for i:= Low(FuzzyResults) to High(FuzzyResults) do
+      begin
+        buf:= Utf8Encode(UnicodeString(s_name_wide[FuzzyResults[i]]));
+        n:= c.TextWidth(Utf8Encode(Copy(s_name_wide, 1, FuzzyResults[i]-1)));
+        RectClip:= Rect(
+          pnt.x+n,
+          pnt.y,
+          pnt.x+n+c.TextWidth(buf),
+          ARect.Bottom
+          );
+        ExtTextOut(c.Handle,
+          RectClip.Left,
+          RectClip.Top,
+          ETO_CLIPPED+ETO_OPAQUE,
+          @RectClip,
+          PChar(buf),
+          Length(buf),
+          nil
+          );
+      end;
+    end
+    else
+    if WordResults.MatchesCount>0 then
+    begin
+      for i:= 0 to WordResults.MatchesCount-1 do
+      begin
+        buf:= Copy(s_name, WordResults.MatchesArray[i].WordPos, WordResults.MatchesArray[i].WordLen);
+        n:= c.TextWidth(Copy(s_name, 1, WordResults.MatchesArray[i].WordPos-1));
+        RectClip:= Rect(
+          pnt.x+n,
+          pnt.y,
+          pnt.x+n+c.TextWidth(buf),
+          ARect.Bottom
+          );
+        ExtTextOut(c.Handle,
+          RectClip.Left,
+          RectClip.Top,
+          ETO_CLIPPED+ETO_OPAQUE,
+          @RectClip,
+          PChar(buf),
+          Length(buf),
+          nil
+          );
+      end;
     end;
   end;
-  {//no support for n words
-  else
-  begin
-    n:= Pos(Lowercase(s_filter), Lowercase(s_name));
-    if n>0 then
-    begin
-      buf:= Copy(s_name, n, Length(s_filter));
-      n:= c.TextWidth(Copy(s_name, 1, n-1));
-      RectClip:= Rect(pnt.x+n, pnt.y, pnt.x+n+c.TextWidth(buf), ARect.Bottom);
-      ExtTextOut(c.Handle,
-        RectClip.Left, RectClip.Top,
-        ETO_CLIPPED+ETO_OPAQUE,
-        @RectClip,
-        PChar(buf),
-        Length(buf),
-        nil);
-    end;
-  end;
-  }
 
   if s_right<>'' then
   begin
@@ -374,12 +447,24 @@ end;
 
 procedure TfmMenuApi.DoFilter;
 var
+  bSimple: boolean;
   i: integer;
 begin
   listFiltered.Clear;
+  listFiltered_Simple.Clear;
+  listFiltered_Fuzzy.Clear;
+
   for i:= 0 to listItems.Count-1 do
-    if IsFiltered(i) then
-      listFiltered.Add(Pointer(PtrInt(i)));
+    if IsFiltered(i, bSimple) then
+    begin
+      if bSimple then
+        listFiltered_Simple.Add(Pointer(PtrInt(i)))
+      else
+        listFiltered_Fuzzy.Add(Pointer(PtrInt(i)));
+    end;
+
+  listFiltered.AddList(listFiltered_Simple);
+  listFiltered.AddList(listFiltered_Fuzzy);
 
   list.ItemIndex:= 0;
   list.ItemTop:= 0;
@@ -387,21 +472,32 @@ begin
   list.Invalidate;
 end;
 
-function TfmMenuApi.IsFiltered(AOrigIndex: integer): boolean;
+function TfmMenuApi.IsFiltered(AOrigIndex: integer; out AWordMatch: boolean): boolean;
 var
+  WordResults: TAppSearchWordsResults;
+  FuzzyResults: TATIntArray;
   SFind, SText: string;
 begin
+  Result:= false;
+  AWordMatch:= false;
+
+  SFind:= Trim(UTF8Encode(edit.Text));
+  if SFind='' then
+    exit(true);
+
+  if (AOrigIndex<0) or (AOrigIndex>=listItems.Count) then
+    exit;
   SText:= listItems[AOrigIndex];
   if DisableFullFilter then
     SText:= SGetItem(SText, #9);
 
-  SFind:= Trim(UTF8Encode(edit.Text));
-  if SFind='' then exit(true);
-
-  if UiOps.ListboxFuzzySearch and not DisableFuzzy then
-    Result:= STextListsFuzzyInput(SText, SFind)
-  else
-    Result:= STextListsAllWords(SText, SFind);
+  Result:= STextListsFuzzyInput(
+             SText,
+             SFind,
+             WordResults,
+             FuzzyResults,
+             UiOps.ListboxFuzzySearch and not DisableFuzzy);
+  AWordMatch:= WordResults.MatchesCount>0;
 end;
 
 procedure TfmMenuApi.SetListCaption(const AValue: string);
@@ -419,4 +515,3 @@ begin
 end;
 
 end.
-

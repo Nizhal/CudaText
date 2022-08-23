@@ -23,8 +23,8 @@ begin
           UiOps.FindIndentHorz,
           UiOps.FindIndentVert,
           true,
-          true
-          );
+          true,
+          true);
       end;
 
     markingSelections:
@@ -180,6 +180,7 @@ begin
     FFinder.OptCase:= chkCase.Checked;
     FFinder.OptWords:= chkWords.Checked;
     FFinder.OptRegex:= chkRegex.Checked;
+    FFinder.OptRegexSubst:= chkRegexSubst.Checked;
     FFinder.OptWrapped:= chkWrap.Checked;
     FFinder.OptInSelection:= chkInSel.Checked;
     FFinder.OptFromCaret:= (Res=afoFindNext) or (Res=afoFindPrev) or (Res=afoReplace);
@@ -379,7 +380,11 @@ begin
   //make workaround
   if (Res=afoReplaceAll) or
      (Res=afoReplaceGlobal) then
-    CurrentFrame.SetFocus;
+  begin
+    Frame:= CurrentFrame;
+    if Assigned(Frame) then
+      Frame.SetFocus;
+  end;
   {$endif}
 end;
 
@@ -392,10 +397,12 @@ begin
     fmFind:= TfmFind.Create(Self);
     fmFind.OnResult:= @FindDialogDone2;
     fmFind.OnChangeOptions:= @DoFindOptions_OnChange;
+    fmFind.OnChangeVisible:= @FinderFormChangeVisible;
     fmFind.OnFocusEditor:= @FindDialogFocusEditor;
     fmFind.OnGetMainEditor:= @FindDialogGetMainEditor;
     fmFind.OnGetToken:= @FinderOnGetToken;
     fmFind.OnShowMatchesCount:= @FinderShowMatchesCount;
+    fmFind.OnHandleKeyDown:= @FinderHandleKeyDown;
     fmFind.Color:= GetAppColor(apclTabBg);
     fmFind.UpdateInitialCaretPos;
 
@@ -430,6 +437,7 @@ begin
           FormPosSetFromString(fmFind, cfg.GetValue('/pos/find', ''), false);
         fmFind.IsMultiLine:= cfg.GetValue('/finder/mline', false);
         fmFind.IsHiAll:= cfg.GetValue('/finder/hi', false);
+        fmFind.chkRegexSubst.Checked:= cfg.GetValue('/finder/regex_subst', true);
       except
       end;
     finally
@@ -451,10 +459,12 @@ begin
   Ed:= Frame.Editor;
 
   StrWord:= Ed.TextCurrentWord;
-  StrSel:= Ed.TextSelected;
   StrSuggested:= '';
 
-  if not Ed.IsSelRectEmpty then StrSel:= '';
+  if Ed.IsSelColumn then
+    StrSel:= ''
+  else
+    StrSel:= Ed.TextSelected;
 
   bMultiLineSel:= false;
   if Ed.Carets.Count=1 then
@@ -463,54 +473,56 @@ begin
   //MsgLogDebug('find dlg: init');
   InitFormFind;
 
-  with fmFind do
+  if StrSel='' then
   begin
-    if StrSel='' then
-    begin
-      fmFind.chkInSel.Checked:= false;
-      FFinder.OptInSelection:= false;
-    end;
-
-    //change Find field only if options SuggestSel/SuggestWord on,
-    //else dont touch Find field
-    if UiOps.FindSuggestSel and (StrSel<>'') then
-    begin
-      if not FFinder.OptInSelection then
-        StrSuggested:= StrSel;
-    end
-    else
-    if UiOps.FindSuggestWord and (StrWord<>'') then
-      StrSuggested:= StrWord;
-
-    MsgLogDebug('find dlg: select all in input');
-    edFind.DoCommand(cCommand_SelectAll, cInvokeAppInternal);
-    edRep.DoCommand(cCommand_SelectAll, cInvokeAppInternal);
-
-    chkCase.Checked:= FFinder.OptCase;
-    chkWords.Checked:= FFinder.OptWords;
-    chkRegex.Checked:= FFinder.OptRegex;
-    chkConfirm.Checked:= FFinder.OptConfirmReplace;
-    chkWrap.Checked:= FFinder.OptWrapped;
-    bTokens.ItemIndex:= Ord(FFinder.OptTokens);
-
-    if UiOps.FindSuggestInSelection and bMultiLineSel then
-    begin
-      chkInSel.Checked:= true;
-      StrSuggested:= '';
-    end
-    else
-      chkInSel.Checked:= FFinder.OptInSelection;
-
-    UpdateInitialCaretPos;
-    UpdateInputFind(StrSuggested);
-    IsReplace:= AReplaceMode;
-
-    //MsgLogDebug('find dlg: update state');
-    UpdateState(true);
-    //MsgLogDebug('find dlg: show');
-    Show;
-    //MsgLogDebug('find dlg: focus');
+    fmFind.chkInSel.Checked:= false;
+    FFinder.OptInSelection:= false;
   end;
+
+  //change Find field only if options SuggestSel/SuggestWord on,
+  //else dont touch Find field
+  if UiOps.FindSuggestSel and (StrSel<>'') then
+  begin
+    if not FFinder.OptInSelection then
+      StrSuggested:= StrSel;
+  end
+  else
+  if UiOps.FindSuggestWord and (StrWord<>'') then
+    StrSuggested:= StrWord;
+
+  //MsgLogDebug('find dlg: select all in input');
+  fmFind.edFind.DoCommand(cCommand_SelectAll, cInvokeAppInternal);
+  fmFind.edRep.DoCommand(cCommand_SelectAll, cInvokeAppInternal);
+
+  fmFind.chkCase.Checked:= FFinder.OptCase;
+  fmFind.chkWords.Checked:= FFinder.OptWords;
+  fmFind.chkRegex.Checked:= FFinder.OptRegex;
+  fmFind.chkConfirm.Checked:= FFinder.OptConfirmReplace;
+  fmFind.chkWrap.Checked:= FFinder.OptWrapped;
+  fmFind.bTokens.ItemIndex:= Ord(FFinder.OptTokens);
+
+  if UiOps.FindSuggestInSelection and bMultiLineSel then
+  begin
+    fmFind.chkInSel.Checked:= true;
+    StrSuggested:= '';
+  end
+  else
+    fmFind.chkInSel.Checked:= FFinder.OptInSelection;
+
+  fmFind.UpdateInitialCaretPos;
+  if StrSuggested<>'' then
+    fmFind.UpdateInputFind(StrSuggested)
+  else
+    fmFind.edFind.DoSelect_All;
+  fmFind.IsReplace:= AReplaceMode;
+
+  UpdateFindDialogParent;
+  //MsgLogDebug('find dlg: update state');
+  fmFind.UpdateState(true);
+  //MsgLogDebug('find dlg: show');
+  fmFind.Show;
+  //MsgLogDebug('find dlg: focus');
+  fmFind.UpdateFormHeight; //update 'Replace' buttons visibility, when dlg is in the floating-grp-form
 
   UpdateFindDialogEnabled(Frame);
   if fmFind.Enabled then
@@ -538,16 +550,83 @@ begin
     fmFind.UpdateState(false);
 end;
 
+procedure TfmMain.UpdateFindDialogOnTabFocusing(F: TEditorFrame);
+//apply "Highlight all matches" on focusing new tab
+begin
+  if Assigned(fmFind) and fmFind.Visible then
+  begin
+    if Assigned(F) then
+      UpdateFindDialogEnabled(F);
+
+    if fmFind.Enabled then
+      fmFind.UpdateState(false); //if 'true', we have issue #3244
+                                 //if 'true', also the 'select-all' result is reset on focusing editor
+  end;
+end;
+
 procedure TfmMain.DoDialogFind_Hide;
+var
+  Frame: TEditorFrame;
 begin
   if Assigned(fmFind) and fmFind.Visible then
   begin
     //handy to reset in-sel, on closing dialog
     FFinder.OptInSelection:= false;
 
-    CurrentFrame.SetFocus;
+    Frame:= CurrentFrame;
+    if Assigned(Frame) then
+      Frame.SetFocus;
+
     fmFind.Hide;
     UpdateAppForSearch(false, false, true, true);
+  end;
+end;
+
+
+procedure TfmMain.DoDialogFind_Toggle(AReplaceMode, AAndFocus: boolean);
+var
+  Frame: TEditorFrame;
+  bFocusedBottom: boolean;
+begin
+  bFocusedBottom:= IsFocusedFind;
+  InitFormFind;
+
+  if fmFind.Visible then
+  begin
+    if fmFind.IsReplace<>AReplaceMode then
+    begin
+      UpdateFindDialogParent;
+      fmFind.IsReplace:= AReplaceMode;
+    end
+    else
+      fmFind.Hide;
+  end
+  else
+  begin
+    UpdateFindDialogParent;
+    fmFind.IsReplace:= AReplaceMode;
+    fmFind.Show;
+  end;
+
+  if fmFind.Visible then
+  begin
+    if AAndFocus then
+    begin
+      {$ifndef windows}
+      //fix focusing Find-dlg when command is called from cmd-palette
+      Application.ProcessMessages;
+      {$endif}
+      fmFind.UpdateFocus(not AReplaceMode);
+    end;
+  end
+  else
+  begin
+    if bFocusedBottom then
+    begin
+      Frame:= CurrentFrame;
+      if Assigned(Frame) then
+        Frame.SetFocus;
+    end;
   end;
 end;
 
@@ -772,6 +851,7 @@ begin
       AFinder.IndentHorz,
       AFinder.IndentVert,
       true,
+      true,
       true);
   end
   else
@@ -808,7 +888,6 @@ procedure TfmMain.FinderOnConfirmReplace_API(Sender: TObject; APos1,
   var AReplacement: UnicodeString);
 var
   ThisFinder: TATEditorFinder;
-  Params: TAppVariantArray;
   Callback: string;
   EventRes: TAppPyEventResult;
   Ed: TATSynEdit;
@@ -822,17 +901,17 @@ begin
   if Callback='' then exit;
 
   Ed.DoCaretSingle(APos1.X, APos1.Y, APos2.X, APos2.Y);
-  Ed.DoShowPos(APos1, ThisFinder.IndentHorz, ThisFinder.IndentVert, true, false);
+  Ed.DoShowPos(APos1, ThisFinder.IndentHorz, ThisFinder.IndentVert, true, false, true);
   Ed.Update(true);
 
-  SetLength(Params, 5);
-  Params[0]:= AppVariant(APos1.X);
-  Params[1]:= AppVariant(APos1.Y);
-  Params[2]:= AppVariant(APos2.X);
-  Params[3]:= AppVariant(APos2.Y);
-  Params[4]:= AppVariant(AReplacement);
-
-  EventRes:= DoPyCallbackFromAPI_2(Callback, Ed, Params);
+  EventRes:= DoPyCallbackFromAPI_2(Callback, Ed,
+    [
+    AppVariant(APos1.X),
+    AppVariant(APos1.Y),
+    AppVariant(APos2.X),
+    AppVariant(APos2.Y),
+    AppVariant(AReplacement)
+    ]);
 
   case EventRes.Val of
     evrInt:
@@ -887,22 +966,20 @@ begin
     );
   Ed.Update(true);
 
-  fmConfirmReplace:= TfmConfirmReplace.Create(Self);
-  try
-    fmConfirmReplace.MsgLineNumber:= APos1.Y+1;
-    fmConfirmReplace.bYesAll.Enabled:= AForMany;
-    fmConfirmReplace.bNoAll.Enabled:= AForMany;
-    if Assigned(fmFind) then
-    begin
-      Pnt:= fmFind.ClientToScreen(Point(0, 0));
-      fmConfirmReplace.Left:= Pnt.X;
-      fmConfirmReplace.Top:= Pnt.Y;
-      //fmConfirmReplace.Width:= fmFind.Width;
-    end;
-    Res:= fmConfirmReplace.ShowModal;
-  finally
-    FreeAndNil(fmConfirmReplace);
+  if fmConfirmReplace=nil then
+    fmConfirmReplace:= TfmConfirmReplace.Create(Self);
+
+  fmConfirmReplace.MsgLineNumber:= APos1.Y+1;
+  fmConfirmReplace.bYesAll.Enabled:= AForMany;
+  fmConfirmReplace.bNoAll.Enabled:= AForMany;
+  if Assigned(fmFind) then
+  begin
+    Pnt:= fmFind.ClientToScreen(Point(0, 0));
+    fmConfirmReplace.Left:= Pnt.X;
+    fmConfirmReplace.Top:= Pnt.Y;
+    //fmConfirmReplace.Width:= fmFind.Width;
   end;
+  Res:= fmConfirmReplace.ShowModal;
 
   Ed.BeginUpdate;
   AConfirm:= Res in [mrYes, mrYesToAll];
@@ -1014,7 +1091,7 @@ function TfmMain.DoFindOptions_GetDict: PPyObject;
 var
   oFind, oRep,
   oFindHist, oRepHist,
-  bCase, bWord, bRegex, bCfm,
+  bCase, bWord, bRegex, bRegexSubst, bCfm,
   bInSel, bWrap, bMulLine, bHiAll, oTokens: PPyObject;
 begin
   with AppPython.Engine do
@@ -1029,6 +1106,7 @@ begin
     bCase:= ReturnNone;
     bWord:= ReturnNone;
     bRegex:= ReturnNone;
+    bRegexSubst:= ReturnNone;
     bCfm:= ReturnNone;
     bInSel:= ReturnNone;
     bWrap:= ReturnNone;
@@ -1045,6 +1123,7 @@ begin
       bCase:= PyBool_FromLong(Ord(fmFind.chkCase.Checked));
       bWord:= PyBool_FromLong(Ord(fmFind.chkWords.Checked));
       bRegex:= PyBool_FromLong(Ord(fmFind.chkRegex.Checked));
+      bRegexSubst:= PyBool_FromLong(Ord(fmFind.chkRegexSubst.Checked));
       bCfm:= PyBool_FromLong(Ord(fmFind.chkConfirm.Checked));
       bInSel:= PyBool_FromLong(Ord(fmFind.chkInSel.Checked));
       bWrap:= PyBool_FromLong(Ord(fmFind.chkWrap.Checked));
@@ -1053,7 +1132,7 @@ begin
       oTokens:= PyLong_FromLong(Ord(fmFind.bTokens.ItemIndex));
     end;
 
-    Result:= Py_BuildValue('{sOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsO}',
+    Result:= Py_BuildValue('{sOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsO}',
       'find', PyUnicodeFromString(FFinder.StrFind),
       'rep', PyUnicodeFromString(FFinder.StrReplace),
 
@@ -1066,6 +1145,7 @@ begin
       'op_back', PyBool_FromLong(Ord(FFinder.OptBack)),
       'op_word', PyBool_FromLong(Ord(FFinder.OptWords)),
       'op_regex', PyBool_FromLong(Ord(FFinder.OptRegex)),
+      'op_regex_subst', PyBool_FromLong(Ord(FFinder.OptRegexSubst)),
       'op_cfm', PyBool_FromLong(Ord(FFinder.OptConfirmReplace)),
       'op_fromcaret', PyBool_FromLong(Ord(FFinder.OptFromCaret)),
       'op_insel', PyBool_FromLong(Ord(FFinder.OptInSelection)),
@@ -1075,6 +1155,7 @@ begin
       'op_case_d', bCase,
       'op_word_d', bWord,
       'op_regex_d', bRegex,
+      'op_regex_subst_d', bRegexSubst,
       'op_cfm_d', bCfm,
       'op_insel_d', bInSel,
       'op_wrap_d', bWrap,
@@ -1164,6 +1245,8 @@ begin
         FFinder.OptWords:= AppStrToBool(SValue);
       'op_regex':
         FFinder.OptRegex:= AppStrToBool(SValue);
+      'op_regex_subst':
+        FFinder.OptRegexSubst:= AppStrToBool(SValue);
       'op_cfm':
         FFinder.OptConfirmReplace:= AppStrToBool(SValue);
       'op_fromcaret':
@@ -1198,6 +1281,15 @@ begin
           if Assigned(fmFind) then
           begin
             fmFind.chkRegex.Checked:= AppStrToBool(SValue);
+            fmFind.UpdateState(false);
+            fmFind.DoOnChange;
+          end;
+        end;
+      'op_regex_subst_d':
+        begin
+          if Assigned(fmFind) then
+          begin
+            fmFind.chkRegexSubst.Checked:= AppStrToBool(SValue);
             fmFind.UpdateState(false);
             fmFind.DoOnChange;
           end;
@@ -1263,6 +1355,7 @@ procedure TfmMain.DoFindActionFromString(const AStr: string);
 var
   Sep: TATStringSeparator;
   SAction, SFind, SRep, SOpt: string;
+  SOptOld: string;
 begin
   Sep.Init(AStr, #1);
   Sep.GetItemStr(SAction);
@@ -1277,12 +1370,15 @@ begin
   FFinder.Editor:= CurrentEditor;
   FFinder.StrFind:= UTF8Decode(SFind);
   FFinder.StrReplace:= UTF8Decode(SRep);
+
+  SOptOld:= FinderOptionsToString(FFinder);
   FinderOptionsFromString(FFinder, SOpt);
   FindDialogDone(
     nil, //skip dialog
     AppFinderOperationFromString(SAction),
     false //'false' to solve issue #3303
     );
+  FinderOptionsFromString(FFinder, SOptOld);
 end;
 
 procedure TfmMain.DoFindOptions_OnChange(Sender: TObject);
@@ -1294,6 +1390,7 @@ begin
     FFinder.OptCase:= chkCase.Checked;
     FFinder.OptWords:= chkWords.Checked;
     FFinder.OptRegex:= chkRegex.Checked;
+    FFinder.OptRegexSubst:= chkRegexSubst.Checked;
     FFinder.OptWrapped:= chkWrap.Checked;
     FFinder.OptInSelection:= chkInSel.Checked;
     FFinder.OptConfirmReplace:= chkConfirm.Checked;
@@ -1304,5 +1401,47 @@ end;
 procedure TfmMain.FindDialogFocusEditor(Sender: TObject);
 begin
   DoFocusEditor(CurrentEditor);
+end;
+
+function TfmMain.FinderHandleKeyDown(AKey: word; AShiftState: TShiftState): boolean;
+var
+  Ed: TATSynEdit;
+  NCmd: integer;
+  KeyHistory: TATKeyArray;
+begin
+  Result:= false;
+  Ed:= CurrentEditor;
+  if Ed=nil then exit;
+
+  FillChar(KeyHistory{%H-}, SizeOf(KeyHistory), 0);
+  NCmd:= Ed.Keymap.GetCommandFromShortcut(ShortCut(AKey, AShiftState), KeyHistory);
+  if IsCommandHandledFromFindDialog(NCmd) then
+  begin
+    Ed.DoCommand(NCmd, cInvokeHotkey);
+    Result:= true;
+  end;
+end;
+
+procedure TfmMain.FinderFormChangeVisible(Sender: TObject);
+begin
+  UpdateSidebarButtonFind;
+end;
+
+procedure TfmMain.UpdateFindDialogParent;
+var
+  F: TCustomForm;
+begin
+  if UiOps.FindSeparateForm then exit;
+  if fmFind=nil then exit;
+  if fmFind.Parent=nil then exit;
+
+  F:= Screen.ActiveForm;
+  if F=Self then
+    fmFind.Parent:= Self.PanelMain
+  else
+  if (F=FFormFloatGroups1) or
+    (F=FFormFloatGroups2) or
+    (F=FFormFloatGroups3) then
+    fmFind.Parent:= F;
 end;
 

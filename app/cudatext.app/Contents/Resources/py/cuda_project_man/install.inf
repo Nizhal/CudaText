@@ -15,6 +15,10 @@ section=events
 events=on_open_pre
 keys=cuda-proj
 
+[item3]
+section=events
+events=on_delete_file~
+
 [item4]
 section=commands
 caption=&Project Manager\&Show Project panel
@@ -92,6 +96,37 @@ method=add_current_file
 section=commands
 caption=&Project Manager\Add to project: all opened files
 method=add_opened_files
+
+
+[item80]
+section=commands
+caption=&Project Manager\Open session...
+method=session_load_menu
+
+[item81]
+section=commands
+caption=&Project Manager\Save session...
+method=session_save_as
+
+[item82]
+section=commands
+caption=&Project Manager\Delete session...
+method=session_delete
+
+[item85]
+section=commands
+caption=&Project Manager\Set default session...
+method=session_def
+
+[item86]
+section=commands
+caption=&Project Manager\Forget session, close all tabs
+method=session_forget_ex
+
+[item91]
+section=commands
+caption=&Project Manager\Close tabs not belonging to project
+method=close_foreign_tabs
 
 
 [item100]

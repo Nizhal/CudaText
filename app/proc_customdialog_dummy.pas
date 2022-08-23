@@ -43,9 +43,9 @@ type
     );
 
 var
-  CustomDialog_DoPyCallback: TAppPyCommonCallback = nil;
-  CustomDialog_OnEditorCommand: TATSynEditCommandEvent = nil;
-  CustomDialogs: TFPList;
+  AppCustomDialog_DoPyCallback: TAppPyCommonCallback = nil;
+  AppCustomDialog_OnEditorCommand: TATSynEditCommandEvent = nil;
+  AppCustomDialogs: TFPList;
 
 
 type
@@ -153,7 +153,6 @@ type
     procedure DoOnTreeviewSelect(Sender: TObject);
     procedure DoOnTreeviewExpanding(Sender: TObject; Node: TTreeNode; var AllowExpansion: Boolean);
     procedure DoOnTreeviewCollapsing(Sender: TObject; Node: TTreeNode; var AllowCollapse: Boolean);
-    procedure DoOnTreeviewDeletion(Sender: TObject; Node: TTreeNode);
     procedure DoOnStatusbarPanelClick(Sender: TObject; AIndex: integer);
     procedure DoOnControlSelect(Sender: TObject);
     procedure DoOnControlFocusEnter(Sender: TObject);
@@ -324,16 +323,27 @@ begin
   PrevBorderStyle:= BorderStyle;
   PrevForms:= TFPList.Create;
 
-  CustomDialogs.Add(Self);
+  AppCustomDialogs.Add(Self);
 end;
 
 destructor TFormDummy.Destroy;
 var
-  n: integer;
+  Ctl: TComponent;
+  i, n: integer;
 begin
-  n:= CustomDialogs.IndexOf(Self);
+  for i:= ComponentCount-1 downto 0 do
+  begin
+    Ctl:= Components[i];
+    if Ctl.Tag<>0 then
+    begin
+      TObject(Ctl.Tag).Free;
+      Ctl.Tag:= 0;
+    end;
+  end;
+
+  n:= AppCustomDialogs.IndexOf(Self);
   if n>=0 then
-    CustomDialogs.Delete(n);
+    AppCustomDialogs.Delete(n);
 
   FreeAndNil(PrevForms);
   inherited;
@@ -927,23 +937,22 @@ var
 begin
   if ACallback='' then exit(true);
 
-  SetLength(ParamVars, 2);
-  SetLength(ParamNames, 2);
-  ParamVars[0]:= AppVariant(PtrInt(Self));
-  ParamVars[1]:= AppVariant(AIdControl);
-  ParamNames[0]:= 'id_dlg';
-  ParamNames[1]:= 'id_ctl';
+  ParamVars:= [
+    AppVariant(PtrInt(Self)),
+    AppVariant(AIdControl)
+    ];
+  ParamNames:= [
+    'id_dlg',
+    'id_ctl'
+    ];
 
   if AData.Typ<>avrNil then
   begin
-    SetLength(ParamVars, Length(ParamVars)+1);
-    ParamVars[Length(ParamVars)-1]:= AData;
-
-    SetLength(ParamNames, Length(ParamNames)+1);
-    ParamNames[Length(ParamNames)-1]:= 'data';
+    ParamVars:= Concat(ParamVars, [AData]);
+    ParamNames:= Concat(ParamNames, ['data']);
   end;
 
-  Result:= CustomDialog_DoPyCallback(ACallback, ParamVars, ParamNames);
+  Result:= AppCustomDialog_DoPyCallback(ACallback, ParamVars, ParamNames);
 end;
 
 procedure TFormDummy.DoEmulatedModalShow;
@@ -1022,12 +1031,6 @@ begin
   IdControl:= FindControlIndexByOurObject(Sender);
   Data:= AppVariant(PtrInt(Node));
   DoEvent(IdControl, Props.FEventOnFold, Data);
-end;
-
-procedure TFormDummy.DoOnTreeviewDeletion(Sender: TObject; Node: TTreeNode);
-begin
-  if Assigned(Node.Data) then
-    TObject(Node.Data).Free;
 end;
 
 procedure TFormDummy.DoOnStatusbarPanelClick(Sender: TObject; AIndex: integer);
@@ -1309,10 +1312,10 @@ end;
 
 
 initialization
-  CustomDialogs:= TFPList.Create;
+  AppCustomDialogs:= TFPList.Create;
 
 finalization
-  CustomDialogs.Free;
+  AppCustomDialogs.Free;
 
 end.
 

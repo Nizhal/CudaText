@@ -1,4 +1,4 @@
-object SyntAnal16: TLibSyntAnalyzer
+object SyntAnal17: TLibSyntAnalyzer
   Formats = <
     item
       DisplayName = 'Number'
@@ -135,7 +135,7 @@ object SyntAnal16: TLibSyntAnalyzer
       DisplayName = 'String '#39#39#39
       StyleName = 'String'
       TokenType = 4
-      Expression = '(?s)[rbuf]* ("""|'#39#39#39') .*? (\1|\Z)'
+      Expression = '(?s)[rbuf]* ("""|'#39#39#39') (\\.|.)*? (\1|\Z)'
       ColumnFrom = 0
       ColumnTo = 0
     end
@@ -220,36 +220,45 @@ object SyntAnal16: TLibSyntAnalyzer
       ColumnTo = 0
     end
     item
-      DisplayName = 'Int hex'
+      DisplayName = 'Num hex'
       StyleName = 'Number'
       TokenType = 5
-      Expression = '\b0x(_?[0-9a-f])+\b'
+      Expression = '\b0x[\h_]+\b'
       ColumnFrom = 0
       ColumnTo = 0
     end
     item
-      DisplayName = 'Int octal'
+      DisplayName = 'Num octal'
       StyleName = 'Number'
       TokenType = 5
-      Expression = '\b0o(_?[0-7])+\b'
+      Expression = '\b0o[0-7_]+\b'
       ColumnFrom = 0
       ColumnTo = 0
     end
     item
-      DisplayName = 'Int bin'
+      DisplayName = 'Num binary'
       StyleName = 'Number'
       TokenType = 5
-      Expression = '\b0b(_?[01])+\b'
+      Expression = '\b0b[01_]+\b'
       ColumnFrom = 0
       ColumnTo = 0
     end
     item
-      DisplayName = 'Int/float'
+      DisplayName = 'Num float'
       StyleName = 'Number'
       TokenType = 5
       Expression = 
-        '\b \d[_\d]* \.?\d*[_\d]* (e[\-\+]?\d[_\d]*)?j? \b |'#13#10'\B\.\d[_\d]' +
-        '* (e[\-\+]?\d[_\d]*)?j? \b |'#13#10'\b\d[_\d]*\.? ([Lj]\b)?'
+        '\b \d[_\d]* \.\d[_\d]* (e[\-\+]?\d[_\d]*)?j? \b |'#13#10'\b \d[_\d]* e' +
+        '[\-\+]?\d[_\d]*?j? \b |'#13#10'\B\.\d[_\d]* (e[\-\+]?\d[_\d]*)?j? \b |' +
+        #13#10'\b\d[_\d]*\. ([Lj]\b)?'
+      ColumnFrom = 0
+      ColumnTo = 0
+    end
+    item
+      DisplayName = 'Num decimal'
+      StyleName = 'Number'
+      TokenType = 5
+      Expression = '\b\d[\d_]*j?\b'
       ColumnFrom = 0
       ColumnTo = 0
     end
@@ -273,7 +282,7 @@ object SyntAnal16: TLibSyntAnalyzer
       DisplayName = 'Symbol'
       StyleName = 'Symbol'
       TokenType = 3
-      Expression = '[/\*,\.;=<>\+\-\^!%\\\|~&]+'
+      Expression = '[/\*,\.;=<>\+\-\^!%\\\|~&]+ | :='
       ColumnFrom = 0
       ColumnTo = 0
     end
@@ -657,6 +666,58 @@ object SyntAnal16: TLibSyntAnalyzer
       HighlightPos = cpAny
       NoEndRule = True
       IgnoreAsParent = False
+    end
+    item
+      DisplayName = '{'
+      ConditionList = <
+        item
+          TagList.Strings = (
+            '{')
+          TokenTypes = 264
+        end>
+      BlockEnd = '}'
+      DisplayInTree = False
+      HighlightPos = cpAny
+      CollapseFmt = '{ ... }'
+      IgnoreAsParent = False
+    end
+    item
+      DisplayName = '}'
+      BlockType = btRangeEnd
+      ConditionList = <
+        item
+          TagList.Strings = (
+            '}')
+          TokenTypes = 264
+        end>
+      HighlightPos = cpAny
+      IgnoreAsParent = False
+    end
+    item
+      DisplayName = '['
+      ConditionList = <
+        item
+          TagList.Strings = (
+            '[')
+          TokenTypes = 264
+        end>
+      BlockEnd = ']'
+      DisplayInTree = False
+      HighlightPos = cpAny
+      CollapseFmt = '[ ... ]'
+      IgnoreAsParent = False
+    end
+    item
+      DisplayName = ']'
+      BlockType = btRangeEnd
+      ConditionList = <
+        item
+          TagList.Strings = (
+            ']')
+          TokenTypes = 264
+        end>
+      HighlightPos = cpAny
+      IgnoreAsParent = False
     end>
   CodeTemplates = <>
   SubAnalyzers = <>
@@ -698,7 +759,7 @@ object SyntAnal16: TLibSyntAnalyzer
     '^Id'
     'Symbol'
     '^String'
-    'Number'
+    '^Number'
     'Number2'
     '^Comment'
     '^Symbol'
@@ -709,11 +770,11 @@ object SyntAnal16: TLibSyntAnalyzer
     'Id func name'
     'Id after .'
     '^Id='
-    '^@Id'
+    '^Decor'
     '^Id tree class')
   Extentions = 
-    'py py3 pyw pyi pyx pyx.in pxd pxd.in pxi pxi.in rpy cpy SConstru' +
-    'ct SConscript gyp gypi Snakefile smk vpy wscript bazel bzl'
+    'py py3 pyw pyi rpy cpy SConstruct SConscript gyp gypi Snakefile ' +
+    'smk vpy wscript bazel bzl'
   LexerName = 'Python'
   Notes.Strings = (
     'Python lexer by Alexey (CudaText)')

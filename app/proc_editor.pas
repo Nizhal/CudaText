@@ -18,8 +18,8 @@ uses
   Dialogs, Forms,
   Clipbrd,
   ATSynEdit,
+  ATSynEdit_Globals,
   ATSynEdit_LineParts,
-  ATSynEdit_CanvasProc,
   ATSynEdit_Carets,
   ATSynEdit_Markers,
   ATSynEdit_Commands,
@@ -68,11 +68,17 @@ function EditorGetLinkAtCaret(Ed: TATSynEdit): atString;
 function EditorLexerNameAtPos(Ed: TATSynEdit; APos: TPoint): string;
 
 type
-  TEdSelType = (selNo, selSmall, selStream, selCol, selCarets);
+  TEditorSelectionKind = (
+    selkindNone,
+    selkindSmallSel,
+    selkindStreamSel,
+    selkindColumnSel,
+    selkindCarets
+    );
   TEditorSimpleEvent = procedure(Ed: TATSynEdit) of object;
   TEditorBooleanEvent = procedure(Ed: TATSynEdit; AValue: boolean) of object;
 
-function EditorGetStatusType(ed: TATSynEdit): TEdSelType;
+function EditorGetSelectionKind(Ed: TATSynEdit): TEditorSelectionKind;
 function EditorFormatStatus(ed: TATSynEdit; const str: string): string;
 procedure EditorDeleteNewColorAttribs(ed: TATSynEdit);
 procedure EditorGotoLastEditingPos(Ed: TATSynEdit; AIndentHorz, AIndentVert: integer);
@@ -91,12 +97,13 @@ procedure EditorCopyLine(Ed: TATSynEdit);
 procedure EditorSetLine(Ed: TATSynEdit; AIndex: integer; AStr: UnicodeString);
 procedure EditorSetAllText(Ed: TATSynEdit; const AStr: string);
 procedure EditorDeleteRange(Ed: TATSynEdit; X1, Y1, X2, Y2: integer);
-function EditorInsert(Ed: TATSynEdit; X1, Y1: integer; const AStr: UnicodeString; var APosAfter: TPoint): boolean;
+function EditorInsert(Ed: TATSynEdit; AX, AY: integer; const AStr: UnicodeString; var APosAfter: TPoint): boolean;
 procedure EditorHighlightBadRegexBrackets(Ed: TATSynEdit; AOnlyClear: boolean);
 
 procedure EditorCaretShapeFromString(Props: TATCaretShape; const AText: string);
 procedure EditorCaretShapeFromPyTuple(Props: TATCaretShape; const AText: string);
 function EditorCaretInsideCommentOrString(Ed: TATSynEdit; AX, AY: integer): boolean;
+function EditorCaretIsOnStart(Ed: TATSynEdit): boolean;
 
 type
   TATEditorBracketKind = (
@@ -142,10 +149,11 @@ procedure EditorBracket_FindOpeningBracketBackward(Ed: TATSynEdit;
 type
   TATEditorFinderCallback = procedure(AFound: boolean; AFinder: TATEditorFinder) of object;
 
-function EditorGetTokenKind(Ed: TATSynEdit; AX, AY: integer): TATTokenKind;
+function EditorGetTokenKind(Ed: TATSynEdit; AX, AY: integer;
+  ADocCommentIsAlsoComment: boolean=true): TATTokenKind;
 function EditorExpandSelectionToWord(Ed: TATSynEdit;
   AFinderResultCallback: TATEditorFinderCallback;
-  AAndSelect: boolean): boolean;
+  AAddOrSkip, AWholeWords: boolean): boolean;
 function EditorFindCurrentWordOrSel(Ed: TATSynEdit;
   ANext, AWordOrSel, AOptCase, AOptWrapped: boolean;
   out Str: UnicodeString): boolean;
@@ -157,6 +165,7 @@ function EditorAutoCompletionAfterTypingChar(Ed: TATSynEdit;
 function EditorGetLefterHtmlTag(Ed: TATSynEdit; AX, AY: integer): UnicodeString;
 procedure EditorAutoCloseOpeningHtmlTag(Ed: TATSynEdit; AX, AY: integer);
 procedure EditorAutoCloseClosingHtmlTag(Ed: TATSynEdit; AX, AY: integer);
+procedure EditorChangeLineEndsForSelection(Ed: TATSynEdit; AValue: TATLineEnds);
 
 implementation
 
@@ -164,6 +173,7 @@ procedure EditorApplyOps(Ed: TATSynEdit; const Op: TEditorOps;
   AApplyUnprintedAndWrap, AApplyTabSize, AApplyCentering, AOneLiner: boolean);
 var
   Sep: TATStringSeparator;
+  MouseActions: TATEditorMouseActions;
   N: integer;
 begin
   Ed.Font.Name:= Op.OpFontName;
@@ -192,13 +202,11 @@ begin
   end;
 
   Ed.OptBorderFocusedActive:= Op.OpActiveBorderInEditor;
-  Ed.OptBorderWidthFocused:= AppScale(Op.OpActiveBorderWidth);
+  Ed.OptBorderWidthFocused:= ATEditorScale(Op.OpActiveBorderWidth);
 
   Ed.OptOverwriteSel:= Op.OpOverwriteSel;
   Ed.OptOverwriteAllowedOnPaste:= Op.OpOverwriteOnPaste;
   Ed.OptPasteWithEolAtLineStart:= Op.OpPasteWithEolAtLineStart;
-
-  EControlOptions.AutoFoldComments:= Op.OpAutoFoldComments;
 
   Ed.OptAutoPairForMultiCarets:= Op.OpAutoCloseBracketsMultiCarets;
   Ed.OptAutoPairChars:= Op.OpAutoCloseBrackets;
@@ -216,11 +224,11 @@ begin
     Ed.OptGutterShowFoldAlways:= Op.OpGutterFoldAlways;
     Ed.OptGutterIcons:= TATEditorGutterIcons(Op.OpGutterFoldIcons);
     if not Ed.IsModifiedGutterBookmarksVisible then
-      Ed.Gutter[Ed.GutterBandBookmarks].Visible:= Op.OpGutterBookmarks;
+      Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagBookmarks)].Visible:= Op.OpGutterBookmarks;
     if not Ed.IsModifiedGutterFoldingVisible then
-      Ed.Gutter[Ed.GutterBandFolding].Visible:= Op.OpGutterFold;
+      Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible:= Op.OpGutterFold;
     if not Ed.IsModifiedGutterNumbersVisible then
-      Ed.Gutter[Ed.GutterBandNumbers].Visible:= Op.OpNumbersShow;
+      Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible:= Op.OpNumbersShow;
     Ed.Gutter.Update;
 
     if Op.OpNumbersStyle<=Ord(High(TATEditorNumbersStyle)) then
@@ -279,28 +287,18 @@ begin
     Ed.OptUnprintedSpacesTrailing:= Pos('t', Op.OpUnprintedContent)>0;
     Ed.OptUnprintedSpacesBothEnds:= Pos('l', Op.OpUnprintedContent)>0;
     Ed.OptUnprintedSpacesOnlyInSelection:= Pos('x', Op.OpUnprintedContent)>0;
+    Ed.OptUnprintedSpacesAlsoInSelection:= Pos('X', Op.OpUnprintedContent)>0;
   end;
-
-  //global options
-  OptMaxTabPositionToExpand:= Op.OpTabMaxPosExpanded;
-  OptMaxLineLenForAccurateCharWidths:= Op.OpMaxLineLenForAccurateCharWidths;
 
   Ed.OptMaxLineLenToTokenize:= Op.OpMaxLineLenToTokenize;
 
   if Pos('.', Op.OpUnprintedContent)>0 then
-    OptUnprintedEndSymbol:= aeueDot
+    ATEditorOptions.UnprintedEndSymbol:= aeueDot
   else
   if Pos('p', Op.OpUnprintedContent)>0 then
-    OptUnprintedEndSymbol:= aeuePilcrow
+    ATEditorOptions.UnprintedEndSymbol:= aeuePilcrow
   else
-    OptUnprintedEndSymbol:= aeueArrowDown;
-  OptUnprintedTabCharLength:= Op.OpUnprintedTabArrowLen;
-  OptUnprintedSpaceDotScale:= Op.OpUnprintedSpaceDotScale;
-  OptUnprintedEndDotScale:= Op.OpUnprintedEndDotScale;
-  OptUnprintedEndFontScale:= Op.OpUnprintedEndFontScale * 6 div 10;
-  OptUnprintedTabPointerScale:= Op.OpUnprintedTabPointerScale;
-  OptUnprintedReplaceSpec:= Op.OpUnprintedReplaceSpec;
-  OptUnprintedReplaceSpecToCode:= StrToInt('$'+Op.OpUnprintedReplaceToCode);
+    ATEditorOptions.UnprintedEndSymbol:= aeueArrowDown;
 
   if AApplyUnprintedAndWrap then
     if not Ed.IsModifiedWrapMode then
@@ -367,6 +365,7 @@ begin
   begin
     Ed.OptFoldStyle:= TATEditorFoldStyle(Op.OpFoldStyle);
     Ed.OptFoldTooltipVisible:= Op.OpFoldTooltipShow;
+    Ed.OptFoldIconForMinimalRangeHeight:= Op.OpFoldIconForMinimalRangeHeight;
 
     Ed.OptMarkersSize:= Op.OpMarkerSize;
     Ed.OptStapleStyle:= TATLineStyle(Op.OpStaplesStyle);
@@ -399,9 +398,12 @@ begin
     Ed.OptIndentMakesWholeLinesSelection:= Op.OpIndentMakesWholeLineSel;
   end;
 
+  //change Ctrl+click to 'goto definition' and Ctrl+Wheel to 'add caret'
+  InitEditorMouseActions(MouseActions, Op.OpMouseGotoDefinition='c');
+  Ed.MouseActions:= MouseActions;
+
   Ed.OptMouse2ClickDragSelectsWords:= Op.OpMouse2ClickDragSelectsWords;
   Ed.OptMouseDragDrop:= Op.OpMouseDragDrop;
-  ATSynEdit.OptMouseDragDropFocusesTargetEditor:= Op.OpMouseDragDropFocusTarget;
   Ed.OptMouseMiddleClickAction:= TATEditorMiddleClickAction(Op.OpMouseMiddleClickAction);
   Ed.OptMouseRightClickMovesCaret:= Op.OpMouseRightClickMovesCaret;
   Ed.OptMouseEnableColumnSelection:= Op.OpMouseEnableColumnSelection;
@@ -435,7 +437,7 @@ end;
 procedure EditorApplyOpsCommon(Ed: TATSynEdit);
 begin
   Ed.OptBorderFocusedActive:= EditorOps.OpActiveBorderInControls;
-  Ed.OptBorderWidthFocused:= AppScale(EditorOps.OpActiveBorderWidth);
+  Ed.OptBorderWidthFocused:= ATEditorScale(EditorOps.OpActiveBorderWidth);
   Ed.OptCaretBlinkEnabled:= EditorOps.OpCaretBlinkEn;
   Ed.OptCaretBlinkTime:= EditorOps.OpCaretBlinkTime;
   Ed.OptScrollbarsNew:= EditorOps.OpScrollbarsNew;
@@ -588,26 +590,26 @@ begin
   ed.Update;
 end;
 
-function EditorGetStatusType(ed: TATSynEdit): TEdSelType;
+function EditorGetSelectionKind(Ed: TATSynEdit): TEditorSelectionKind;
 var
   NFrom, NTo: integer;
 begin
   if not Ed.IsSelRectEmpty then
-    result:= selCol
+    Result:= selkindColumnSel
   else
   if Ed.Carets.Count>1 then
-    result:= selCarets
+    Result:= selkindCarets
   else
   if Ed.Carets.IsSelection then
   begin
     Ed.Carets[0].GetSelLines(NFrom, NTo);
     if NTo>NFrom then
-      result:= selStream
+      Result:= selkindStreamSel
     else
-      result:= selSmall;
+      Result:= selkindSmallSel;
   end
   else
-    result:= selNo;
+    Result:= selkindNone;
 end;
 
 
@@ -622,6 +624,9 @@ begin
   Ed.Colors.TextDisabledBG:= GetAppColor(apclEdDisableBg);
   Ed.Colors.Caret:= GetAppColor(apclEdCaret);
   Ed.Colors.Markers:= GetAppColor(apclEdMarkers);
+  Ed.Colors.MacroRecordBorder:= Ed.Colors.Markers;
+  Ed.Colors.DragDropMarker:= Ed.Colors.Markers;
+  Ed.Colors.GitMarkerBG:= Ed.Colors.Markers;
   Ed.Colors.CurrentLineBG:= GetAppColor(apclEdCurLineBg);
   Ed.Colors.IndentVertLines:= GetAppColor(apclEdIndentVLine);
   Ed.Colors.UnprintedFont:= GetAppColor(apclEdUnprintFont);
@@ -1058,7 +1063,7 @@ begin
     if not bSel then
     begin
       St.TextInsert(X1, Y1, CharBegin+CharEnd, false, Shift, PosAfter);
-      Ed.DoCaretsShift(NCaret, X1, Y1, Shift.X, Shift.Y, PosAfter);
+      Ed.UpdateCaretsAndMarkersOnEditing(NCaret, X1, Y1, Shift.X, Shift.Y, PosAfter);
 
       Caret.PosX:= Caret.PosX+1;
       Caret.EndX:= -1;
@@ -1067,10 +1072,10 @@ begin
     else
     begin
       St.TextInsert(X2, Y2, CharEnd, false, Shift, PosAfter);
-      Ed.DoCaretsShift(NCaret, X2, Y2, Shift.X, Shift.Y, PosAfter);
+      Ed.UpdateCaretsAndMarkersOnEditing(NCaret, X2, Y2, Shift.X, Shift.Y, PosAfter);
 
       St.TextInsert(X1, Y1, CharBegin, false, Shift, PosAfter);
-      Ed.DoCaretsShift(NCaret, X1, Y1, Shift.X, Shift.Y, PosAfter);
+      Ed.UpdateCaretsAndMarkersOnEditing(NCaret, X1, Y1, Shift.X, Shift.Y, PosAfter);
 
       Caret.EndX:= X1+1;
       Caret.EndY:= Y1;
@@ -1150,7 +1155,13 @@ begin
 
   bExtend:= SEndsWith(SInput, '+');
   if bExtend then
-    SetLength(SInput, Length(SInput)-1);
+    SetLength(SInput, Length(SInput)-1)
+  else
+  begin
+    bExtend:= SBeginsWith(SInput, '+');
+    if bExtend then
+      Delete(SInput, 1, 1);
+  end;
 
   if SEndsWith(SInput, '%') then
   begin
@@ -1255,7 +1266,7 @@ begin
   Sep.GetItemInt(Props.Width, 1);
   Sep.GetItemInt(Props.Height, -100);
   Sep.GetItemStr(S);
-  Props.EmptyInside:= S='_';
+  Props.EmptyInside:= Pos('_', S)>0;
 end;
 
 
@@ -1698,8 +1709,8 @@ begin
   Ops.ShowMinimap:= Ed.OptMinimapVisible;
   Ops.ShowMicromap:= Ed.OptMicromapVisible;
   Ops.ShowRuler:= Ed.OptRulerVisible;
-  Ops.ShowNumbers:= Ed.Gutter.Items[Ed.GutterBandNumbers].Visible;
-  Ops.ShowFolding:= Ed.Gutter.Items[Ed.GutterBandFolding].Visible;
+  Ops.ShowNumbers:= Ed.Gutter.Items[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible;
+  Ops.ShowFolding:= Ed.Gutter.Items[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible;
   Ops.ShowUnprinted:= Ed.OptUnprintedVisible;
 
   Ops.UnprintedSpaces:= Ed.OptUnprintedSpaces;
@@ -1722,9 +1733,9 @@ begin
   if AOld.ShowRuler<>ANew.ShowRuler then
     Ed.OptRulerVisible:= ANew.ShowRuler;
   if AOld.ShowNumbers<>ANew.ShowNumbers then
-    Ed.Gutter.Items[Ed.GutterBandNumbers].Visible:= ANew.ShowNumbers;
+    Ed.Gutter.Items[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible:= ANew.ShowNumbers;
   if AOld.ShowFolding<>ANew.ShowFolding then
-    Ed.Gutter.Items[Ed.GutterBandFolding].Visible:= ANew.ShowFolding;
+    Ed.Gutter.Items[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible:= ANew.ShowFolding;
   if AOld.ShowUnprinted<>ANew.ShowUnprinted then
     Ed.OptUnprintedVisible:= ANew.ShowUnprinted;
 
@@ -1755,7 +1766,8 @@ begin
     SClipboardCopy(Ed.TextSelected, PrimarySelection);
 end;
 
-function EditorGetTokenKind(Ed: TATSynEdit; AX, AY: integer): TATTokenKind;
+function EditorGetTokenKind(Ed: TATSynEdit; AX, AY: integer;
+  ADocCommentIsAlsoComment: boolean): TATTokenKind;
 var
   NLen: integer;
 begin
@@ -1771,7 +1783,7 @@ begin
       exit;
     if AX=NLen then //caret at line end: decrement X
       Dec(AX);
-    Result:= TATAdapterEControl(Ed.AdapterForHilite).GetTokenKindAtPos(Point(AX, AY))
+    Result:= TATAdapterEControl(Ed.AdapterForHilite).GetTokenKindAtPos(Point(AX, AY), ADocCommentIsAlsoComment)
   end;
 end;
 
@@ -1788,12 +1800,13 @@ begin
 end;
 
 function EditorExpandSelectionToWord(Ed: TATSynEdit;
-  AFinderResultCallback: TATEditorFinderCallback; AAndSelect: boolean): boolean;
+  AFinderResultCallback: TATEditorFinderCallback;
+  AAddOrSkip, AWholeWords: boolean): boolean;
 var
   Caret: TATCaretItem;
   Finder: TATEditorFinder;
   MarkerPtr: PATMarkerItem;
-  X1, Y1, X2, Y2, NSelLen: integer;
+  X1, Y1, X2, Y2, NSelLen, NCaret: integer;
   bSel, bForwardSel: boolean;
   bWholeWord: boolean;
   sText: UnicodeString;
@@ -1835,6 +1848,14 @@ begin
     end;
   end;
 
+  //skip last (last made, not last in text) selection
+  if not AAddOrSkip then
+  begin
+    NCaret:= Ed.Carets.FindCaretBeforePos(X1, Y1, true);
+    if NCaret>=0 then
+      Ed.Carets.Delete(NCaret);
+  end;
+
   if not bSel then
   begin
     bForwardSel:= true;
@@ -1850,7 +1871,7 @@ begin
       Finder.StrReplace:= '';
       Finder.Editor:= Ed;
 
-      Finder.OptWords:= bWholeWord;
+      Finder.OptWords:= bWholeWord and AWholeWords;
       Finder.OptRegex:= false;
       Finder.OptCase:= true;
       Finder.OptBack:= false;
@@ -1864,25 +1885,22 @@ begin
 
       if Result then
       begin
-        if AAndSelect then
-        begin
-          if bForwardSel then
-            Ed.Carets.Add(
-              Finder.MatchEdEnd.X,
-              Finder.MatchEdEnd.Y,
-              Finder.MatchEdPos.X,
-              Finder.MatchEdPos.Y
-              )
-          else
-            Ed.Carets.Add(
-              Finder.MatchEdPos.X,
-              Finder.MatchEdPos.Y,
-              Finder.MatchEdEnd.X,
-              Finder.MatchEdEnd.Y
-              );
-          //sort carets: maybe we added caret in the middle
-          Ed.Carets.Sort;
-        end;
+        if bForwardSel then
+          Ed.Carets.Add(
+            Finder.MatchEdEnd.X,
+            Finder.MatchEdEnd.Y,
+            Finder.MatchEdPos.X,
+            Finder.MatchEdPos.Y
+            )
+        else
+          Ed.Carets.Add(
+            Finder.MatchEdPos.X,
+            Finder.MatchEdPos.Y,
+            Finder.MatchEdEnd.X,
+            Finder.MatchEdEnd.Y
+            );
+        //sort carets: maybe we added caret in the middle
+        Ed.Carets.Sort;
 
         if Finder.MatchEdEnd.Y=Finder.MatchEdPos.Y then
           NSelLen:= Finder.MatchEdEnd.X-Finder.MatchEdPos.X
@@ -1907,6 +1925,7 @@ begin
           Point(Finder.MatchEdPos.X, Finder.MatchEdPos.Y),
           UiOps.FindIndentHorz,
           UiOps.FindIndentVert,
+          true,
           true,
           true);
       end;
@@ -1981,7 +2000,9 @@ procedure EditorHighlightAllMatches(AFinder: TATEditorFinder;
 var
   ColorBorder: TColor;
   StyleBorder: TATLineStyle;
+  SavedCarets: TATCarets;
   bChanged: boolean;
+  bSaveCarets: boolean;
   NLineCount: integer;
 begin
   ColorBorder:= GetAppStyle(AppHiAll_ThemeStyleId).BgColor;
@@ -2003,27 +2024,44 @@ begin
   ////if UiOps.FindHiAll_MoveCaret then
   if AEnableFindNext then
   begin
-    //we found and highlighted all matches,
-    //now we need to do 'find next from caret' like Sublime does
-    NLineCount:= AFinder.Editor.Strings.Count;
-    if ACaretPos.Y>=NLineCount then exit;
-    AFinder.OptFromCaret:= true;
-    AFinder.Editor.DoCaretSingle(ACaretPos.X, ACaretPos.Y);
+    //CudaText issue #3950.
+    //we save selections before running HighlightAll, later we restore them.
+    bSaveCarets:= AFinder.OptInSelection and AFinder.Editor.Carets.IsSelection;
+    if bSaveCarets then
+      SavedCarets:= TATCarets.Create;
 
-    if AFinder.DoAction_FindOrReplace(
-      false{AReplace},
-      false,
-      bChanged,
-      false{AUpdateCaret}
-      ) then
-      AFinder.Editor.DoGotoPos(
-        AFinder.MatchEdPos,
-        AFinder.MatchEdEnd,
-        AFinder.IndentHorz,
-        100{big value to center vertically},
-        true{APlaceCaret},
-        true{ADoUnfold}
-        );
+    try
+      if bSaveCarets then
+        SavedCarets.Assign(AFinder.Editor.Carets);
+
+      //we found and highlighted all matches,
+      //now we need to do 'find next from caret' like Sublime does
+      NLineCount:= AFinder.Editor.Strings.Count;
+      if ACaretPos.Y>=NLineCount then exit;
+      AFinder.OptFromCaret:= true;
+      AFinder.Editor.DoCaretSingle(ACaretPos.X, ACaretPos.Y);
+
+      if AFinder.DoAction_FindOrReplace(
+        false{AReplace},
+        false,
+        bChanged,
+        false{AUpdateCaret}
+        ) then
+        AFinder.Editor.DoGotoPos(
+          AFinder.MatchEdPos,
+          AFinder.MatchEdEnd,
+          AFinder.IndentHorz,
+          100{big value to center vertically},
+          true{APlaceCaret},
+          true{ADoUnfold}
+          );
+
+      if bSaveCarets then
+        AFinder.Editor.Carets.Assign(SavedCarets);
+    finally
+      if bSaveCarets then
+        FreeAndNil(SavedCarets);
+    end;
   end;
 end;
 
@@ -2035,7 +2073,7 @@ begin
   //dont check Modified here
   Str:= Ed.Strings;
   Result:=
-    (Str.Count=0) or ((Str.Count=1) and (Str.Lines[0]=''));
+    (Str.Count=0) or ((Str.Count=1) and (Str.LinesLen[0]=0));
 end;
 
 procedure DeleteArrayItem(var Ar: TATIntArray; Val: integer);
@@ -2095,12 +2133,12 @@ begin
   Strs:= Ed.Strings;
   Strs.SetNewCommandMark;
 
-  //replace \AIndex \r to "_"
+  //replace \n \r to "_"
   for i:= 1 to Length(AStr) do
     if (AStr[i]=#10) or (AStr[i]=#13) then
       AStr[i]:= '_';
 
-  if AIndex=-1 then
+  if (AIndex=-1) or (AIndex=-2) then
   begin
     NLastIndex:= Strs.Count-1;
     Strs.LineAdd(AStr);
@@ -2110,17 +2148,21 @@ begin
       if Strs.LinesEnds[NLastIndex]=cEndNone then
         Strs.LinesEnds[NLastIndex]:= Strs.Endings;
     end;
+    if (AIndex=-2) and (AStr<>'') then
+      Strs.ActionDeleteFakeLineAndFinalEol;
   end
   else
   if Strs.IsIndexValid(AIndex) then
   begin
     Strs.Lines[AIndex]:= AStr;
-    if Strs.LinesEnds[AIndex]=cEndNone then
-      Strs.LinesEnds[AIndex]:= Strs.Endings;
+    if AIndex<Strs.Count-1 then
+      if Strs.LinesEnds[AIndex]=cEndNone then
+        Strs.LinesEnds[AIndex]:= Strs.Endings;
   end;
 
   Ed.DoEventChange(AIndex);
   Strs.ActionSaveLastEditionPos(0, AIndex);
+  Ed.UpdateWrapInfo(true); //fixing #4173
   Ed.Update(true);
 end;
 
@@ -2140,7 +2182,11 @@ begin
   Ed.DoCaretsFixIncorrectPos(false);
   Ed.DoEventChange(0);
   Strs.ActionSaveLastEditionPos(0, 0);
-  Ed.Update(true);
+
+  Strs.EnableCachedWrapinfoUpdate:= false;
+  Strs.IndexesOfEditedLines.Clear; //don't keep Undo -> list should be cleared
+  Ed.UpdateWrapInfo(true); //fix 2nd+3rd parts of CudaText #4172, Ed.Update(true) is not enough
+  Ed.Update(true); //with True, to fix CudaText #4174
 end;
 
 procedure EditorDeleteRange(Ed: TATSynEdit; X1, Y1, X2, Y2: integer);
@@ -2152,13 +2198,14 @@ begin
   Strs.SetNewCommandMark;
 
   Strs.TextDeleteRange(X1, Y1, X2, Y2, Shift, PosAfter);
-  Ed.DoCaretsShift(0, X1, Y1, Shift.X, Shift.Y, PosAfter);
+  Ed.UpdateMarkersOnDeleting(X1, Y1, X2, Y2);
+  Ed.UpdateCaretsAndMarkersOnEditing(0, X1, Y1, Shift.X, Shift.Y, PosAfter);
 
   Ed.DoEventChange(Y1);
   Ed.Update(true);
 end;
 
-function EditorInsert(Ed: TATSynEdit; X1, Y1: integer; const AStr: UnicodeString; var APosAfter: TPoint): boolean;
+function EditorInsert(Ed: TATSynEdit; AX, AY: integer; const AStr: UnicodeString; var APosAfter: TPoint): boolean;
 var
   Strs: TATStrings;
   Shift: TPoint;
@@ -2166,18 +2213,23 @@ begin
   Result:= true;
   Strs:= Ed.Strings;
   Strs.SetNewCommandMark;
-  if Y1<0 then exit(false);
+  if AY<0 then
+  begin
+    APosAfter:= Point(0, 0);
+    exit(false);
+  end;
 
   //too big index: do append
-  if Y1>=Strs.Count then
+  if AY>=Strs.Count then
     Strs.TextAppend(AStr, Shift, APosAfter)
   else
   begin
-    Strs.TextInsert(X1, Y1, AStr, false, Shift, APosAfter);
-    Ed.DoCaretsShift(0, X1, Y1, Shift.X, Shift.Y, APosAfter);
+    Strs.TextInsert(AX, AY, AStr, false, Shift, APosAfter);
+    Ed.UpdateCaretsAndMarkersOnEditing(0, AX, AY, Shift.X, Shift.Y, APosAfter);
   end;
 
-  Ed.DoEventChange(Y1);
+  Ed.DoEventChange(AY);
+  Ed.UpdateWrapInfo(true); //fixing #4173
   Ed.Update(true);
 end;
 
@@ -2189,6 +2241,7 @@ var
   OpenedRound: TATIntArray;
   OpenedSquare: TATIntArray;
   LevelRound, LevelSquare: integer;
+  PosSquareOpen: integer;
   S: UnicodeString;
   ch: WideChar;
   i: integer;
@@ -2197,11 +2250,12 @@ begin
   if AOnlyClear then exit;
 
   S:= Ed.Text;
-  SetLength(Bads, 0);
-  SetLength(OpenedRound, 0);
-  SetLength(OpenedSquare, 0);
+  Bads:= nil;
+  OpenedRound:= nil;
+  OpenedSquare:= nil;
   LevelRound:= 0;
   LevelSquare:= 0;
+  PosSquareOpen:= 0;
   i:= 0;
 
   while i<Length(S) do
@@ -2241,6 +2295,11 @@ begin
       begin
         AddArrayItem(OpenedSquare, i);
         Inc(LevelSquare);
+
+        PosSquareOpen:= i;
+        if (i<Length(S)) and (S[i+1]='^') then
+          Inc(PosSquareOpen);
+
         Continue;
       end;
 
@@ -2248,9 +2307,13 @@ begin
     begin
       if LevelSquare<1 then
         AddArrayItem(Bads, i);
-      if LevelSquare>0 then
+      //don't close by ']' immediately after '[' or '[^'
+      if (LevelSquare>0) and (PosSquareOpen>0) and (i-PosSquareOpen>1) then
+      begin
         Dec(LevelSquare);
-      DeleteArrayLastItem(OpenedSquare);
+        PosSquareOpen:= 0;
+        DeleteArrayLastItem(OpenedSquare);
+      end;
       Continue;
     end;
   end;
@@ -2295,6 +2358,15 @@ var
 begin
   Kind:= EditorGetTokenKind(Ed, AX, AY);
   Result:= (Kind=atkComment) or (Kind=atkString);
+end;
+
+function EditorCaretIsOnStart(Ed: TATSynEdit): boolean;
+var
+  Caret: TATCaretItem;
+begin
+  if Ed.Carets.Count<>1 then exit(false);
+  Caret:= Ed.Carets[0];
+  Result:= (Caret.PosX=0) and (Caret.PosY=0) and (Caret.EndY=-1);
 end;
 
 function EditorLexerNameAtPos(Ed: TATSynEdit; APos: TPoint): string;
@@ -2631,31 +2703,57 @@ end;
 procedure EditorAutoCloseClosingHtmlTag(Ed: TATSynEdit; AX, AY: integer);
 var
   SText: UnicodeString;
-  STag: UnicodeString;
+  STag: string;
   SLexer: string;
+  St: TATStrings;
   ch: WideChar;
+  NLen: integer;
 begin
   if Ed.Carets.Count<>1 then exit; //don't support multi-carets
   if not (UiOps.AutocompleteHtml and UiOps.AutocompleteHtml_AutoClose) then exit;
   if Ed.AdapterForHilite=nil then exit;
   SLexer:= Ed.AdapterForHilite.GetLexerName;
   if SLexer='' then exit;
+  St:= Ed.Strings;
 
-  if not Ed.Strings.IsIndexValid(AY) then exit;
+  if not St.IsIndexValid(AY) then exit;
+  NLen:= St.LinesLen[AY];
   if AX<2 then exit;
-  ch:= Ed.Strings.LineCharAt(AY, AX);
+  if AX>NLen then exit;
+  if AX<NLen then
+  begin
+    ch:= St.LineCharAt(AY, AX+1);
+    if IsCharWord(ch, Ed.OptNonWordChars) then exit;
+  end;
+  ch:= St.LineCharAt(AY, AX);
   if ch<>'/' then exit;
-  ch:= Ed.Strings.LineCharAt(AY, AX-1);
+  ch:= St.LineCharAt(AY, AX-1);
   if ch<>'<' then exit;
 
   if not SRegexMatchesString(SLexer, UiOps.AutocompleteHtml_Lexers, false) then exit;
 
-  SText:= Ed.Strings.TextSubstring(0, 0, AX-2, AY);
+  SText:= St.TextSubstring(0, 0, AX-2, AY);
   STag:= EditorFindHtmlLastOpenedTagInText(SText);
   if STag='' then exit;
 
   Ed.TextInsertAtCarets(STag+'>', false{AKeepCaret}, false, false);
   Ed.DoEventChange(AY);
+end;
+
+procedure EditorChangeLineEndsForSelection(Ed: TATSynEdit; AValue: TATLineEnds);
+var
+  Caret: TATCaretItem;
+  Y1, Y2: integer;
+  iCaret, iLine: integer;
+begin
+  for iCaret:= 0 to Ed.Carets.Count-1 do
+  begin
+    Caret:= Ed.Carets[iCaret];
+    Caret.GetSelLines(Y1, Y2, true);
+    for iLine:= Y1 to Y2 do
+      Ed.Strings.LinesEnds[iLine]:= AValue;
+  end;
+  Ed.Modified:= true;
 end;
 
 { TEditorHtmlTagList }
@@ -2673,4 +2771,3 @@ begin
 end;
 
 end.
-

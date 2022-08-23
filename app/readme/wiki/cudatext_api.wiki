@@ -31,6 +31,7 @@ Event handlers (Command.on_nnnnn methods) return-value is ignored is many cases,
 * on_save(self, ed_self): Called after saving file.
 * on_save_pre(self, ed_self): Called before saving file. Method can return False to disable saving, other value is ignored.
 * on_save_naming(self, ed_self): Called before saving untitled tab, to get suggested filename without path and extension. Method must return valid filename string or None.
+* on_delete_file(self, ed_self, filename): Called on running command "File / Close and delete file". ed_self is None.
 * on_start(self, ed_self): Called once on program start. ed_self is None.
 * on_exit(self, ed_self): Called on exiting application. This event is lazy, ie it's called only for already loaded plugins. ed_self is None.
 * on_app_activate(self, ed_self): Called when application window gets focus. ed_self is None.
@@ -83,10 +84,11 @@ Event handlers (Command.on_nnnnn methods) return-value is ignored is many cases,
 ** Called on double-clicking lines, or calling context menu item "Navigate", in the Console's memo-field. Param "text" is line with caret.
 ** Called also when Console input-field is first changed. Param "text" value is "(console_input_change)".
 * on_output_nav(self, ed_self, text, tag): Called on clicking line, or pressing Enter, in the Output or Validate panel. Param "text" is clicked line, param "tag" is int value associated with line. Event is called only if app cannot parse output line by itself using given regex, or regex is not set. Param "ed_self" is None here.
+* on_sidebar_popup(self, ed_self, caption): Called on right-click on sidebar/bottombar buttons. Param "ed_self" is None here. Param "caption" is button caption.
 
 ==Events - Macros==
 
-* on_macro(self, ed_self, text): Called when command "macros: stop recording" runs. In text the "\n"-separated list of macro items is passed. These items were run after command "macros: start recording" and before command "macros: stop recording".
+* on_macro(self, ed_self, text): Called when command "start/stop macro recording" stops the recording. Param "text" is "\n"-separated list of macro items, which were run during the macro recording.
 ** if item is "number" then it's simple command.
 ** if item is "number,string" then it's command with str parameter (usually it's command cCommand_TextInsert).
 ** if item is "py:string_module,string_method,string_param" then it's call of Python plugin (usually string_param is empty).
@@ -220,6 +222,7 @@ Actions work with props of Find/Replace dialog, and props of low-level search en
 ** "op_case": option "case sensitive" of search engine
 ** "op_word": option "whole words" of search engine
 ** "op_regex": option "reg.ex." of search engine
+** "op_regex_subst": option "reg.ex. substitute in 'Replace with' field" of search engine
 ** "op_cfm": option "confirm on replace" of search engine
 ** "op_insel": option "in selection" of search engine
 ** "op_wrap": option "wrapped search" of search engine
@@ -229,6 +232,7 @@ Actions work with props of Find/Replace dialog, and props of low-level search en
 ** "op_case_d": option "case sensitive" of dialog, None if dialog not inited
 ** "op_word_d": option "whole words" of dialog, None if dialog not inited
 ** "op_regex_d": option "reg.ex." of dialog, None if dialog not inited
+** "op_regex_subst_d": option "reg.ex. substitute in 'Replace with' field" of dialog, None if dialog not inited
 ** "op_cfm_d": option "confirm on replace" of dialog, None if dialog not inited
 ** "op_insel_d": option "in selection" of dialog, None if dialog not inited
 ** "op_wrap_d": option "wrapped search" of dialog, None if dialog not inited
@@ -240,17 +244,32 @@ Actions work with props of Find/Replace dialog, and props of low-level search en
 
 ====app_proc - System====
 
-* PROC_GET_OS_SUFFIX: Returns string of OS suffix, which is used in some CudaText option names. Possible values are listed in the default.json file.
-* PROC_ENUM_FONTS: Returns list of font names, currently installed in OS. Note: only some names are common in all OSes (like Arial, Courier, Courier New, Terminal, maybe more).
+* PROC_ENUM_FONTS: Returns list of font names, currently installed in OS. Note: only few names are common in all OSes (like Arial, Courier, Courier New, maybe more).
+* PROC_ENUM_ENCODINGS: Returns list of supported encoding names.
 * PROC_GET_SYSTEM_PPI: Returns int value of screen pixels-per-inch. Usual value is 96. When OS UI is scaled, it's bigger, e.g. for scale 150% it is round(96*1.5).
 * PROC_GET_GUI_HEIGHT: Returns height (pixels) of GUI element for dlg_custom(). Possible values of 'text': 'button', 'label', 'linklabel', 'combo', 'combo_ro', 'edit', 'spinedit', 'check', 'radio', 'checkbutton', 'filter_listbox', 'filter_listview'. Special value 'scrollbar' gets size of OS scrollbar. Returns None for other values.
 * PROC_GET_MOUSE_POS: Returns mouse cursor position in screen-related coordinates, as (x, y) tuple.
 * PROC_SEND_MESSAGE: For Windows. Sends message to a window by its handle. Param "text" must be 4-tuple of int (window_handle, msg_code, param1, param2).
 * PROC_GET_UNIQUE_TAG: Gets integer value, which is unique for the current CudaText process (it starts with 100, increasing with each call). Use this value for Editor.markers() and Editor.attr() tag values.
 
+* PROC_GET_OS_SUFFIX: Returns string of OS suffix, which is used in some CudaText option names. Possible values are listed in the default.json file.
+* PROC_GET_COMPILER_INFO: Returns information about OS/CPU/WidgetSet CudaText was compiled for, as dict. Dict keys are: "os", "cpu", "widgetset", "fpc".
+
 ====app_proc - Clipboard====
 
 * PROC_GET_CLIP: Returns clipboard text.
+
+* PROC_GET_CLIP_EX: Returns additional info, stored to clipboard by CudaText, as dict. Dict keys are:
+** "is_column": bool: True if clipboard contains the column (vertical) block.
+** "caret_pos": 4-tuple of int: Position (x, y, x_end, y_end) of the first caret, at the moment of copying.
+** "caret_count": int: Number of caret(s), at the moment of copying.
+** "indent_chars": int: Number of indentation chars (spaces/tabs), of the block's first line, in the original document. Tab-chars are not expanded (counted as 1).
+** "indent_columns": int: Number of indentation columns, of the block's first line, in the original document. Tab-chars are expanded.
+** "file_name": str: Full path of the file from which text was copyied. Limited by 255 chars.
+** "version": int: Modification version of the document, at the moment of copying.
+** "tick_on_copy": int: OS tick-count in milliseconds, at the moment of copying.
+** "tick_current": int: OS tick-count in milliseconds, at the moment of this API call.
+
 * PROC_SET_CLIP: Copies text to clipboard (usual).
 * PROC_SET_CLIP_ALT: Copies text to alternate clipboard on Linux, called "primary selection".
 ** CudaText Copy commands put text to usual clipboard + primary selection.
@@ -261,6 +280,8 @@ Actions work with props of Find/Replace dialog, and props of low-level search en
 ** "t": Text format.
 ** "h": HTML format.
 ** "p": Picture format.
+** "c": CudaText format telling about "is it column (vertical) block".
+** "x": CudaText format telling about last copying to Clipboard (PROC_GET_CLIP_EX will show these details).
 
 * PROC_CLIP_SAVE_PIC: If Clipboard has a picture format, saves it to given filename (recommended the .png extension). Returns bool: clipboard has a picture, file is saved.
 
@@ -350,9 +371,16 @@ Actions:
 
 Session is a set of opened files + untitled tabs, with some properties of editors in these tabs, with group-indexes of tabs, with layout of groups. Session format is JSON.
 
-* PROC_SAVE_SESSION: Saves session to file with given name. Returns bool: session was saved.
-* PROC_LOAD_SESSION: Loads session from file with given name (closes all tabs first). Returns bool: tabs closed w/o pressing Cancel, session was loaded.
+* PROC_SAVE_SESSION: Saves session to file with given name. Returns bool: session was saved. Param "text" must be file name, and optional addition: ";" with several option-chars after ";":
+** char 'n': Don't save text of modified named files.
+** char 'u': Don't save text of untitled documents (which are always modified).
+** char 't': Show additional text in the Console message: "; by timer at ...".
+
+* PROC_LOAD_SESSION: Loads session from file with given name (closes all tabs first). Returns bool: tabs were closed without pressing Cancel, session was loaded.
+
 * PROC_SET_SESSION: Tells to app filename of session. Session with this filename will be saved on exit, loaded on start, shown in app title in {} brackets. Don't set here empty string. Default filename is "history session.json" without path. Missing path means that folder "settings" will be used.
+
+(Feature of API version 1.0.418.) Session-related actions support specifying the JSON path, into which session will be saved/loaded. If you want to use this feature, add the JSON path to the session filename, after pipe-char "|", e.g. "/some/path/sessionname.cuda-session|/my/key". Here "/my/key" specifies the JSON path of 2 levels ("key" inside "my").
 
 ====app_proc - Sidebar panels====
 
@@ -673,26 +701,26 @@ Shows given text in the floating tooptip.
 
 ===dlg_input===
 
- dlg_input(label, text)
+ dlg_input(prompt, text)
 
 Shows modal dialog to input one string. Returns entered string or None if cancelled.
 
-* Param "label": prompt text above input field.
-* Param "text": initial value of input field.
+* Param "prompt": Description text above the input field. It can be multi-line ("\n"-separated) and can have long line(s).
+* Param "text": Initial value of the input field.
 
 ===dlg_input_ex===
 
  dlg_input_ex(number, caption,
-               label1   , text1="", label2="", text2="", label3="", text3="",
-               label4="", text4="", label5="", text5="", label6="", text6="",
-               label7="", text7="", label8="", text8="", label9="", text9="",
-               label10="", text10="")
+               prompt1   , text1="", prompt2="", text2="", prompt3="", text3="",
+               prompt4="", text4="", prompt5="", text5="", prompt6="", text6="",
+               prompt7="", text7="", prompt8="", text8="", prompt9="", text9="",
+               prompt10="", text10="")
 
 Shows modal dialog to enter 1 to 10 string fields at once. Returns list of strings or None if cancelled.
 
-* Param "number": count of input fields.
-* Params "label": prompt text above input field.
-* Params "text": initial value of input field.
+* Param "number": Count of input fields.
+* Params "prompt*": Descriptions near input fields. They cannot be multi-line.
+* Params "text*": Initial values of input fields.
 
 ===dlg_file===
 
@@ -815,10 +843,10 @@ Shows dialog with controls of many types. This is legacy API, it is recommended 
 * "tabs": TabControl: set of tabs, w/o pages attached to them
 * "pages": PageControl: set of tabs, with pages attached to them (only one of pages is visible)
 * "splitter": divider bar (vertical or horizontal), which can be dragged by mouse, to change width/height of nearest control. It finds linked control, ie control with the same "parent" and "align", which position (coordinates) are nearest to the splitter. On mouse drag, splitter resizes this linked control. It's recommended to place another control with "align": ALIGN_CLIENT, so splitter will resize two controls at once. A panel may contain several splitters (mixed with other controls between them).
+* "scrollbox": like panel, but has two auto-shown scrollbars to scroll the area containing children controls (ie controls which parent is this scrollbox)
 
 Details:
 
-* Controls "combo", "combo_ro", "listbox": value is 0-based index of selected item, or -1 if none is selected.
 * Control "button_ex": to change advanced props, you must get handle via DLG_CTL_HANDLE, and pass it to button_proc().
 * Control "treeview" don't have "items"/"value": to work with it, you must get handle of control via DLG_CTL_HANDLE, and pass it to tree_proc().
 * Control "listbox_ex" don't have "items"/"value": to work with it, you must get handle of control via DLG_CTL_HANDLE, and pass it to listbox_proc().
@@ -889,19 +917,23 @@ Action DLG_CTL_PROP_SET, for "listview", allows both "items" (it sets columns) a
 
 ====dlg_custom - Property "val"====
 
-* For "check": checked state "0", "1" or "?" for grayed state
-* For "radio", "checkbutton": checked state "0", "1"
-* For "edit", "edit_pwd", "spinedit", "combo", "filter_*": text in control
-* For "memo": "\t"-separated lines, in lines "\t" chars must be replaced with chr(3)
-* For "combo_ro", "listbox", "radiogroup", "listview": index (0-based) of selected item
-* For "checkgroup": ","-separated checked states ("0", "1")
-* For "checklistbox", "checklistview": index + ";" + checked_states
-* For "tabs", "pages": index of active tab
-* For "trackbar", "progressbar": position, int value
+* For "combo", "combo_ro", "listbox": value is 0-based index of selected item, or -1 if none is selected.
+* For "check": value is checked state "0"/"1" or "?" for "grayed" state.
+* For "radio", "checkbutton": value is checked state "0"/"1".
+* For "edit", "edit_pwd", "spinedit", "combo", "filter_*": value is text in control.
+* For "memo": value is "\t"-separated lines, in lines "\t" chars must be replaced with chr(3).
+* For "combo_ro", "listbox", "radiogroup", "listview": value is index (0-based) of selected item.
+* For "checkgroup": value is ","-separated checked states "0"/"1".
+* For "checklistbox", "checklistview": value is str(index) + ";" + checked_states.
+* For "tabs", "pages": value is index of active tab.
+* For "trackbar", "progressbar": value is position, int value.
+* For "scrollbox":
+** on reading: value is 6 numbers ","-separated: vert_position, horz_position, vert_range, horz_range, vert_pagesize, horz_pagesize
+** on writing: value is only 2 numbers ","-separated: vert_position, horz_position.
 
 ====dlg_custom - Properties "ex"====
 
-Properties "ex0"..."ex9" are control-specific. They have different simple type (str, bool, int...).
+Properties "ex0"..."ex9" are specific to each control kind. They have different simple types (str, bool, int...). Note: for dlg_custom, bool values must be specified as "0"/"1", not as strings "True"/"False".
 
 * "button":
 ** "ex0": bool: default for Enter key
@@ -1028,7 +1060,7 @@ Additional types, supported only by "dlg_proc":
 * "p": int: Handle of parent form, or 0 if no parent.
 * "tag": str: Any string, set by plugin.
 
-* "border": int: Sets border of form, DBORDER_nnn constants. Don't specify it together with deprecated "resize".
+* "border": int: Border-style of form, one of DBORDER_nnn constants.
 ** DBORDER_NONE: No visible border, not resizable
 ** DBORDER_SIZE: Standard resizable border (on Windows: with Minimize/Maximize buttons)
 ** DBORDER_SINGLE: Single-line border, not resizable (on Windows: form has icon and Minimize button)
@@ -1039,12 +1071,11 @@ Additional types, supported only by "dlg_proc":
 * "topmost": bool: Makes form stay on top of other forms in CudaText.
 * "vis": bool: Visible state.
 * "color": int: Background color.
-* "autosize": bool: Form resizes to minimal size, which shows all visible controls. Don't use it together with "resize".
+* "autosize": bool: Form automatically resizes to the minimal size, which shows all visible controls.
 * "keypreview": bool: If on, then key press calls on_key_down before passing key to focused control. Should be True if form needs to handle on_key_down.
 * "p": int: Parent handle. Set this property to int handle of any windowed UI control or form, this control/form will be parent of form.
 * "focused" (only for reading): index of currently focused control.
 * "form_state" (only for reading): current form state, string: "norm" for normal, "min" for minimized, "max" for maximized, "fullscr" for full-screen.
-* (deprecated) "resize": bool: Border of form has "resizable" style.
 
 ====dlg_proc - Forms events====
 
@@ -1185,26 +1216,24 @@ Special events for control "editor"/"editor_edit"/"editor_combo":
 ====dlg_proc - Signatures of event callbacks====
 
 Callbacks must be in forms shown in the topic [[#Callback_parameter]].
-
-Callbacks for "dlg_proc" must be declared as:
+Callbacks can be functions (out of class) or class methods, it depends on the look of the callback (again see "Callback parameter" topic).
 
 <syntaxhighlight lang="python">
 # for functions
-def my(id_dlg, id_ctl, data='', info=''):
+def my_callback(id_dlg, id_ctl, data='', info=''):
   pass
 
 # for class methods
 class Command:
-  def my(self, id_dlg, id_ctl, data='', info=''):
+  def my_callback(self, id_dlg, id_ctl, data='', info=''):
     pass
 </syntaxhighlight>
 
 Parameters:
 
-* "id_dlg": Int handle of the form.
-* "id_ctl": Int index of control. But for event "on_key_down" it has different meaning.
-* "data": Value specific to event.
-* "info": Additional value passed from CudaText, if extended form of callback is specified, with "info" part.
+* "id_dlg": Int, handle of the form.
+* "id_ctl": Int, index of the control which fired the event. Note: for event "on_key_down" it has different meaning.
+* "data" and "info": Values specific to event. If these parameters are used, they are described in the event descriptioon.
 
 ====dlg_proc - Actions====
 
@@ -1345,9 +1374,12 @@ Returns string if command selected, or None if cancelled.
  file_open(filename, group=-1, options="")
  file_open((filename1, filename2), group=-1, options="")
 
-Opens editor tab with given filename. If filename already opened, activates its tab. Pass empty string to open untitled tab.
+Opens editor tab with given filename. If filename already opened, activates its tab.
 
-First parameter can be 2-tuple (or 2-list) of string, to open two files in a single tab, in a splitted view. In this case, second filename won't be handled specially for zip file, picture file, binary file etc.
+First parameter can be 2-tuple / 2-list of string, to open 2 files in a single tab, in a splitted view. In this case, second filename won't be handled specially for zip file, picture file, binary file etc.
+
+The case of empty filename: opens empty untitled tab.
+The case of empty filename1 and non-empty filename2 is not supported: it also opens empty untitled tab, not splitted.
 
 Returns bool. True, if first filename is empty. Otherwise, returns True if first filename exists, and second filename is empty or exists.
 For zip file (only first filename is checked for it), returns True only if zip file contains valid CudaText add-on, and it was installed.
@@ -1528,6 +1560,16 @@ Possible values of "id_action":
 * TREE_ITEM_FOLD_LEVEL: Folds all items (id_item ignored) from level with specified index, 1 or bigger. (This is what CudaText commands "fold level N" do for code-tree).
 * TREE_ITEM_UNFOLD: Unfolds item w/o subitems.
 * TREE_ITEM_UNFOLD_DEEP: Unfolds item with subitems. Root-item allowed too.
+
+* TREE_GET_MULSELECT: Returns string, which shows multi-selection options.
+** String "-": Multi-selection is disabled
+** Empty string or several "option chars": multi-selection is enabled. "Option chars" are:
+*** "c": Enable Ctrl+click to select/deselect single node
+*** "s": Enable Shift+click to select range of nodes 
+*** "v": Multi-selection has only visible nodes
+*** "i": Multi-selection has only sibling nodes
+* TREE_SET_MULSELECT: Sets multi-selection options. Param "text" must be one of possible values described in TREE_GET_MULSELECT.
+* TREE_GET_SELECTIONS: Returns list of selected tree nodes, one handle per each selected node. When multi-selection is disabled, result is empty list or list with single item.
 
 * TREE_FIND_FOR_TEXT_POS: For the treeview, filled with code-tree information (it can be plugin-created treeview), finds the tree-item corresponding to given text position. Param "id_item" is ignored, param "text" must be 2-tuple of int (column, line). Returns handle of tree-item. Returns None if "text" doesn't contain valid text position. Returns 0 if tree-item is not found.
 
@@ -2096,9 +2138,12 @@ If param "max_len" is non-zero, and UTF-8 length of given line is greater than "
 
  set_text_line(index, text)
 
-Sets single line (str) with given index (0-based).
-Text must be without line-breaks.
-To add new line, pass index=-1.
+Changes single line with given index (0-based) to given text.
+Text should be without line-breaks, because "\n" and "\r" chars will be replaced with "_".
+
+Special "index" values:
+* -1: Append new line, with final end-of-line.
+* -2: Append new line, but without final end-of-line.
 
 ===Editor.get_text_substr===
 
@@ -2230,6 +2275,9 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"). Possi
 * PROP_GUTTER_NUM: bool: show gutter column "line numbers".
 * PROP_GUTTER_FOLD: bool: show gutter column "folding".
 * PROP_GUTTER_BM: bool: show gutter column "bookmarks".
+* PROP_GUTTER_EMPTY: bool: show gutter column "empty padding".
+* PROP_GUTTER_EMPTY_WIDTH: int: width of gutter column "empty padding".
+
 * PROP_NEWLINE: str: kind of line endings. One of values "lf", "crlf", "cr".
 * PROP_WRAP: int: word-wrap mode. One of WRAP_nnn values.
 * PROP_RO: bool: read-only mode.
@@ -2258,6 +2306,7 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"). Possi
 * PROP_SCROLLSTYLE_HORZ: int: style of horizontal scrollbar, one of SCROLLSTYLE_ constants.
 * PROP_SCROLLSTYLE_VERT: int: style of vertical scrollbar, one of SCROLLSTYLE_ constants.
 
+* PROP_WHEEL_ZOOMS: bool: enable zooming by Ctrl+[mouse wheel up/down].
 * PROP_SCALE_FONT: int: scale of editor's font in percents, or 0 to use global app font scale.
 * PROP_COLOR: int: color property. Value must be one of COLOR_ID_nnn values. Returns None for incorrect id.
 * PROP_ENC: str: encoding name. Names are listed at [[CudaText#Encodings]].
@@ -2395,6 +2444,7 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"). Possi
 * PROP_V_WIDTH: int: for binary viewer, width of text in mode VMODE_BINARY.
 * PROP_V_WIDTH_HEX: int: for binary viewer, width of text in mode VMODE_HEX.
 * PROP_V_WIDTH_UHEX: int: for binary viewer, width of text in mode VMODE_UNICODE_HEX.
+* PROP_V_ENC: str: for binary viewer, its encoding.
 
 ===Editor.set_prop===
 
@@ -2409,6 +2459,9 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"), tuple
 * PROP_GUTTER_NUM: bool: show gutter column "line numbers".
 * PROP_GUTTER_FOLD: bool: show gutter column "folding".
 * PROP_GUTTER_BM: bool: show gutter column "bookmarks".
+* PROP_GUTTER_EMPTY: bool: show gutter column "empty padding".
+* PROP_GUTTER_EMPTY_WIDTH: int: width of gutter column "empty padding".
+
 * PROP_WRAP: int: word-wrap mode. One of WRAP_nnn values.
 * PROP_RO: bool: read-only mode.
 * PROP_NEWLINE: str: kind of line endings. One of values "lf", "crlf", "cr".
@@ -2431,6 +2484,7 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"), tuple
 * PROP_SCROLLSTYLE_HORZ: int: style of horizontal scrollbar, one of SCROLLSTYLE_ constants.
 * PROP_SCROLLSTYLE_VERT: int: style of vertical scrollbar, one of SCROLLSTYLE_ constants.
 
+* PROP_WHEEL_ZOOMS: bool: enable zooming by Ctrl+[mouse wheel up/down].
 * PROP_SCALE_FONT: int: scale of editor's font in percents, or 0 to use global app font scale.
 * PROP_ENC: str: encoding name. Names listed at [[CudaText#Encodings]].
 * PROP_ENC_RELOAD: str: like PROP_ENC, but setting this property also reloads file in new encoding (if it's not modified). Supported only for editors embedded in ui-tabs.
@@ -2519,6 +2573,7 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"), tuple
 * PROP_V_WIDTH: int: for binary viewer, width of text in mode VMODE_BINARY.
 * PROP_V_WIDTH_HEX: int: for binary viewer, width of text in mode VMODE_HEX.
 * PROP_V_WIDTH_UHEX: int: for binary viewer, width of text in mode VMODE_UNICODE_HEX.
+* PROP_V_ENC: str: for binary viewer, its encoding.
 
 ===props vs options===
 
@@ -2607,21 +2662,27 @@ Notes:
 Controls decorations on gutter. It is used to show some visual marks, which look like bookmark icons, but independent of bookmarks. Possible values of "id":
 
 * DECOR_GET_ALL: Returns list of all decorations, as list of dict.
-* DECOR_GET: Returns decoration for single line, as dict. Params used: "line".
-* DECOR_SET: Sets decoration for single line, overwriting existing item for that line. Returns bool: line index correct, item added. Params used:
+* DECOR_GET: Returns decoration for given line, as dict. Params used: "line".
+* DECOR_SET: Sets decoration for given line. Returns bool: line index correct, item added. Params used:
 ** "line": int, line index.
 ** "tag": int, some value attached to item.
-** "text": str, text to show; decoration will be text.
+** "text": str, text to show.
+*** If "text" is not empty, decoration will be text.
+*** If "text" is empty, decoration depends on "image" value, see below.
 ** "color": int, color of text decoration.
 ** "bold": bool, use bold font for text decoration.
 ** "italic": bool, use italic font for text decoration.
-** "image": int, icon index from decoration imagelist; decoration will be icon, if text is empty.
+** "image": int, icon index from decoration imagelist.
+*** If "text" is empty and "image" is >=0, decoration will be icon.
+*** If "text" is empty and "image" is -1, decoratiton will be cell background filled with "color".
 ** "auto_del": bool, auto-delete decoration, when its line is deleted.
 
 * DECOR_DELETE_BY_LINE: Deletes single decoration for given line. Params used: "line".
 * DECOR_DELETE_BY_TAG: Deletes all decorations with the given tag. Param used: "tag".
 * DECOR_DELETE_ALL: Deletes all decorations.
 * DECOR_GET_IMAGELIST: Returns int handle of decoration imagelist (default size is 16x16).
+
+Note: decoration list allows 2 items for the same line number. One of items (it can be added first or last) must be "background filler" (ie empty "text" and "image" is -1), and another one must be "not background filler".
 
 ===Editor.folding===
 
@@ -2750,6 +2811,12 @@ Controls markers (used e.g. in Snippets plugin). Possible values of "id":
 * MARKERS_DELETE_LAST: Deletes last added marker.
 * MARKERS_DELETE_BY_TAG: Deletes all markers with the given tag. Param "tag": tag value.
 * MARKERS_DELETE_BY_INDEX: Deletes marker by its index in the markers list. Param "tag": index (0-based).
+* MARKERS_DELETE_BY_POS: Deletes markers for specified text position.
+** If param "x">=0, deletes markers for position given by "x" and "y"
+** If param "x"<0, deletes all markers for line given by param "y"
+
+* MARKERS_GET_DUPS: Gets "duplicates for the same x/y are allowed" flag, bool value.
+* MARKERS_SET_DUPS: Sets "duplicates for the same x/y are allowed" flag (it will be used on next item adding). Param "tag": 0 or 1.
 
 ===Editor.attr===
 
@@ -2766,9 +2833,9 @@ Controls additional color attributes. Possible values of "id":
 ** "x", "y": Position of fragment start (text position like caret).
 ** "len": Length of fragment in chars.
 *** If len<0, and "show_on_map" is set, it will be multi-line micromap fragment with specified height=-len.
-** "color_nnnn": Color values (RGB) for font, background, borders.
-** "font_nnnn": Font attributes: 0 - off, 1 - on.
-** "border_nnnn": Border types for edges, int value 0..6: none, solid, dash, solid 2pixel, dotted, rounded, wave.
+** "color_*": Color values (RGB) for font, background, borders.
+** "font_*": Font attributes: 0 - off, 1 - on.
+** "border_*": Border types for edges, int value 0..6: none, solid, dash, solid 2pixel, dotted, rounded, wave.
 ** "show_on_map": How to show this fragment on micromap:
 *** int value>=0: Show on micromap column with given tag. Don't pass value=0, because micromap column with tag=0 is reserved.
 *** int value=-1: Don't show on micromap.
@@ -2779,6 +2846,8 @@ Controls additional color attributes. Possible values of "id":
 
 * MARKERS_ADD_MANY: Adds one or multiple fragments at once. Also returns number of fragments. Parameters:
 ** "x", "y", "len": The same as for MARKERS_ADD, but can be also list/tuple of int. Lists/tuples must contain the equal number of elements (otherwise the minimal number of elements will be used).
+** "color_*": Can be one value or list/tuple of values. Length of list/tuple is not limited.
+** "font_*": Can be one value or list/tuple of values. Length of list/tuple is not limited.
 ** other parameters: The same as for MARKERS_ADD.
 
 * MARKERS_GET: Returns list of fragments, or None. Each item is list of int, corresponding to Editor.attr() params (bool values will be 0 or 1).
@@ -2788,6 +2857,12 @@ Controls additional color attributes. Possible values of "id":
 * MARKERS_DELETE_LAST: Deletes last added fragment.
 * MARKERS_DELETE_BY_TAG: Deletes all fragments with the given tag. Param "tag": tag value.
 * MARKERS_DELETE_BY_INDEX: Deletes fragment by its index in the list. Param "tag": index (0-based).
+* MARKERS_DELETE_BY_POS: Deletes fragments for specified text position.
+** If param "x">=0, deletes fragments for position given by "x" and "y"
+** If param "x"<0, deletes all fragments for line given by param "y"
+
+* MARKERS_GET_DUPS: Gets "duplicates for the same x/y are allowed" flag, bool value.
+* MARKERS_SET_DUPS: Sets "duplicates for the same x/y are allowed" flag (it will be used on next item adding). Param "tag": 0 or 1.
 
 Notes:
 
@@ -2859,15 +2934,15 @@ Call "lock" increases counter, "unlock" decreases this counter (it's safe to cal
 
 Converts something in editor. Possible values of "id":
 
-* CONVERT_CHAR_TO_COL: Convert char coordinates (x,y) to column coordinates (column,y), using current tab size.
-* CONVERT_COL_TO_CHAR: Convert column coordinates (x,y) to char coordinates (chars,y).
-* CONVERT_LINE_TABS_TO_SPACES: Convert line (param "text") from tab-chars to spaces, using current tab size. Returns str. Returns original line, if no tab-chars in it.
-* CONVERT_SCREEN_TO_LOCAL: Convert pixel coordinates (x,y), from screen-related to control-related.
-* CONVERT_LOCAL_TO_SCREEN: Convert pixel coordinates (x,y), from control-related to screen-related.
-* CONVERT_PIXELS_TO_CARET: Convert pixel control-related coords (x,y) to text position (column,line).
-* CONVERT_CARET_TO_PIXELS: Convert text position (column,line) to pixel control-related coords (x,y).
-* CONVERT_OFFSET_TO_CARET: Convert absolute offset (0-based) given by param "x", to text position (column,line).
-* CONVERT_CARET_TO_OFFSET: Convert text position (column,line) to absolute offset.
+* CONVERT_CHAR_TO_COL: Convert char coordinates (x,y) to column coordinates (column,y), using current tabulation size. Param "text" is ignored. Returns 2-tuple of int.
+* CONVERT_COL_TO_CHAR: Convert column coordinates (x,y) to char coordinates (chars,y). Param "text" is ignored. Returns 2-tuple of int.
+* CONVERT_LINE_TABS_TO_SPACES: Convert line, given in param "text", from tabulation-chars to spaces, using current tabulation size. Returns string. Returns original line, if it does not contain tabulation-chars.
+* CONVERT_SCREEN_TO_LOCAL: Convert pixel coordinates (x,y), from screen-related to control-related. Param "text" is ignored. Returns 2-tuple of int.
+* CONVERT_LOCAL_TO_SCREEN: Convert pixel coordinates (x,y), from control-related to screen-related. Param "text" is ignored. Returns 2-tuple of int.
+* CONVERT_PIXELS_TO_CARET: Convert pixel control-related coords (x,y) to text position (column,line). Param "text" is ignored. Returns 2-tuple of int.
+* CONVERT_CARET_TO_PIXELS: Convert text position (x,y) to pixel control-related coords (x,y). Param "text" is ignored. Returns 2-tuple of int.
+* CONVERT_OFFSET_TO_CARET: Convert absolute offset (0-based) given by param "x", to text position (column,line). Params "y", "text" are ignored. Returns 2-tuple of int.
+* CONVERT_CARET_TO_OFFSET: Convert text position (x,y) to absolute text offset (0-based). Param "text" is ignored. Returns int.
 
 Returns None if params are incorrect, or cannot calculate the result.
 
@@ -3064,8 +3139,9 @@ Section "info":
 * key "subdir" must begin with "cuda_tree_"
 
 Section(s) "treehelper" followed by any string (e.g. "treehelper1"):
-* key "lexers" is comma-separated lexers list
+* key "lexers" is comma-separated lexers list (can contain lite lexer with suffix)
 * key "method" is name of getter method in __init__.py
+* key "fold" (value 0/1) is deprecated, not handled anymore
 
 File __init__.py must contain getter method(s), referenced by install.inf. Getter has signature (with any name):
 
@@ -3169,7 +3245,7 @@ Text is "\n"-separated undo/redo items. Each line is tab-separated elements:
 * index of changed line (not for mouse clicks), 0-based.
 * end-of-line kind, number 0..3:
 ** 0: none
-** 1: CRLF
+** 1: CR LF
 ** 2: LF
 ** 3: CR
 * line state, number 0..3:
@@ -3177,7 +3253,17 @@ Text is "\n"-separated undo/redo items. Each line is tab-separated elements:
 ** 1: changed
 ** 2: added
 ** 3: saved
-* caret position(s). "x0,y0;" + "x1,y1;" + "x2,y2;" + ... ie 2*N numbers for N carets.
+* caret position(s); carets are ";"-separated and x/y coords (32-bit) are ","-separated; for example "x0,y0;x1,y1;" for 2 carets;
+** plus chr(1) and marker position(s), 64-bit numbers ","-separated, where each marker is encoded as 7 numbers:
+*** position x,
+*** position y,
+*** selection-end x,
+*** selection-end y,
+*** tab-stop index,
+*** some value attached to marker,
+*** marker show mode, enum 0..2; 0: show in text only; 1: show in micromap only; 2: show in text and micromap.
+** plus chr(1) and global undo counter, 32-bit integer;
+** plus chr(1) and OS tick counter, 64-bit integer, in milliseconds (shows how much time is passed betweem items).
 * soft mark flag, number 0/1 (boolean). Logic of soft/hard marks is described in wiki page [[ATSynEdit]].
 * hard mark flag, number 0/1.
 * line text, in UTF8. This text can have tab-chars, tab-char is not separator.
@@ -3356,6 +3442,19 @@ Good example is "HTML Class Complete": https://github.com/CudaText-addons/cuda_h
 * In plugin .py file, in method on_complete, read editor text via ed.get_text_all() or ed.get_text_line(), read caret position via ed.get_carets(), make the completions list.
 
 * Call ed.complete() or ed.complete_alt() to show completions list.
+
+==Show me the template of complex plugin with side-panel and bottom-panel==
+
+Here is the example plugin: https://github.com/CudaText-addons/cuda_r_plugin .
+It provides:
+
+* Main toolbar, separate from the CudaText toolbar. Contains 2 dummy buttons.
+* Side-panel, which contains the small toolbar (with 2 dummy buttons) and listbox (filled with dummy data). Double-click on listbox - inserts clicked item to the current editor.
+* Bottom-panel, which contains the "console input" control and "console log" multi-line control. You can enter commands in the "input" and they will show in the log. Entered commands (last 10) are also stored to the file "[CudaText]/settings/cuda_r_plugin.ini" and re-read on start, you can recall them by clicking the down arrow in the "input" combobox.
+* Plugin supports few options. Saved in the file "[CudaText]/settings/cuda_r_plugin.ini".
+* Menu items in "Plugins / R Plugin", to open side-panel and bottom-panel.
+* Menu item in the "Options / Settings-plugins / R Plugin", to open the config file.
+* Predefined red buttons "R" in the CudaText sidebar and bottom bar. Visible even before the plugin is activated from Plugins menu.
 
 =History=
 
@@ -4506,5 +4605,59 @@ Good example is "HTML Class Complete": https://github.com/CudaText-addons/cuda_h
 
 1.0.412 (app 1.146.1)
 * change: command "macros: start recording" is renamed to "start/stop recording", commands "stop recording" and "cancel recording" are deprecated
+
+1.0.413 (app 1.148.1)
+* add: dlg_proc: new control "scrollbox"
+
+1.0.414 (app 1.149.4)
+* add: app_proc: PROC_GET_FINDER_PROP/PROC_SET_FINDER_PROP support new keys "op_regex_subst", "op_regex_subst_d"
+
+1.0.415 (app 1.153.1)
+* add: app_proc: PROC_SAVE_SESSION supports additional parameters
+
+1.0.416 (app 1.157.2)
+* add: app_proc: PROC_GET_CLIP_EX
+* add: app_proc: additional chars in result of PROC_CLIP_ENUM
+* deleted deprecated: "resize" property of forms in dlg_proc()
+
+1.0.417 (app 1.157.6)
+* add: app_proc: PROC_GET_COMPILER_INFO
+
+1.0.418 (app 1.158.3)
+* add: app_proc: session-related actions support specifying of JSON path for sessions
+
+1.0.419 (app 1.159.0)
+* add: event on_delete_file
+
+1.0.420 (app 1.159.3)
+* add: Editor.decor: allow to fill cell background, if "text" is empty and "image" is -1
+* add: Editor.decor: allow 2 decor items for the same line index
+
+1.0.421 (app 1.163.2)
+* add: tree_proc: TREE_GET_MULSELECT, TREE_SET_MULSELECT
+* add: tree_proc: TREE_GET_SELECTIONS
+
+1.0.422 (app 1.166.0)
+* add: ed.get_prop/set_prop: PROP_V_ENC
+* add: app_proc: PROC_ENUM_ENCODINGS
+
+1.0.423 (app 1.166.1)
+* add: Editor.cmd: cmd(cmd_DialogCommands, text) now sets text as initial filter of Command Palette
+* add: Editor.set_text_line: support special value -2
+
+1.0.424 (app 1.166.4)
+* add: Editor.markers: MARKERS_DELETE_BY_POS
+* add: Editor.attr: MARKERS_DELETE_BY_POS
+
+1.0.425 (app 1.166.6)
+* add: Editor.get_prop/set_prop: PROP_GUTTER_EMPTY
+* add: Editor.get_prop/set_prop: PROP_GUTTER_EMPTY_WIDTH
+* add: Editor.attr: MARKERS_ADD_MANY allows lists for params "color_*" and "font_*"
+* add: Editor.markers/attr: MARKERS_GET_DUPS
+* add: Editor.markers/attr: MARKERS_SET_DUPS
+* add: event "on_sidebar_popup"
+
+1.0.426 (app 1.167.2)
+* add: Editor.get_prop/set_prop: PROP_WHEEL_ZOOMS
 
 [[Category:CudaText]]

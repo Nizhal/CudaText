@@ -1,21 +1,27 @@
 #Lazarus IDE
 http://www.lazarus-ide.org
 
-#ATSynEdit, ATTabs, ATFlatControls
+#Application, ATSynEdit, ATFlatControls
 Alexey Torgashin
-https://github.com/Alexey-T/
+https://github.com/Alexey-T
 
 #EControl syntax parser
 Delphi version by Michael Zakharov
 http://www.econtrol.ru
-Lazarus port by Alexey Torgashin
-https://github.com/Alexey-T/
+Lazarus port and rework by Alexey Torgashin
+https://github.com/Alexey-T
 
 #Python plugins, QA
 Andrey Kvichanskiy
-https://github.com/kvichans/
+https://github.com/kvichans
 Oleh Lutsak
 https://github.com/OlehL
+Shovel
+https://github.com/halfbrained
+Ildar R. Khasanshin
+https://github.com/ildarkhasanshin
+Yuriy Balyuk
+https://github.com/veksha
 
 #Optimizations of Python wrapper, plugins
 Artem Gavrilov
@@ -23,24 +29,21 @@ https://github.com/Artem3213212
 
 #Patches, Windows shell extension, plugins
 Andreas Heim
-https://github.com/dinkumoil/
+https://github.com/dinkumoil
 
 ————————————————————————
 
 #Python for Delphi
 Dietmar Budelsky, Morgan Martinet, Kiriakos Vlahos
 https://github.com/pyscripter/python4delphi
-
-#Python for Lazarus
-Alexey Torgashin
-https://github.com/Alexey-T/
+Adaptation for Lazarus by Alexey Torgashin
 
 #BGRABitmap
-https://bgrabitmap.github.io/
+https://bgrabitmap.github.io
 
 #Emmet for Pascal
 Rickard Johansson
-https://rj-texted.se/
+https://rj-texted.se
 
 ————————————————————————
 

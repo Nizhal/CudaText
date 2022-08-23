@@ -224,6 +224,7 @@ var
   AppHiAll_ThemeStyleId: TAppThemeStyleId = apstSeparLine;
 
 procedure AppThemeInit(var D: TAppTheme);
+procedure AppThemeFree(var D: TAppTheme);
 procedure AppThemeLoadFromFile(const AFileName: string; var D: TAppTheme; IsThemeUI: boolean);
 procedure AppThemeSaveToFile(const AFileName: string; const D: TAppTheme; IsThemeUI: boolean);
 
@@ -235,6 +236,22 @@ implementation
 uses
   ATButtons,
   at__jsonconf;
+
+procedure AppThemeFree(var D: TAppTheme);
+var
+  St: TecSyntaxFormat;
+  id: TAppThemeStyleId;
+begin
+  for id:= High(TAppThemeStyleId) downto Low(TAppThemeStyleId) do
+  begin
+    St:= D.Styles[id];
+    if Assigned(St) then
+    begin
+      St.Free;
+      D.Styles[id]:= nil;
+    end;
+  end;
+end;
 
 procedure AppThemeLoadFromFile(const AFileName: string; var D: TAppTheme; IsThemeUI: boolean);
 var
@@ -265,6 +282,7 @@ begin
   if not FileExists(AFileName) then
   begin
     MsgLogConsole(Format(msgCannotFindData, [AFileName]));
+    MsgStdout(Format(msgCannotFindData, [AFileName]));
     exit;
   end;
 
@@ -290,7 +308,7 @@ begin
       for iStyle:= Low(iStyle) to apstLastStyle do
       begin
         st:= d.Styles[iStyle];
-        if not DoLoadLexerStyleFromFile_JsonTheme(st, cfg, 'Lex_'+st.DisplayName) then
+        if not Lexer_LoadStyleFromFile_JsonTheme(st, cfg, 'Lex_'+st.DisplayName) then
           MsgLogConsole(Format(msgErrorInTheme,
             [ExtractFileName(AFileName), 'Lex_'+st.DisplayName]));
       end;
@@ -563,7 +581,7 @@ begin
       for iStyle:= Low(iStyle) to apstLastStyle do
       begin
         st:= d.Styles[iStyle];
-        DoSaveLexerStyleToFile_JsonTheme(st, cfg, 'Lex_'+st.DisplayName);
+        Lexer_SaveStyleToFile_JsonTheme(st, cfg, 'Lex_'+st.DisplayName);
       end;
     end;
   finally
@@ -596,6 +614,10 @@ initialization
 
   FillChar(AppTheme, SizeOf(AppTheme), 0);
   AppThemeInit(AppTheme);
+
+finalization
+
+  AppThemeFree(AppTheme);
 
 end.
 

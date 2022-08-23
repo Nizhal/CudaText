@@ -17,6 +17,7 @@ uses
   LclProc, LclType,
   ExtCtrls,
   IniFiles,
+  ATSynEdit_Globals,
   ATSynEdit_Edits,
   proc_msg,
   proc_globdata,
@@ -72,8 +73,8 @@ procedure TfmGoto.FormShow(Sender: TObject);
 var
   STitle: string;
 begin
-  plCaption.Height:= AppScale(26);
-  edInput.Height:= AppScale(UiOps.InputHeight);
+  plCaption.Height:= ATEditorScale(26);
+  edInput.Height:= ATEditorScale(UiOps.InputHeight);
   edInput.Font.Name:= EditorOps.OpFontName;
   edInput.Font.Size:= EditorOps.OpFontSize;
   edInput.Font.Quality:= EditorOps.OpFontQuality;
@@ -85,12 +86,12 @@ begin
   EditorApplyTheme(edInput);
 
   plCaption.Font.Name:= UiOps.VarFontName;
-  plCaption.Font.Size:= AppScaleFont(UiOps.VarFontSize);
+  plCaption.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
   plCaption.Font.Color:= GetAppColor(apclListFont);
 
   UpdateFormOnTop(Self);
 
-  with TIniFile.Create(GetAppLangFilename) do
+  with TIniFile.Create(AppFile_Language) do
   try
     STitle:= ReadString('d_f', 'go_', 'Go to');
   finally
@@ -113,7 +114,7 @@ begin
 
   ClientHeight:=
     IfThen(plCaption.Visible, plCaption.Height) +
-    AppScale(2*edInput.BorderSpacing.Around) +
+    ATEditorScale(2*edInput.BorderSpacing.Around) +
     edInput.Height;
   edInput.Text:= '';
 end;
@@ -133,6 +134,7 @@ end;
 
 procedure TfmGoto.FormCreate(Sender: TObject);
 begin
+  edInput.Keymap:= AppKeymapMain;
   edInput.BorderStyle:= bsNone;
   edInput.OnCheckInput:= @EditCheckInput;
 
@@ -147,4 +149,3 @@ begin
 end;
 
 end.
-

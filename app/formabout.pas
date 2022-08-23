@@ -58,7 +58,7 @@ var
   ini: TIniFile;
   fn: string;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
   ini:= TIniFile.Create(fn);
   try
@@ -109,14 +109,19 @@ begin
   begin
     Credits.Lines.Clear;
     Credits.Lines.Add(msgCannotFindFile);
-    Credits.Lines.Add(fn);
+    Credits.Lines.Add(AppCollapseHomeDirInFilename(fn));
   end;
 end;
 
 procedure TfmAbout.FormKeyDown(Sender: TObject; var Key: Word;
   Shift: TShiftState);
 begin
-  if Key=VK_ESCAPE then Close;
+  if (Key=VK_ESCAPE) and (Shift=[]) then
+  begin
+    Close;
+    Key:= 0;
+    exit;
+  end;
 end;
 
 

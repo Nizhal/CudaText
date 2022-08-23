@@ -1,7 +1,5 @@
-import sys
 import os
 import re
-import platform
 import tempfile
 import webbrowser
 import cudatext as app
@@ -10,28 +8,36 @@ from .work_remote import *
 from cudax_lib import get_translation
 _   = get_translation(__file__)  # i18n
 
-p = sys.platform
-X64 = platform.architecture()[0]=='64bit'
-##p = 'win32'
-##X64 = False
+info = app.app_proc(app.PROC_GET_COMPILER_INFO, '')
+TEXT_OS = info['os'].replace('win32', 'windows').replace('win64', 'windows')
+TEXT_CPU = info['cpu'].replace('x86_64', 'amd64')
+TEXT_WS = info['widgetset']
 
-DOWNLOAD_PAGE = \
-    'https://sourceforge.net/projects/cudatext/files/release/Linux/' if p.startswith('linux')\
-    else 'https://sourceforge.net/projects/cudatext/files/release/Windows/' if p.startswith('win')\
-    else 'https://sourceforge.net/projects/cudatext/files/release/macOS/' if p=='darwin'\
-    else 'https://sourceforge.net/projects/cudatext/files/release/FreeBSD/' if p.startswith('freebsd')\
-    else '?'
+DEBIAN_UBUNTU = False
+if TEXT_OS == 'linux':
+    import subprocess
+    try:
+        LSB_RELEASE = subprocess.check_output('cat /etc/lsb-release', shell=True).decode('utf-8')
+        if ("Ubuntu" in LSB_RELEASE or "Debian" in LSB_RELEASE) and (TEXT_CPU == 'amd64'):
+            DEBIAN_UBUNTU = True
+    except:
+        pass
 
-if p=='darwin':
-    TEXT_CPU = ''
-    REGEX_GROUP_VER = 1
+DOWNLOAD_PAGE = 'https://sourceforge.net/projects/cudatext/files/release/'
+VERSION_REGEX = r'\b1\.\d{2,3}\.\d+\.\d+\b'
+if DEBIAN_UBUNTU:
+    DOWNLOAD_REGEX = \
+        r' href="(\w+://[\w\.]+/projects/cudatext/files/release/([\d\.]+)/cudatext_([\d\.\-]+)_'+ \
+        TEXT_WS + '_' + TEXT_CPU + '.deb/download)"'
 else:
-    TEXT_CPU = '(amd64|x64)' if X64 else '(i386|x32)'
-    REGEX_GROUP_VER = 2
-
-DOWNLOAD_REGEX = \
-    ' href="(\w+://[\w\.]+/projects/cudatext/files/release/\w+/cudatext-[\w\-]+?'+TEXT_CPU+'[\w\-]*?-([\d\.]+?)\.(zip|dmg|tar\.xz)/download)"'
-
+    DOWNLOAD_REGEX = \
+        r' href="(\w+://[\w\.]+/projects/cudatext/files/release/([\d\.]+)/cudatext-'+ \
+        TEXT_OS + '-' + \
+        ((TEXT_WS + '-') if TEXT_OS!='windows' else '') + \
+        TEXT_CPU + r'-[\d\.]+'+ \
+        r'\.(zip|dmg|tar\.xz|tar)/download)"'
+REGEX_GROUP_VER = 1
+    
 
 def versions_ordered(s1, s2):
     """
@@ -45,18 +51,38 @@ def versions_ordered(s1, s2):
 def check_cudatext():
 
     fn = os.path.join(tempfile.gettempdir(), 'cudatext_download.html')
-    app.msg_status(_('Downloading: ')+DOWNLOAD_PAGE, True)
-    get_url(DOWNLOAD_PAGE, fn, True)
+    url = DOWNLOAD_PAGE
+    app.msg_status(_('Downloading: ')+url, True)
+    get_url(url, fn, True)
     app.msg_status('')
 
     if not os.path.isfile(fn):
-        app.msg_status(_('Cannot download: ')+DOWNLOAD_PAGE)
+        app.msg_status(_('Cannot download: ')+url)
+        return
+
+    text = open(fn, encoding='utf8').read()
+    items = re.findall(VERSION_REGEX, text)
+    if not items:
+        app.msg_status(_('Cannot find app version: '+url))
+        return
+
+    items = sorted(items, reverse=True)
+    s_version = items[0]
+    print(_('Found last version: ')+s_version)
+
+    url = DOWNLOAD_PAGE+s_version+'/'
+    app.msg_status(_('Downloading: ')+url, True)
+    get_url(url, fn, True)
+    app.msg_status('')
+
+    if not os.path.isfile(fn):
+        app.msg_status(_('Cannot download: ')+url)
         return
 
     text = open(fn, encoding='utf8').read()
     items = re.findall(DOWNLOAD_REGEX, text)
     if not items:
-        app.msg_status(_('Cannot find download links'))
+        app.msg_status(_('Cannot find links: '+url))
         return
 
     items = sorted(items, key=lambda i:i[REGEX_GROUP_VER], reverse=True)

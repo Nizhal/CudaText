@@ -12,10 +12,100 @@ Comment chars are editable in SynWrite editor, in dialog "Lexer properties" (aft
 
 Command "Toggle stream comment" in plugin adds/removes comments of last 2 types: for range, for full lines (plugin chooses needed kind).
 
-Comment chars are saved:
+Where comment chars are stored:
 
-* Line comments: in lexer file data/lexlib/nnn.lcf.
-* Range comments: in files data/lexlib/nnn.cuda-lexmap.
+* Line comments: in lexer file data/lexlib/*.lcf.
+* Range comments: in additional file data/lexlib/*.cuda-lexmap.
+
+===Commenting options===
+
+Plugin "Comments" has several options, and it gives the dialog to change them: menu item "Options / Settings-plugins / Comments / Config".
+
+'''(Line commands) Try to keep text position after (un)commenting'''
+
+Affects all commands for line-comments.
+
+With option on, plugin tries to insert comment chars into leading space-area of the line. For example, with C++ (line comment chars "//"), line with 4 leading spaces:
+
+     code();
+
+will be changed to line with 2 leading spaces:
+
+   //code();
+
+After uncommenting, line will be restored to original, with 4 leading spaces.
+
+'''(Line "at non-space") If selected few lines, insert comment at maximal common indent'''
+
+Affects commands:
+* "Toggle line comment, at non-space char"
+* "Add line comment, at non-space char"
+
+With option on, this selected block of lines in C++:
+
+       code1();
+     code2();
+         code3();
+
+will be changed to:
+
+     //  code1();
+     //code2();
+     //    code3();
+
+With option off, block will be changed to:
+
+       //code1();
+     //code2();
+         //code3();
+
+'''(All) Move caret to next line'''
+
+Affects commands for line-comments, when they are called without selection.
+
+With option on, caret will be moved 1 line down. This allows to call the command many times repeatedly, to change many lines.
+
+'''(Line commands) Skip blank lines'''
+
+Affects commands for line-comments, when they are called without selection.
+
+With option on, and the previous option "Move caret to next line" on, command will skip lines containing only space/tab chars.
+
+'''"Toggle line comment" detects action by first non-blank line'''
+
+Affects command "Toggle line comment".
+
+With option on, command detects its action (to comment or to uncomment) by the first non-blank line of the selected multi-line block.
+
+Here is selected block of code, selection is shown by square brackets, first selected line is blank line:
+
+ [
+  
+     //code1();
+     code2();
+     //code3();
+     code4();
+ ]
+
+With option off, block will be changed it to:
+
+ [//
+ //
+     //code1();
+     //code2();
+     //code3();
+     //code4();
+ ]
+
+With option on, block will be changed to:
+
+ [
+  
+     code1();
+     code2();
+     code3();
+     code4();
+ ]
 
 == Macros ==
 
@@ -23,33 +113,43 @@ Macro is a sequence of CudaText actions, which can be saved to a file and invoke
 To use macros, you must install plugin "Macros" from Addon Manager. It adds "Macros" menu to CudaText main menu bar. This menu gives items:
 
 * Macros...
-* Start record
-* Stop record
-* Cancel record
+* Start/stop recording
+* Playback last recorded macro
 * Export...
 * Import...
-* (items for saved macros)
+* items for saved macros
+
+[[File:cudatext-macro-menu.png]]
 
 To record a macro:
 
-* call menu item "Macros / Start record", or use dialog "Macros / Macros..." which gives "Start record" button too
-* pefrorm some action(s) in CudaText:
+* Call menu item "Macros / Start/stop recording", or use dialog "Macros / Macros..." which gives the button for this.
+* Perform some actions in CudaText:
 ** built-in commands, plugin commands (invoked by hotkey, by menu, by Command Palette)
 ** some mouse actions (clicks/selections, they save/playback relative to caret position)
 ** calling of Find/Replace dialog, "Go to" dialog
 ** actions in Find/Replace dialog
-* call menu item "Macros / Stop record" to save your macro, plugin will ask for macro name
+* Call menu item "Macros / Start/stop recording" again, plugin will ask for macro name.
 
-Macro saves action(s) performed inside its original editor tab (not other tabs). And it doesn't save actions inside plugin dialogs (e.g. FindInFiles).
+During recording, CudaText shows reddish border around the editor field.
+
+[[File:cudatext-macro-border.png]]
+
+Macro saves action(s) performed inside its original editor ui-tab (but not other ui-tabs). Calling of additional dialogs (including plugin dialogs) will be recorded too. But macro doesn't save actions inside those dialogs.
 
 To playback macro:
 
-* call menu item "Macros / (macro name)", the end of this menu lists all available/saved macros
-* or call dialog "Macros / Macros..." which allows to run available macros: it can be simple running, running N times, or running in loop ([x] While text changes, [x] Until caret on last line)
+* Call menu item "Macros / macro_name", the end of this menu lists all available/saved macros.
+* Or call dialog "Macros / Macros...", which allows to run all available macros:
+** running 1 time
+** running specified count of times
+** running in the loop, by options:
+*** While text changes
+*** Until caret on last line
 
 == Project Manager ==
 
-This plugin is preinstalled in CudaText. It shows panel "Project" in the sidebar (to show this panel, call plugin by any command, or set plugin's option "Load on program start" and restart, CudaText sidebar will have Project button). On the project panel, on its tree-view, you can add several "root nodes", each node must be existing file or folder. For folder nodes, plugin auto shows all nested folders. You cannot add nodes on other levels (like SynWrite editor does).
+This plugin is preinstalled in CudaText. It shows panel "Project" in the sidebar (to show this panel, call plugin by any command, or call "File / Open folder..." menu item which opens any folder as a "project"). On the project panel, on its tree-view, you can add several "root nodes", each node must be existing file or folder. For folder nodes, plugin auto shows all nested folders. You cannot add nodes on other levels, sub-nodes are auto populated from root folder nodes.
 
 Plugin has context menu on its panel, with items:
 
@@ -74,18 +174,19 @@ Any project can have "main file", you can choose it in the context menu: "Select
 
 === Project Manager options dialog ===
 
-* "Ignore files": ";"-separated shell wildcards, which are [https://docs.python.org/3/library/fnmatch.html documented here]. If file name (without path) matches any of these wildcards, it will not be listed in the treeview.
-* "Ignore folders": ";"-separated shell wildcards. If folder name matches any of these wildcards, it will not be listed in the treeview.
-* "Ignore all hidden files/folders": Additionally don't list all hidden items. On Unix, hidden mean "beginning with dot". On Windows, hidden means having file-system "hidden" attribute.
-* "Open file after "Go to file" command": If turned on, command "Project Manager: Go to file" will not only jump to chosen file in the treeview, but also open that file in editor.
-* "Use "preview tab" on item clicking": If option is on, single click on treeview file item, will open file in "preview tab". Preview tab is single such tab, it's shared by all files, it has italic+underlined tab title. If option is off, clicking file item will open normal tab, separate normal tabs per each file.
-* "Open files by double-click": If turned on, only double-click in the treeview will open file for editing, but not the single click.
-* "On opening file in Git/SVN repo...": On opening any file, Project Manager will check if this file is in the Git/SVN repository (by presence of folder ".git" or ".svn" near the file, or in upper level folders). If yes, Project Manager will create the project from that repository and open it. This gives some slowdown of course.
+;"Ignore files": ";"-separated shell wildcards, which are [https://docs.python.org/3/library/fnmatch.html documented here]. If file name (without path) matches any of these wildcards, it will not be listed in the treeview.
+;"Ignore folders": ";"-separated shell wildcards. If folder name matches any of these wildcards, it will not be listed in the treeview.
+;"Ignore all hidden files/folders": Additionally don't list all hidden items. On Unix, hidden mean "beginning with dot". On Windows, hidden means having file-system "hidden" attribute.
+;"Open file after "Go to file" command": If turned on, command "Project Manager: Go to file" will not only jump to chosen file in the treeview, but also open that file in editor.
+;"Use 'preview tab' on item clicking": If option is on, single click on treeview file item, will open file in "preview tab". Preview tab is single such tab, it's shared by all files, it has italic+underlined tab title. If option is off, clicking file item will open normal tab, separate normal tabs per each file.
+;"Open files by double-click": If turned on, only double-click in the treeview will open file for editing, but not the single click.
+;"On opening file in Git/SVN repo...": On opening a file in CudaText, Project Manager will check if this file is in the Git/SVN repository (by presence of the folder ".git" or ".svn" near the file, or in upper level folders). If yes, Project Manager will create the project from that repository and open it. This gives some slowdown of course.
+;"Suggest to close tabs not belonging to project": See [[#Sessions embedded to project]].
 
 And options for icons:
 
-* "File type icons": Set of file/folder icons for treeview. You can install additional themes from Addons Manager, see category "filetypeicons" there. Example of such theme: "VSCode Material 24x24". This option shows  themes, which are present in the folder "data/filetypeicons".
-* "Toolbar icons": Set of icons for Project Manager toolbar buttons. You can install additional themes from Addon Manager, see the category "projtoolbaricons" there. This option shows themes, which are present in the folder "data/projtoolbaricons".
+;"File type icons": Set of file/folder icons for treeview. You can install additional themes from Addons Manager, see category "filetypeicons" there. Example of such theme: "VSCode Material 24x24". This option shows  themes, which are present in the folder "data/filetypeicons".
+;"Toolbar icons": Set of icons for Project Manager toolbar buttons. You can install additional themes from Addon Manager, see the category "projtoolbaricons" there. This option shows themes, which are present in the folder "data/projtoolbaricons".
 
 === Preview tab ===
 
@@ -125,22 +226,52 @@ If you need to open clicked files in different tab-groups, you can do it - by un
 * In the plugin "Config Toolbar", add the toolbar button which will switch the project and/or session. The properties of this button are tricky. In the "Command" property of the button, you must enter "exec=path_of_project_file path_of_session file". You cannot type this directly to the dialog field, but you should press the "Enter command line..." button in the dialog and enter the command line contents (full path of .cuda-proj file and/or full path of .cuda-session file). "Config Toolbar" will store your command line with the "exec=" prefix.
 * CudaText will use the new command-line which you entered after "exec=".
 
+=== Sessions embedded to project ===
+
+CudaText 1.159+ supports sessions which are not separate JSON files (*.cuda-session or *.json) but are embedded into project file (*.cuda-proj). Session is still having the same JSON format, but it's nested 2 levels into the project JSON file. Such embedded sessions are visible only to the Project Manager. When an embedded session is active, CudaText window title shows this in curly brackets: "{project_name:session_name}".
+
+To control sessions, use the "gear" button on the Project Manager toolbar. Several menu items are there:
+
+* "Project session: name". One or more menu items, one item per each session.
+* "Save session...". Shows text input prompt, to name a session (you will be warned if you use incorrect characters or session already exists).
+* "Delete session". Shows menu to choose which session to delete from the project.
+* "Set default session". After you choose a session here, it will be marked in the project file, and will be auto-loaded on next project opening.
+* "Forget session, close all tabs".
+
+Project Manager has the option checkbox "Suggest to close tabs not belonging to project". When option is on, you will see such confirmation message box:
+
+ CudaText has opened 3 tab(s) not belonging to the project "name". Close them?
+ /path/to/file1
+ /path2/to/file2
+ *Untitled1
+
+You will see this confirmation when doing:
+
+* "New project" action (from Project Manager context menu, or from Command Palette)
+* "Save session..." action (from "gear" popup menu, or from Command Palette)
+
+You can disable that option (or press "Cancel" in the confirmation), to save even "not belonging" opened files to embedded session.
+
 == Snippets ==
 
 To use snippets you need:
 
-* plugin "Snippets" (install from Addon Manager)
-* snippet package for needed lexer (install from Addon Manager)
+* Plugin "Snippets" (install from Addon Manager)
+* Snippet package for needed lexer (install from Addon Manager)
 
-Each snippet has a name (shown in the dialog when Snippets plugin is called) and short id (letters, digits, '_', dot). You can type id in editor and press Tab key: snippet for this id will be inserted into text. You can insert snippets also by choosing in dialog: call menu item "Plugins / Snippets".
+Each snippet has a name (shown in the dialog when Snippets plugin is called) and short id (letters, digits, '_', dot). You can type id in the editor and press the Tab key: snippet for this id will be inserted into text. You can also call the menu of snippets: menu item "Plugins / Snippets / Snippets menu...".
 
-Only those snippets are enabled, which are suitable for the current lexer. For example, a snippet may be for lexers "C,C++,Objective C" - it is enabled only when these lexers are active. If a snippet has no lexer property, it is always enabled.
+Only those snippets are enabled, which are suitable for the current lexer. Snippet's "lexer" property can be "C,C++,Objective C" - then snippet is enabled only when one of these 3 lexers is active. If snippet has empty "lexer" property, it is always enabled.
 
 Dialog of Snippets plugin:
 
 [[File:cudatext_snippets_menu.png]]
 
-Texts of snippets usually have tab-stop(s), e.g. ${1:some_text}. Plugin Snippets finds tab-stops and places "markers" for them. After markers are placed, Tab-key works special in editor, it jumps to next marker. See detailed information in the [[CudaText#Markers]].
+Texts of snippets usually have tab-stop(s), e.g. ${1:some_text}. Plugin Snippets finds tab-stops and places "markers" for them. After markers are placed, Tab-key works specially: it jumps to the next marker. See detailed information in the [[CudaText#Markers]].
+
+Formats of snippets supported:
+* CudaText snippets. These are packages with prefix "snippets_ct" in the Addons Manager. They are installed into folder [CudaText]/data/snippets_ct.
+* VSCode snippets. These are VSCode packages located in the VSCode repositories. Read the separate topic about them below. They are installed to folder [CudaText]/data/snippets_vs.
 
 === Snippets from VSCode ===
 Since recent versions, Snippets plugin supports snippets from VSCode editor. It gives menu items in "Plugins / Snippets":
@@ -203,6 +334,7 @@ Special macros are handled by Snippets plugin in snippet text:
 
 * ${date:nnnn} - Current date/time formatted by string "nnnn"; see [http://strftime.org/ Python docs]
 * ${env:nnnn} - Value of OS environment variable "nnnn"
+* ${cmd:nnnn} - Execute shell command "nnnn" and get its output (space-separated arguments are supported, '~' for home-directory is supported on Unix)
 
 The following macros from Sublime Text editor are supported. They can be written as $NAME or as ${NAME}.
 
@@ -373,36 +505,49 @@ Formatters may change entire file text or only selected text. If selection is ma
 
 ===CudaFormatter commands===
 
-* Formatter (menu): Runs formatter for current editor file. If several formatters are found, menu dialog will suggest to choose one of them.
+;Formatter (menu): Runs formatter for current editor file. If several suitable formatters are found, menu-like dialog will suggest to choose one of them. If only single formatter is found, it will be run without confirmation.
 
-* Formatter A...D: Runs formatter for current editor file, which has label (A, B, C, D) set. Labels are configurable by another command.
+;Formatter per-lexer A...D: Runs formatter for current editor file, which has per-lexer label (A, B, C, D). Labels are configurable by another command. For example, for the label "A" you can have one formatter for C++, another formatter for HTML, and the 3rd one for CSS. 
 
-* Configure on_save: Chooses which formatters are active on file saving. The first formatter, which is suitable for current lexer, and has the flag "on_save", will be used to format text on file saving.
+;Formatter cross-lexer 1...4: Runs formatter for current editor file, which has cross-lexer label (1, 2, 3, 4). For example, when you have a formatter XY assigned to the label "2", the command "Formatter cross-lexer: 2" always runs XY, ignoring the current lexer.
 
-* Configure labels: Allows to assign labels (A, B, C, D) to formatters. Labels allow to use commands "Formatter A"..."Formatter D", e.g. via hotkeys. So you can use command "Formatter A" via some hotkey, and be sure that for all lexers "Formatter A" will use desired formatters.
+;Minify to separate file: Finds the "minifier" formatter for the current lexer, and runs it. The resulting text is stored to separate file with name like "filename.min.css" (.css for CSS lexer). Command needs that some formatter for the current lexer is marked as "minifier" (in the formatter's install.inf file).
 
-* Configure formatter: For those formatters which support config file, command will suggest to open global config file (in the folder "settings" of CudaText).
+;Configure on_save: Chooses which formatters are active on file saving. The first formatter, which is suitable for current lexer, and which has the flag "on_save" attached (via plugin configuration), will be used.
 
-* Configure formatter (local): For those formatters which suppots config file, command will suggest to open "local" config (in the folder of current editor file). If local config not exists, plugin will suggest to create it from global config.
+;Configure per-lexer labels: Allows to assign per-lexer labels (A, B, C, D) to formatters. Labels allow to use commands "Formatter per-lexer A"..."Formatter per-lexer D", also via hotkeys.
+
+;Configure formatter: For those formatters which have configuration file, command will suggest to open global config file (in the folder "settings" of CudaText).
+
+;Configure formatter (local): For those formatters which have configuration file, command will suggest to open "local" config (in the folder of current editor file). If local config not exists, plugin will suggest to create it from the global config.
 
 == External Tools ==
 
 === Introduction to External Tools ===
 
-Plugin "External Tools" (ExtTools) can be installed from Addon Manager. It allows to run external programs, catch their output, and display this output in the Output/Validate panels of CudaText. Or to insert/replace some text in the editor.
-Plugin adds "Tools" top menu (near "Plugins"), it has item to configure all tools, and items for individual tools.
+Plugin "External Tools" (ExtTools) can be installed from Addon Manager. It allows to run external programs, catch their output, and then it can:
+
+* Display this output in the Output or Console panel of CudaText.
+* Replace current editor selection with the output.
+* Copy this output to a new document.
+* Copy this output to Clipboard.
+* And more.
+
+Plugin adds "Tools" top menu (near "Plugins"), which has menu item "Config" to configure all tools (in the single dialog), and menu items to run all individual tools.
 
 [[File:cudatext-tools-menuitem.png]]
 
-Some external tools configs are shown in topics below. Enter these strings in the "Tool properties" dialog.
+Some external tools configs are shown in the Wiki topics below. Enter these strings in the "Tool properties" dialog.
 
 [[File:cudatext-tools-props.png]]
 
-The disadvantage of the plugin: it cannot show tool output lines immediately when they appear, it waits until tool is terminated.
-Consider to use the [[#Runner]] plugin which supports this.
+Plugin allows to customize hotkeys for all individual tools, or to use the single hotkey for different tools. The single hotkey is the hotkey of the plugin's command "Tools / Run main lexer tool". What is the "main lexer tool"? For example, you have 2 tools for lexer C++, and 3 tools for lexer HTML. You open the "Tool properties" dialog for some C++ tool, and press "Set main" button to mark that tool as "main" for C++. Then you open properties of some HTML tool, press "Set main" button to mark that tool as "main" for HTML. So now the "Tools / Run main lexer tool" can determine what is the main tool for C++ and HTML.  
+
+[[File:cudatext-tools-mainlexertool.png]]
 
 Notes:
 
+* The disadvantage of the plugin: it cannot show tool output lines immediately when they appear, it waits until tool is terminated. Use the [[#Runner]] plugin which supports that feature.
 * If you see that running of tools makes the Output panel visible, you need to fix the "Capture output" option of those tools, set it to "Ignore".
 
 === Tool to compile by GCC ===
@@ -653,9 +798,9 @@ See above example about tool for PHP documentation. Create the similar tool
 
 This tool needs renamed .chm files: for lexer AutoIt it needs "AutoIt.chm" and so on. It needs .chm files in a single folder relative to CudaText folder.
 
-=== URL for Google search ===
+=== Tool for Google search ===
 
-This is URL, not tool. In the External Tools dialog, press URL button, then press Add to add a new URL.
+This is URL (special kind of tool). In the External Tools dialog, press the "URL" button, then press "Add" to add a new URL.
 
 * Name: Google find
 * URL:
@@ -707,7 +852,51 @@ for($i=0; $i<10; $i++) {
 
 [[File:cudatext-runner-thread.gif]]
 
-==Example C++ tool==
+==Runner limitation for input==
+If your Python script contains the input() function:
+
+<syntaxhighlight lang="python">
+s=input('enter text: ')
+print('entered:', s)
+</syntaxhighlight>
+
+it will run with a runtime error like this:
+
+ enter text: Traceback (most recent call last):
+   File "/home/user/a.py", line 3, in <module>
+ 	s=input('enter text: ')
+ EOFError: EOF when reading a line
+
+This is the limitation of the Runner plugin. To run your Python script in this case, you should call "ExTerminal" plugin (or "Terminal Plus" plugin), and enter there: "python3 myscript.py". And make sure, that ExTerminal prompt appeared in the proper folder, with your script.
+
+==Runner tool for C==
+Install the add-on "build-system: Many Build Systems from ST4".
+It supports C lexer using GCC compiler.
+It works on Linux/macOS out-of-the-box, on Windows you need the command "gcc" to be in the system PATH.
+
+This build-system has 2 commands:
+* Build: only compiles
+* Run: compiles and then runs the binary
+
+Example C file:
+<syntaxhighlight lang="cpp">
+#include <stdio.h>
+int main(){
+  printf("Hello world");
+  return 0;
+}
+</syntaxhighlight>
+
+Example output in the CudaText Output panel (Linux):
+<pre>
+-- [10:34:08] Building: C via GCC: a.c
+-- Command: gcc "/home/user/a.c" -o "/home/user/a" && "/home/user/a"
+-- Working dir: /home/user
+Hello world
+-- Done (0.2s), return code: 0
+</pre>
+
+==Runner tool for C++==
 Install the add-on "build-system: C++ using G++".
 It supports C++ lexer using GNU C++ compiler.
 It works on Linux/macOS out-of-the-box, on Windows you need the command "g++" to be in the system PATH.
@@ -735,7 +924,7 @@ Hello World!
 -- Done (0.8s), return code: 0
 </pre>
 
-==Example PHP tool==
+==Runner tool for PHP==
 How to debug for example PHP file, with Runner.
 Create file "[CudaText]/data/buildsystems/php.sublime-build" with such text:
 <syntaxhighlight lang="json">
@@ -764,42 +953,25 @@ for($i=0; $i<10; $i++) {
 ?>
 </syntaxhighlight>
 
-==Example Python tool==
-How to debug for example Python file, with Runner.
-Create file "[CudaText]/data/buildsystems/py.sublime-build" with such text:
-<syntaxhighlight lang="json">
-{
-  "file_patterns": ["*.py"],
-  "linux": {
-    "cmd": ["python3", "$file"],
-  },
-  "windows": {
-    "cmd": ["pythonw.exe", "$file"]
-  }
-}
-</syntaxhighlight>
-
-Restart CudaText.
+==Runner tool for Python==
+In Addons Mananger, install the add-on "buildsystem: Many Build Systems from ST4". It contains the Python build-system. It even contains 2 items in the build-system:
+* Build
+* Syntax Check
 
 After opening a Python file, call Runner main command "Build", that's it. It must show script output (in the Output panel) line-by-line, as it appears.
 
 Example script to test:
 <syntaxhighlight lang="python">
-import sys
 import time
 
-def ForTest():
-    for i in range(5):
-        time.sleep(1)
-        print(str(i) + " is here", flush=True)
-        
-if __name__ == '__main__':
-    ForTest()
+for i in range(5):
+    time.sleep(1)
+    print(str(i) + " is here", flush=True)
 </syntaxhighlight>
 
-==Example Free Pascal tool==
-How to compile and run Free Pascal files.
-Create file "[CudaText]/data/buildsystems/Free Pascal.sublime-build" with such text:
+==Runner tool for Free Pascal==
+In Addons Manager, install the add-on "buildsystem: Free Pascal".
+It installs the file "[CudaText]/data/buildsystems/Free Pascal.sublime-build" with text like this:
 <syntaxhighlight lang="json">
 {
   "file_patterns": ["*.pp", "*.pas"],
@@ -816,9 +988,8 @@ Create file "[CudaText]/data/buildsystems/Free Pascal.sublime-build" with such t
 }
 </syntaxhighlight>
 
+In this file, you need to adjust the path to "fpc.sh", according to your [[fpcupdeluxe]] folder.
 Restart CudaText.
-
-Here we use full path to FPC, when it is installed by FPCUPdeluxe tool on Linux x64. We use path of "fpc.sh" which is created by FPC installation.
 
 After opening a Pascal file, call Runner main command "Build", that's it.
 The "Build" command example output:
@@ -850,6 +1021,18 @@ Hello world.
 This plugin implements searching in many files, starting from custom folder. CudaText doesn't have the built-in feature to search in many files, and seems it will not have it in future, because FindInFiles is so powerful, it even has the Configuration dialog with dozens of options.
 
 Project Manager plugin allows to call FindInFiles functionality. Focus a folder in Project Manager, call context menu, and then "Selected directory / Find in directory..." menu item.
+
+==How to find/replace in all UI-tabs==
+FindInFiles 4 supports search inside all UI-tabs. Hover mouse over "From:" label in the dialog, tooltip will appear. Tooltip says what to enter in the nearest input-field. Enter one of these strings:
+
+ <tabs>
+ {t}
+
+[[File:cudatext-findinfiles-intabs.png]]
+
+To discover more features of FindInFiles dialog, hover mouse over other labels/buttons.
+
+You can also '''replace in all UI-tabs''', of course. Additionally, CudaText gives built-in "Replace in all tabs" feature, it is the button "Rep global" in the built-in Find/Replace dialog. This is documented in the main CudaText wiki page.
 
 ==FiF3 and FiF4: comparison and future==
 CudaText has two plugins to search in files/tabs:
@@ -883,6 +1066,44 @@ Main new features:
 * FiF4 has '''statusbar''' to show statistics of the last search: folders/files/fragments/timing.
 * FiF4 allows to '''reformat Results''' (change tree type and more) without new search.
 * FiF4 allows to show '''modification time''' of files in the Results.
+
+=Terminal=
+
+There are currently 3 terminal plugins:
+* Terminal: simplest plugin.
+* Terminal Plus: most feature-rich plugin, but its UI may be too complex for beginners.
+* ExTerminal: middle in the feature set, but its UI is very simple.
+
+Let's take ExTerminal plugin, and show how to perform some task with it, under Linux. Task: run Python script which uses 'input()' function. The simpest Terminal plugin cannot handle 'input()' function, but ExTerminal will work good. Let's take Python script with content:
+
+<syntaxhighlight lang="python">
+x = int(input('Enter x: '))
+w = int(input('Enter w: '))
+print(x*w)
+</syntaxhighlight>
+
+Steps:
+
+* Save our script to file ~/myfolder/tt.py
+* Install ExTerminal, restart CudaText
+* Run ExTerminal by clicking its bottom-bar-icon
+* In ExTerminal, enter "cd ~/myfolder", so file tt.py will be in the current directory. You can enter "ls *.py" to see all python files in the current directory.
+* In ExTerminal, enter "python3 tt.py"
+
+Script should work and show 2 input-prompts.
+
+ user@user:~/myfolder$ ls *.py
+ a.py  test.py  tt.py
+ user@user:~/myfolder$ python3 tt.py
+ Enter x: 10
+ Enter w: 20
+ 200
+
+How to open ExTerminal in the directory of the current editor file? You can do this:
+
+* Hover mouse over ExTerminal button in the bottom-bar. It must show tooltip like "ExTerminal 1".
+* Right-click this button, popup menu appears (only on CudaText 1.167+), from the popup menu choose "New terminal". This will create another ExTerminal button+panel. New panel has the directory of the current editor file.
+* To not produce too much ExTerminal buttons, use "Close terminal" from the popup menu.
 
 =Configure Menu=
 
@@ -1071,11 +1292,10 @@ Some of LSP commands are:
 
 [[File:cudatext-lsp-refs.png]]
 
-* Code linting: checks the syntax of code, and places underlines and/or bookmarks on "incorrect lines".
-* Document formatting.
+* Code linting: checking the correctness of the source code, places underlines and/or bookmarks on "incorrect lines". This feature is also implemented in [[#CudaLint]] and usually it works better/faster there.
+* Document formatting: formatting of the source code by LSP server. This feature is also implemented in [[#CudaFormatter]] and usually it works better/faster there.
 
 All LSP servers should have a homepage with description of their functions, and installation information.
-LSP Client was initially tested with 2 popular servers: Python, C#.
 
 In the server config "lsp_*.json", key "lexers", you need to specify the mapping between CudaText lexer names and LSP language names.
 For example, while CudaText lexer name is "Bash script", LSP language name is "bash".
@@ -1093,7 +1313,9 @@ And while CudaText lexer name is "C#", LSP language name is "csharp".
 LSP Client also has the settings file, use menu item to open it: "Options / Settings-plugins / LSP Client".
 
 ==LSP server for Python==
-Python server has [https://github.com/palantir/python-language-server this homepage] and supports:
+Project homepage is https://github.com/python-lsp/python-lsp-server .
+Note that this is fork of old, unmaintained, project "PyLS".
+Server supports:
 
 * Auto-completion
 * Go to definition
@@ -1103,12 +1325,14 @@ Python server has [https://github.com/palantir/python-language-server this homep
 * Code linting
 * Document formatting
 
-Use "pip" to install the Python LSP server:
+Use "pip" to install the server:
 
- pip install python-language-server
+ pip install python-lsp-server
  
-Server installation adds the command "pyls" which is not in the PATH.
-You need to write the full path to LSP Client config.
+This will expose the command "pylsp" on your PATH. Confirm that installation succeeded by running:
+
+ pylsp --help
+ 
 Create the file "[CudaText]/settings/lsp_py.json" with text like this:
 
 <syntaxhighlight lang="json">
@@ -1116,9 +1340,9 @@ Create the file "[CudaText]/settings/lsp_py.json" with text like this:
   "lexers": {
     "Python": "python"
   },
-  "cmd_windows": ["C:\\Python_folder\\pyls.exe"],
-  "cmd_macos": ["pyls"],
-  "cmd_unix": ["~/.local/bin/pyls"]
+  "cmd_windows": ["pylsp.exe"],
+  "cmd_macos": ["pylsp"],
+  "cmd_unix": ["pylsp"]
 }
 </syntaxhighlight>
 
@@ -1319,5 +1543,47 @@ Server should work now. It gives: mouse hover tooltips (Ctrl + mouse hovering ov
 Server should work now. It gives: mouse hover tooltips (Ctrl + mouse hovering over names), go to definition (works not always, logic when it works is unclear).
 
 Note: don't create .bat or .cmd file with the "red.exe" calling, because it does not work in LSP Client for some reason. 
+
+==LSP server for PHP==
+
+* Install PHP, Composer. PHP versions 7.4.3 and 8.1 are OK. 
+* Install php-dom extension. php-dom extension is the only needed for this server to work, and it must be installed before you run "composer update".
+* Clone https://github.com/zobo/php-language-server. See its readme "Installation" part, you must do some steps with Composer first, e.g. "composer update" inside php-language-server directory. 
+* Create file (CudaText)/settings/lsp_php.json with content:
+
+<syntaxhighlight lang="json">
+{
+    "name": "PHP",
+    "lexers": {
+        "PHP": "php"
+    },
+    "tcp_port": 12345
+}
+</syntaxhighlight>
+
+* Create shell/command script to start server by hands:
+
+<pre>
+php folder_of_server/bin/php-language-server.php --tcp-server=127.0.0.1:12345
+</pre>
+
+* If LSP Client has version 2022.06.16 or newer, both "tcp_port" and "cmd_xxxx" can be specified in lsp_php.json. And you don't need to run server by hands.
+
+<syntaxhighlight lang="json">
+{
+    "name": "PHP",
+    "lexers": {
+        "PHP": "php"
+    },
+    "cmd_windows": ["php", "D:\\programm\\php\\php-language-server\\bin\\php-language-server.php", "--tcp-server=127.0.0.1:12345"],
+    "tcp_port": 12345
+}
+</syntaxhighlight>
+
+Server should work now. It gives features: https://github.com/zobo/php-language-server#features .
+
+Auto-completion works, it is not working if you open .php file that is outside of current CudaText project directory.
+In LSP Client config there is a parameter named "root_dir_source". For zobo's server to index .php files they must be inside this dir.
+In CudaText Project Manager you must save your project file to your php project location, otherwise the root_dir will be wrong.
 
 [[Category:CudaText]]

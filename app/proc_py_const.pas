@@ -32,6 +32,9 @@ const
   MARKERS_DELETE_BY_INDEX = 5;
   MARKERS_ADD_MANY = 6;
   MARKERS_GET_DICT = 7;
+  MARKERS_DELETE_BY_POS = 8;
+  MARKERS_GET_DUPS = 14;
+  MARKERS_SET_DUPS = 15;
 
   APP_DIR_EXE = 0;
   APP_DIR_SETTINGS = 1;
@@ -128,6 +131,7 @@ const
   PROP_GUTTER_NUM     = 1;
   PROP_GUTTER_FOLD    = 2;
   PROP_GUTTER_BM      = 3;
+  PROP_GUTTER_EMPTY   = 4;
   PROP_WRAP           = 5;
   PROP_RO             = 6;
   PROP_TAB_SPACES     = 7;
@@ -207,6 +211,7 @@ const
   PROP_CARET_STOP_UNFOCUSED      = 81;
   PROP_ACTIVATION_TIME           = 82;
   PROP_FOCUSED                   = 83;
+  PROP_GUTTER_EMPTY_WIDTH        = 84;
   PROP_MODERN_SCROLLBAR          = 85;
   PROP_SAVE_HISTORY              = 86;
   PROP_PREVIEW                   = 87;
@@ -245,6 +250,7 @@ const
   PROP_FONT_B                    = 123;
   PROP_FONT_I                    = 124;
   PROP_FONT_BI                   = 125;
+  PROP_WHEEL_ZOOMS      = 126;
   PROP_RECT_GUTTER      = 130;
   PROP_RECT_GUTTER_NUMS = 131;
   PROP_RECT_GUTTER_FOLD = 132;
@@ -256,6 +262,7 @@ const
   PROP_RECT_SCROLL_VERT = 139;
   PROP_V_WIDTH_HEX        = 140;
   PROP_V_WIDTH_UHEX       = 141;
+  PROP_V_ENC              = 142;
   PROP_MASKCHAR           = 150;
   PROP_MASKCHAR_USED      = 151;
   PROP_NUMBERS_ONLY       = 153;
@@ -270,6 +277,7 @@ const
   APP_PROC_SAVE_SESSION = 3;
   APP_PROC_LOAD_SESSION = 4;
   APP_PROC_SET_SESSION = 5;
+  APP_PROC_GET_CLIP_EX = 6;
   APP_PROC_SET_FOLDER  = 7;
   APP_PROC_GET_COMMANDS = 8;
   APP_PROC_SET_EVENTS = 10;
@@ -375,6 +383,8 @@ const
   APP_PROC_GET_UNIQUE_TAG = 159;
   APP_PROC_ENUM_FONTS     = 160;
   APP_PROC_SEND_MESSAGE   = 161;
+  APP_PROC_GET_COMPILER_INFO = 162;
+  APP_PROC_ENUM_ENCODINGS = 163;
 
   APP_PROC_CONFIG_READ           = 169;
   APP_PROC_CONFIG_NEWDOC_EOL_GET = 170;
@@ -405,9 +415,12 @@ const
   TREE_ITEM_FOLD_LEVEL       = 15;
   TREE_ITEM_SHOW             = 16;
   TREE_ITEM_GET_PROPS        = 17;
+  TREE_GET_SELECTIONS        = 23;
   TREE_FIND_FOR_TEXT_POS     = 24;
   TREE_GET_IMAGELIST         = 25;
   TREE_SET_IMAGELIST         = 26;
+  TREE_GET_MULSELECT         = 27;
+  TREE_SET_MULSELECT         = 28;
   TREE_PROP_SHOW_ROOT        = 30;
   TREE_LOCK                  = 31;
   TREE_UNLOCK                = 32;

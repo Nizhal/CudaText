@@ -125,6 +125,9 @@ MARKERS_DELETE_BY_TAG = 4
 MARKERS_DELETE_BY_INDEX = 5
 MARKERS_ADD_MANY      = 6
 MARKERS_GET_DICT      = 7
+MARKERS_DELETE_BY_POS = 8
+MARKERS_GET_DUPS      = 14
+MARKERS_SET_DUPS      = 15
 
 TIMER_START     = 0
 TIMER_START_ONE = 1
@@ -155,6 +158,7 @@ PROP_GUTTER_STATES  = 0
 PROP_GUTTER_NUM     = 1
 PROP_GUTTER_FOLD    = 2
 PROP_GUTTER_BM      = 3
+PROP_GUTTER_EMPTY   = 4
 PROP_WRAP           = 5
 PROP_RO             = 6
 PROP_TAB_SPACES     = 7
@@ -234,6 +238,7 @@ PROP_HILITE_CUR_LINE_IF_FOCUS  = 80
 PROP_CARET_STOP_UNFOCUSED      = 81
 PROP_ACTIVATION_TIME           = 82
 PROP_FOCUSED                   = 83
+PROP_GUTTER_EMPTY_WIDTH        = 84
 PROP_MODERN_SCROLLBAR          = 85
 PROP_SAVE_HISTORY              = 86
 PROP_PREVIEW                   = 87
@@ -272,6 +277,7 @@ PROP_FONT                      = 122
 PROP_FONT_B                    = 123
 PROP_FONT_I                    = 124
 PROP_FONT_BI                   = 125
+PROP_WHEEL_ZOOMS      = 126
 PROP_RECT_GUTTER      = 130
 #PROP_RECT_GUTTER_NUMS = 131
 #PROP_RECT_GUTTER_FOLD = 132
@@ -283,6 +289,7 @@ PROP_RECT_RULER       = 137
 #PROP_RECT_SCROLL_VERT = 139
 PROP_V_WIDTH_HEX        = 140
 PROP_V_WIDTH_UHEX       = 141
+PROP_V_ENC              = 142
 PROP_MASKCHAR           = 150
 PROP_MASKCHAR_USED      = 151
 PROP_NUMBERS_ONLY       = 153
@@ -305,6 +312,7 @@ PROC_GET_OS_SUFFIX       = 2
 PROC_SAVE_SESSION        = 3
 PROC_LOAD_SESSION        = 4
 PROC_SET_SESSION         = 5
+PROC_GET_CLIP_EX         = 6
 PROC_SET_FOLDER          = 7
 PROC_GET_COMMANDS        = 8
 PROC_SET_EVENTS          = 10
@@ -410,6 +418,8 @@ PROC_SET_PROJECT      = 158
 PROC_GET_UNIQUE_TAG   = 159
 PROC_ENUM_FONTS       = 160
 PROC_SEND_MESSAGE     = 161
+PROC_GET_COMPILER_INFO = 162
+PROC_ENUM_ENCODINGS   = 163
 
 PROC_CONFIG_READ           = 169
 PROC_CONFIG_NEWDOC_EOL_GET = 170
@@ -436,9 +446,12 @@ TREE_ITEM_GET_RANGE        = 14
 TREE_ITEM_FOLD_LEVEL       = 15
 TREE_ITEM_SHOW             = 16
 TREE_ITEM_GET_PROPS        = 17
+TREE_GET_SELECTIONS        = 23
 TREE_FIND_FOR_TEXT_POS     = 24
 TREE_GET_IMAGELIST         = 25
 TREE_SET_IMAGELIST         = 26
+TREE_GET_MULSELECT         = 27
+TREE_SET_MULSELECT         = 28
 TREE_PROP_SHOW_ROOT        = 30
 TREE_LOCK                  = 31
 TREE_UNLOCK                = 32
@@ -1079,6 +1092,12 @@ def dlg_custom(title, size_x, size_y, text, focused=-1, get_dict=False):
 
 def file_open(name, group=-1, options=''):
     if isinstance(name, (list, tuple)):
+        if len(name)<2:
+            raise ValueError('Length of "name" param must be >=2')
+        if type(name[0]) is not str:
+            raise ValueError('Param name[0] must be str')
+        if type(name[1]) is not str:
+            raise ValueError('Param name[1] must be str')
         return ct.file_open(name[0], name[1], group, options)
     else:
         return ct.file_open(name, '', group, options)
@@ -1373,9 +1392,6 @@ class Editor:
     def convert(self, id, x, y, text=''):
         return ct.ed_convert(self.h, id, x, y, esc_z(text))
 
-    def get_ranges(self):
-        return ct.ed_get_ranges(self.h)
-
     def get_sublexer_ranges(self):
         res = ct.ed_get_sublexer_ranges(self.h)
         if res is None: return
@@ -1390,28 +1406,24 @@ class Editor:
         return ct.ed_markers(self.h, id, x, y, tag, len_x, len_y, line_len)
 
     def attr(self, id, tag=0, x=0, y=0, len=1,
-             color_font=COLOR_NONE, color_bg=COLOR_NONE, color_border=COLOR_NONE,
-             font_bold=0, font_italic=0, font_strikeout=0,
+             color_font='', color_bg='', color_border='',
+             font_bold='', font_italic='', font_strikeout='',
              border_left=0, border_right=0, border_down=0, border_up=0,
              show_on_map=False, map_only=0
              ):
 
-        if id==MARKERS_ADD_MANY:
-            if not isinstance(x, int):
-                x = ','.join(map(str, x))
-                y = ','.join(map(str, y))
-                len = ','.join(map(str, len))
-        else:
-            x = str(x)
-            y = str(y)
-            len = str(len)
+        def f(x):
+            if isinstance(x, int):
+                return str(x)
+            else:
+                return ','.join(map(str, x))
 
-        column = 1 if show_on_map is True else -1 if show_on_map==False else show_on_map
+        column = 1 if show_on_map is True else -1 if show_on_map is False else show_on_map
 
         return ct.ed_attr(self.h, id, tag,
-                          x, y, len,
-                          color_font, color_bg, color_border,
-                          font_bold, font_italic, font_strikeout,
+                          f(x), f(y), f(len),
+                          f(color_font), f(color_bg), f(color_border),
+                          f(font_bold), f(font_italic), f(font_strikeout),
                           border_left, border_right, border_down, border_up,
                           column, map_only
                           )

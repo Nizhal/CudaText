@@ -29,6 +29,8 @@ procedure AppFileAttrRestore(const fn: string; attr: Longint);
 function AppExpandFilename(const fn: string): string;
 procedure AppBrowseToFilenameInShell(const fn: string);
 function AppFileExtentionCreatable(const fn: string): boolean;
+procedure AppFileCheckForNullBytes(const fn: string);
+procedure AppMakeBackupFiles(const AFilename, AExtension: string; ACount: integer);
 
 
 implementation
@@ -89,11 +91,13 @@ function IsAsciiControlChar(n: integer): boolean; inline;
 const
   cAllowedControlChars: set of byte = [
     7, //Bell
-    9,
-    10,
-    13,
+    8, //Backspace
+    9, //Tab
+    10, //LF
     12, //FormFeed
-    26 //EOF
+    13, //CR
+    26, //EOF
+    27 //Escape
     ];
 begin
   Result:= (n < 32) and not (byte(n) in cAllowedControlChars);
@@ -133,9 +137,13 @@ begin
       exit(false);
     end;
 
-    if Str.Size<=2 then exit(true);
-    if DetectStreamUtf8NoBom(Str, BufSizeKb)=TBufferUTF8State.u8sYes then exit(true);
-    if DetectStreamUtf16NoBom(Str, BufSizeWords, IsLE) then exit(true);
+    if Str.Size<=2 then
+      exit(true);
+    if DetectStreamUtf8NoBom(Str, BufSizeKb)=TBufferUTF8State.u8sYes then
+      exit(true);
+    if DetectStreamUtf16NoBom(Str, BufSizeWords, IsLE) then
+      exit(true);
+
     Str.Position:= 0;
 
     GetMem(Buffer, BufSize);
@@ -146,10 +154,14 @@ begin
       begin
         bReadAllFile:= BytesRead=Str.Size;
 
-        //Test UTF16 signature
-        if ((Buffer[0]=#$ff) and (Buffer[1]=#$fe)) or
-          ((Buffer[0]=#$fe) and (Buffer[1]=#$ff)) then
-         Exit(True);
+        //Test UTF-16 signature
+        if (Buffer[0]=#$ff) and (Buffer[1]=#$fe) then
+          exit(true);
+        if (Buffer[0]=#$fe) and (Buffer[1]=#$ff) then
+          exit(true);
+        //Test UTF-32 BE signature
+        if (BytesRead>=8) and (Buffer[0]=#0) and (Buffer[1]=#0) and (Buffer[2]=#$fe) and (Buffer[3]=#$ff) then
+          exit(true);
 
         Result:= True;
         for i:= 0 to BytesRead - 1 do
@@ -278,8 +290,10 @@ end;
 
 
 procedure AppBrowseToFilenameInShell(const fn: string);
+{$ifdef windows}
 var
   Params: string;
+{$endif}
 begin
   if fn='' then exit;
   {$ifdef windows}
@@ -316,6 +330,56 @@ begin
   end;
 end;
 
+
+function AppFileIsNullBytes(const fn: string): boolean;
+var
+  fs: TFileStream;
+  Buf: LongInt;
+  NRead: integer;
+begin
+  Result:= false;
+  if not FileExists(fn) then exit;
+
+  fs:= TFileStream.Create(fn, fmOpenRead or fmShareDenyNone);
+  try
+    Buf:= 0;
+    NRead:= fs.Read(Buf, SizeOf(Buf));
+    Result:= (NRead=SizeOf(Buf)) and (Buf=0);
+  finally
+    FreeAndNil(fs);
+  end;
+end;
+
+
+procedure AppFileCheckForNullBytes(const fn: string);
+begin
+  if not UiOps.AllowCheckConfigsForNullBytes then exit;
+
+  if AppFileIsNullBytes(fn) then
+    if MsgBox(Format(msgErrorNullBytesInFile, [fn]),
+      MB_OKCANCEL or MB_ICONERROR) = ID_OK then
+      DeleteFile(fn);
+end;
+
+procedure AppMakeBackupFiles(const AFilename, AExtension: string; ACount: integer);
+var
+  fnTemp, fnTemp2: string;
+  i: integer;
+begin
+  for i:= ACount downto 1 do
+  begin
+    fnTemp:= ChangeFileExt(AFilename, '.'+IntToStr(i)+AExtension);
+    if i>1 then
+      fnTemp2:= ChangeFileExt(AFilename, '.'+IntToStr(i-1)+AExtension)
+    else
+      fnTemp2:= AFilename;
+    if i>=ACount then
+      if FileExists(fnTemp) then
+        DeleteFile(fnTemp);
+    if FileExists(fnTemp2) then
+      RenameFile(fnTemp2, fnTemp);
+  end;
+end;
 
 end.
 

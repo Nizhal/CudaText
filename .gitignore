@@ -28,6 +28,7 @@ backup/
 settings/
 __trash/
 _test/
+python3*/
 /app/builds
 /app/cudatext
 /app/cudatext-mac
@@ -71,4 +72,6 @@ cuda_insert_pics/
 cuda_hilite*
 cuda_fmt*
 cuda_bread*
-.DS_Store
+cuda_terminal*
+cuda_exterminal*
+cuda_git_status

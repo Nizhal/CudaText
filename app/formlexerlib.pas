@@ -40,7 +40,7 @@ type
     procedure FormShow(Sender: TObject);
   private
     { private declarations }
-    FOnDeleteLexer: TStrEvent;
+    FOnDeleteLexer: TAppStringEvent;
     procedure Localize;
     procedure UpdateList;
   public
@@ -48,7 +48,7 @@ type
     FFontName: string;
     FFontSize: integer;
     FDirAcp: string;
-    property OnDeleteLexer: TStrEvent read FOnDeleteLexer write FOnDeleteLexer;
+    property OnDeleteLexer: TAppStringEvent read FOnDeleteLexer write FOnDeleteLexer;
   end;
 
 var
@@ -58,7 +58,7 @@ function DoShowDialogLexerLib(
   const ADirAcp: string;
   const AFontName: string;
   AFontSize: integer;
-  AOnDeleteLexer: TStrEvent): boolean;
+  AOnDeleteLexer: TAppStringEvent): boolean;
 
 implementation
 
@@ -75,7 +75,7 @@ var
   ini: TIniFile;
   fn: string;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
   ini:= TIniFile.Create(fn);
   try
@@ -93,7 +93,7 @@ end;
 
 
 function DoShowDialogLexerLib(const ADirAcp: string; const AFontName: string;
-  AFontSize: integer; AOnDeleteLexer: TStrEvent): boolean;
+  AFontSize: integer; AOnDeleteLexer: TAppStringEvent): boolean;
 var
   F: TfmLexerLib;
 begin
@@ -208,9 +208,9 @@ begin
     if Assigned(FOnDeleteLexer) then
       FOnDeleteLexer(nil, an.LexerName);
 
-    DeleteFile(GetAppLexerFilename(an.LexerName));
-    DeleteFile(GetAppLexerMapFilename(an.LexerName));
-    DeleteFile(GetAppLexerAcpFilename(an.LexerName));
+    DeleteFile(AppFile_Lexer(an.LexerName));
+    DeleteFile(AppFile_LexerMap(an.LexerName));
+    DeleteFile(AppFile_LexerAcp(an.LexerName));
 
     AppManager.DeleteLexer(an);
     AppManager.Modified:= true;
@@ -257,9 +257,12 @@ begin
           an_sub:= an.SubAnalyzers[j];
           if an_sub<>nil then
             if an_sub.SyntAnalyzer<>nil then
-              links:= links+an_sub.SyntAnalyzer.LexerName;
+              links:= links+an_sub.SyntAnalyzer.LexerName
+            else
+              links:= links+'?';
         end;
-      if links<>'' then links:= '  ('+links+')';
+      if links<>'' then
+        links:= '  ('+links+')';
 
       suffix:= '';
       if an.Internal then

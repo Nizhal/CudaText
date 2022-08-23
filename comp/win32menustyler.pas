@@ -44,12 +44,14 @@ type
     procedure ApplyBackColor(h: HMENU; AReset: boolean);
     procedure HandleMenuDrawItem(Sender: TObject; ACanvas: TCanvas;
       ARect: TRect; AState: TOwnerDrawState);
+    procedure HandleMenuMeasureItem(Sender: TObject; ACanvas: TCanvas;
+      var AWidth, AHeight: Integer);
     procedure HandleMenuPopup(Sender: TObject);
   public
     procedure ApplyToMenu(AMenu: TMenu);
-    procedure ApplyToForm(AForm: TForm; ARepaintEntireForm: boolean);
+    procedure ApplyToForm(AForm: TForm);
     procedure ResetMenu(AMenu: TMenu);
-    procedure ResetForm(AForm: TForm; ARepaintEntireForm: boolean);
+    procedure ResetForm(AForm: TForm);
   end;
 
 var
@@ -78,6 +80,7 @@ procedure TWin32MenuStyler.ApplyToMenu(AMenu: TMenu);
 begin
   AMenu.OwnerDraw:= true;
   AMenu.OnDrawItem:= @HandleMenuDrawItem;
+  AMenu.OnMeasureItem:= @HandleMenuMeasureItem;
 
   //it don't work!
   {
@@ -91,7 +94,7 @@ begin
   //ApplyBackColor(AMenu.Handle, false);
 end;
 
-procedure TWin32MenuStyler.ApplyToForm(AForm: TForm; ARepaintEntireForm: boolean);
+procedure TWin32MenuStyler.ApplyToForm(AForm: TForm);
 var
   menu: TMainMenu;
 begin
@@ -103,22 +106,17 @@ begin
   //theme 2-3 pixel frame around menu
   ApplyBackColor(GetMenu(AForm.Handle), false);
 
-  //repaint the menu bar
-  if ARepaintEntireForm then
-    with AForm do
-    begin
-      Width:= Width+1;
-      Width:= Width-1;
-    end;
+  DrawMenuBar(AForm.Handle);
 end;
 
 procedure TWin32MenuStyler.ResetMenu(AMenu: TMenu);
 begin
   AMenu.OwnerDraw:= false;
   AMenu.OnDrawItem:= nil;
+  AMenu.OnMeasureItem:= nil;
 end;
 
-procedure TWin32MenuStyler.ResetForm(AForm: TForm; ARepaintEntireForm: boolean);
+procedure TWin32MenuStyler.ResetForm(AForm: TForm);
 var
   menu: TMenu;
 begin
@@ -128,13 +126,7 @@ begin
   ResetMenu(menu);
   ApplyBackColor(GetMenu(AForm.Handle), true);
 
-  //repaint the menu bar
-  if ARepaintEntireForm then
-    with AForm do
-    begin
-      Width:= Width+1;
-      Width:= Width-1;
-    end;
+  DrawMenuBar(AForm.Handle);
 end;
 
 procedure TWin32MenuStyler.HandleMenuDrawItem(Sender: TObject; ACanvas: TCanvas;
@@ -179,6 +171,10 @@ begin
     ACanvas.FillRect(ARect);
   end;
 
+  ACanvas.Font.Name:= MenuStylerTheme.FontName;
+  ACanvas.Font.Size:= MenuStylerTheme.FontSize;
+  ACanvas.Font.Style:= [];
+
   Windows.GetTextExtentPoint(ACanvas.Handle, PChar(cSampleShort), Length(cSampleShort), ExtCell);
   dxCell:= ExtCell.cx;
   dxMin:= dxCell * MenuStylerTheme.IndentMinPercents div 100;
@@ -209,10 +205,6 @@ begin
     ACanvas.Font.Color:= MenuStylerTheme.ColorFontSelected
   else
     ACanvas.Font.Color:= MenuStylerTheme.ColorFont;
-
-  ACanvas.Font.Name:= MenuStylerTheme.FontName;
-  ACanvas.Font.Size:= MenuStylerTheme.FontSize;
-  ACanvas.Font.Style:= [];
 
   Windows.GetTextExtentPoint(ACanvas.Handle, PChar(cSampleTall), Length(cSampleTall), ExtTall);
 
@@ -298,6 +290,37 @@ begin
       ARect.Right,
       ARect.Bottom);
   end;
+end;
+
+procedure TWin32MenuStyler.HandleMenuMeasureItem(Sender: TObject;
+  ACanvas: TCanvas; var AWidth, AHeight: Integer);
+var
+  Size: TSize;
+  mi: TMenuItem;
+  S: string;
+begin
+  if MenuStylerTheme.FontSize<=9 then exit;
+
+  mi:= Sender as TMenuItem;
+  S:= mi.Caption;
+  if S='-' then exit;
+
+  ACanvas.Font.Name:= MenuStylerTheme.FontName;
+  ACanvas.Font.Size:= MenuStylerTheme.FontSize;
+  ACanvas.Font.Style:= [];
+
+  if not mi.IsInMenuBar then
+  begin
+    S:= '     '+S;
+    if mi.ShortCut<>0 then
+      S+= '  '+ShortCutToText(mi.ShortCut);
+    if mi.Count>0 then;
+      S+= ' >';
+  end;
+
+  Size:= ACanvas.TextExtent(S);
+  AWidth:= Max(AWidth, Size.cx);
+  AHeight:= Max(AHeight, Size.cy);
 end;
 
 procedure TWin32MenuStyler.HandleMenuPopup(Sender: TObject);

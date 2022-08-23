@@ -9,6 +9,7 @@ Copyright (c) Alexey Torgashin
 
 procedure TfmMain.DoLoadCommandLineBaseOptions(out AWindowPos: string;
   out AAllowSessionLoad, AAllowSessionSave: TAppAllowSomething;
+  out AStartupCommand: string;
   out AFileFolderCount: integer);
 // Function handles these options: -v -h -w -el -ns
 // Option -n is handled via var proc_globdata.AppAlwaysNewInstance
@@ -19,6 +20,7 @@ begin
   AWindowPos:= '';
   AAllowSessionLoad:= aalsEnable;
   AAllowSessionSave:= aalsEnable;
+  AStartupCommand:= '';
   AFileFolderCount:= 0;
 
   for i:= 1 to ParamCount do
@@ -35,13 +37,13 @@ begin
     if (SParam='--version') or (SParam='-v') then
     begin
       MsgStdout('CudaText '+cAppExeVersion, true);
-      Halt;
+      Application.Terminate;
     end;
 
     if (SParam='--help') or (SParam='-h') then
     begin
       MsgStdout(msgCommandLineHelp, true);
-      Halt;
+      Application.Terminate;
     end;
 
     if SBeginsWith(SParam, '-w=') then
@@ -50,10 +52,16 @@ begin
       Continue;
     end;
 
+    if SBeginsWith(SParam, '-c=') then
+    begin
+      AStartupCommand:= Copy(SParam, 4, MaxInt);
+      Continue;
+    end;
+
     if (SParam='-el') then
     begin
       MsgStdout(AppEncodingListAsString, true);
-      Halt;
+      Application.Terminate;
     end;
 
     if (SParam='-ns') then
@@ -72,6 +80,12 @@ begin
     if (SParam='-nss') then
     begin
       AAllowSessionSave:= aalsDisable;
+      Continue;
+    end;
+
+    if (SParam='-verbose') then
+    begin
+      UiOps.PyOutputCopyToStdout:= true;
       Continue;
     end;
   end;
@@ -125,12 +139,14 @@ var
   NLine, NColumn, i: integer;
   bReadOnly: boolean;
   bAllowCreate: boolean;
+  bFirstFolder: boolean;
   sEncoding, sCli: string;
   SepCli: TATStringSeparator;
   List: TStringList;
 begin
   bReadOnly:= false;
   bAllowCreate:= true;
+  bFirstFolder:= true;
   sEncoding:= '';
 
   for i:= 0 to Length(AParams)-1 do
@@ -177,7 +193,7 @@ begin
     begin
       SepCli.Init(Copy(SParam, 4, MaxInt), '#');
       SepCli.GetItemStr(CliModule);
-      SetLength(CliParams, 0);
+      CliParams:= nil;
       while SepCli.GetItemStr(sCli) do
       begin
         SetLength(CliParams, Length(CliParams)+1);
@@ -226,11 +242,16 @@ begin
     //if folder, open it in ProjManager
     if DirectoryExistsUTF8(SParam) then
     begin
-      DoFolderOpen(SParam, False, cInvokeAppInternal);
+      Application.ProcessMessages; //fix issue #3928
+
+      DoFolderOpen(SParam, bFirstFolder, cInvokeAppInternal);
+      bFirstFolder:= false;
     end
     else
     if FileExists(SParam) then
     begin
+      Application.ProcessMessages; //fix issue #3928
+
       Frame:= DoFileOpen(SParam, '', nil, AOpenOptions);
       if Assigned(Frame) then
       begin
@@ -297,7 +318,7 @@ var
 begin
   if not IsAllowedToOpenFileNow then Exit;
 
-  SetLength(Params, 0);
+  Params:= nil;
   S:= '';
 
   Sep.Init(UTF8Encode(TEncoding.UTF8.GetString(Msg)), '|');

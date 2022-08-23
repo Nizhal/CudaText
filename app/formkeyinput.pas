@@ -15,6 +15,7 @@ uses
   Classes, SysUtils, Forms, Controls, Graphics,
   ButtonPanel, ExtCtrls, Menus, IniFiles,
   LCLProc, LCLType,
+  ATSynEdit,
   proc_globdata,
   proc_customdialog,
   proc_msg;
@@ -27,6 +28,8 @@ type
     PanelPress: TPanel;
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure FormShow(Sender: TObject);
+    procedure PanelPressMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
   private
     { private declarations }
     procedure Localize;
@@ -67,7 +70,7 @@ var
   ini: TIniFile;
   fn: string;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
   ini:= TIniFile.Create(fn);
   try
@@ -82,24 +85,13 @@ end;
 
 procedure TfmKeyInput.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 begin
-  //dont allow to enter system keys: Alt/Ctrl/Shift/Win
-  if (Key=VK_MENU) or
-     (Key=VK_LMENU) or
-     (Key=VK_RMENU) or
-     (Key=VK_CONTROL) or
-     (Key=VK_LCONTROL) or
-     (Key=VK_RCONTROL) or
-     (Key=VK_SHIFT) or
-     (Key=VK_LSHIFT) or
-     (Key=VK_RSHIFT) or
-     (Key=VK_LWIN) or
-     (Key=VK_RWIN) then
+  if not AppKeyIsAllowedAsCustomHotkey(Key, Shift) then
   begin
     Key:= 0;
     exit
   end;
 
-  if (Key=VK_ESCAPE) then
+  if (Key=VK_ESCAPE) and (Shift=[]) then
   begin
     Key:= 0;
     ModalResult:= mrCancel;
@@ -116,6 +108,12 @@ begin
   Localize;
   DoForm_ScaleAuto(Self);
   UpdateFormOnTop(Self);
+end;
+
+procedure TfmKeyInput.PanelPressMouseDown(Sender: TObject;
+  Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  if HandleMouseDownToHandleExtraMouseButtons(Self, Button, Shift) then exit;
 end;
 
 end.

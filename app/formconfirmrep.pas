@@ -33,12 +33,14 @@ type
     procedure bNoClick(Sender: TObject);
     procedure bYesAllClick(Sender: TObject);
     procedure bYesClick(Sender: TObject);
+    procedure FormClose(Sender: TObject; var CloseAction: TCloseAction);
     procedure FormCreate(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure FormShow(Sender: TObject);
   private
     { private declarations }
     procedure Localize;
+    procedure CloseWithResult(AValue: TModalResult);
   public
     { public declarations }
     MsgReplaceMatch: string;
@@ -46,7 +48,7 @@ type
   end;
 
 var
-  fmConfirmReplace: TfmConfirmReplace;
+  fmConfirmReplace: TfmConfirmReplace = nil;
 
 implementation
 
@@ -61,7 +63,7 @@ var
   ini: TIniFile;
   fn: string;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
   ini:= TIniFile.Create(fn);
   try
@@ -74,6 +76,11 @@ begin
   finally
     FreeAndNil(ini);
   end;
+end;
+
+procedure TfmConfirmReplace.CloseWithResult(AValue: TModalResult);
+begin
+  ModalResult:= AValue;
 end;
 
 procedure TfmConfirmReplace.FormCreate(Sender: TObject);
@@ -91,10 +98,33 @@ end;
 procedure TfmConfirmReplace.FormKeyDown(Sender: TObject; var Key: Word;
   Shift: TShiftState);
 begin
-  if Key=VK_Y then begin ModalResult:= mrYes; exit end;
-  if Key=VK_A then begin ModalResult:= mrYesToAll; exit end;
-  if Key=VK_N then begin ModalResult:= mrNo; exit end;
-  if Key=VK_ESCAPE then begin ModalResult:= mrNoToAll; exit end;
+  if Key=VK_Y then
+  begin
+    CloseWithResult(mrYes);
+    Key:= 0;
+    exit
+  end;
+
+  if Key=VK_A then
+  begin
+    CloseWithResult(mrYesToAll);
+    Key:= 0;
+    exit
+  end;
+
+  if Key=VK_N then
+  begin
+    CloseWithResult(mrNo);
+    Key:= 0;
+    exit
+  end;
+
+  if (Key=VK_ESCAPE) and (Shift=[]) then
+  begin
+    CloseWithResult(mrNoToAll);
+    Key:= 0;
+    exit
+  end;
 end;
 
 procedure TfmConfirmReplace.FormShow(Sender: TObject);
@@ -109,23 +139,29 @@ end;
 
 procedure TfmConfirmReplace.bYesClick(Sender: TObject);
 begin
-  ModalResult:= mrYes;
+  CloseWithResult(mrYes);
 end;
 
 procedure TfmConfirmReplace.bNoClick(Sender: TObject);
 begin
-  ModalResult:= mrNo;
+  CloseWithResult(mrNo);
 end;
 
 procedure TfmConfirmReplace.bNoAllClick(Sender: TObject);
 begin
-  ModalResult:= mrNoToAll;
+  CloseWithResult(mrNoToAll);
 end;
 
 procedure TfmConfirmReplace.bYesAllClick(Sender: TObject);
 begin
-  ModalResult:= mrYesToAll;
+  CloseWithResult(mrYesToAll);
 end;
+
+procedure TfmConfirmReplace.FormClose(Sender: TObject; var CloseAction: TCloseAction);
+begin
+  CloseAction:= caHide;
+end;
+
 
 end.
 

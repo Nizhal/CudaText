@@ -21,6 +21,13 @@ var
 begin
   if not AppPython.Inited then exit;
 
+  if not DirectoryExists(AppDir_Py) then
+  begin
+    MsgLogConsole(Format(msgCannotFindData, [AppDir_Py]));
+    MsgStdout(Format(msgCannotFindData, [AppDir_Py]));
+    exit
+  end;
+
   BackupMain:= nil;
   BackupTemp:= nil;
   BackupLexers:= nil;
@@ -364,9 +371,7 @@ procedure TfmMain.UpdateMenuPlugins;
   //
   function GroupValue(const AValue: string): string;
   var
-    Item: TAppKeyValue;
-    SName, SAll: string;
-    i: integer;
+    SName, SAll, SRes: string;
   begin
     Result:= '';
     SSplitByChar(AValue, '\', SName, SAll);
@@ -374,12 +379,9 @@ procedure TfmMain.UpdateMenuPlugins;
     //strip '&' for accelerators in caption
     SName:= StringReplace(SName, '&', '', []);
 
-    for i:= 0 to AppConfig_PGroups.Count-1 do
-    begin
-      Item:= TAppKeyValue(AppConfig_PGroups[i]);
-      if SRegexMatchesString(SName, Item.Key, false) then
-        exit(Item.Value+'\');
-    end;
+    SRes:= AppConfig_PGroups.GetValueByRegex(SName, false);
+    if SRes<>'' then
+      Result:= SRes+'\';
   end;
   //
 var
@@ -442,7 +444,7 @@ begin
       DoOps_AddPluginMenuItem(SCaption, mnuOpPlugins, LangFile, i);
   end;
 
-  UpdateMenuTheming_MainMenu(false);
+  UpdateMenuTheming_MainMenu;
 end;
 
 procedure TfmMain.UpdateMenuPlugins_Shortcuts(AForceUpdate: boolean = false);

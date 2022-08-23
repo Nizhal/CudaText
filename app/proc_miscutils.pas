@@ -21,6 +21,7 @@ uses
   Clipbrd,
   at__jsonConf,
   ATSynEdit,
+  ATSynEdit_Globals,
   ATSynEdit_Adapter_EControl,
   ATSynEdit_Finder,
   ATStringProc,
@@ -85,7 +86,7 @@ procedure DoApplyThemeToToolbar(C: TATFlatToolbar);
 function ConvertTwoPointsToDiffPoint(APrevPnt, ANewPnt: TPoint): TPoint;
 function ConvertShiftStateToString(const Shift: TShiftState): string;
 function KeyboardStateToShiftState: TShiftState; //like VCL
-function UpdateImagelistWithIconFromFile(AList: TCustomImagelist; const AFilename: string): integer;
+function UpdateImagelistWithIconFromFile(AList: TCustomImagelist; const AFilename, ACallerAPI: string): integer;
 function FormatFileDateAsNiceString(const AFilename: string): string;
 function FormatFilenameForMenu(const fn: string): string;
 
@@ -117,6 +118,9 @@ function IsStringArrayWithSubstring(const Ar: array of string; const AText: stri
 
 function FinderOptionsToString(F: TATEditorFinder): string;
 procedure FinderOptionsFromString(F: TATEditorFinder; const S: string);
+
+function MultiSelectStyleToString(St: TMultiSelectStyle): string;
+function StringToMultiSelectStyle(const S: string): TMultiSelectStyle;
 
 type
   { TAppPanelEx }
@@ -253,15 +257,16 @@ begin
 end;
 
 
-function UpdateImagelistWithIconFromFile(AList: TCustomImagelist; const AFilename: string): integer;
+function UpdateImagelistWithIconFromFile(AList: TCustomImagelist; const AFilename, ACallerAPI: string): integer;
 var
   bmp: TCustomBitmap;
   ext: string;
 begin
   Result:= -1;
+  if AFilename='' then exit;
   if not FileExists(AFilename) then
   begin
-    MsgLogConsole('ERROR: Missing icon filename: '+AFilename);
+    MsgLogConsole('ERROR: Missing icon filename in '+ACallerAPI+': '+AFilename);
     exit;
   end;
 
@@ -293,7 +298,7 @@ begin
     end
     else
     begin
-      MsgLogConsole('ERROR: Unknown icon file type: '+AFilename);
+      MsgLogConsole('ERROR: Unknown icon file type in '+ACallerAPI+': '+AFilename);
       exit;
     end;
 
@@ -318,7 +323,7 @@ var
   P: TPoint;
   Pnt: array of TPoint;
 begin
-  SetLength(Pnt, 0);
+  Pnt:= nil;
   Sep.Init(AText);
   repeat
     if not Sep.GetItemInt(P.X, MaxInt) then Break;
@@ -436,7 +441,7 @@ begin
   if AThemed then
   begin
     C.Font.Name:= UiOps.VarFontName;
-    C.Font.Size:= AppScaleFont(UiOps.VarFontSize);
+    C.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
     C.Font.Color:= GetAppColor(apclTreeFont);
     C.BackgroundColor:= GetAppColor(apclTreeBg);
     C.SelectionFontColor:= GetAppColor(apclTreeSelFont);
@@ -505,6 +510,11 @@ begin
     Result+= 'h';
   if Clipboard.HasPictureFormat then
     Result+= 'p';
+
+  if Clipboard.HasFormat(ATEditorOptions.ClipboardColumnFormat) then
+    Result+= 'c';
+  if Clipboard.HasFormat(ATEditorOptions.ClipboardExFormat) then
+    Result+= 'x';
 end;
 
 procedure AppScalePanelControls(APanel: TWinControl);
@@ -518,8 +528,8 @@ begin
 
     if (Ctl is TATButton) or (Ctl is TATPanelSimple) then
     begin
-      Ctl.Width:= AppScale(Ctl.Width);
-      Ctl.Height:= AppScale(Ctl.Height);
+      Ctl.Width:= ATEditorScale(Ctl.Width);
+      Ctl.Height:= ATEditorScale(Ctl.Height);
     end;
 
     if Ctl is TATPanelSimple then
@@ -915,7 +925,7 @@ procedure AppScaleSplitter(C: TSplitter);
 var
   NSize: integer;
 begin
-  NSize:= AppScale(4);
+  NSize:= ATEditorScale(4);
   if C.Align in [alLeft, alRight] then
     C.Width:= NSize
   else
@@ -1145,7 +1155,27 @@ begin
       exit(true);
 end;
 
+function MultiSelectStyleToString(St: TMultiSelectStyle): string;
+begin
+  Result:= '';
+  if msControlSelect in St then
+    Result+= 'c';
+  if msShiftSelect in St then
+    Result+= 's';
+  if msVisibleOnly in St then
+    Result+= 'v';
+  if msSiblingOnly in St then
+    Result+= 'i';
+end;
+
+function StringToMultiSelectStyle(const S: string): TMultiSelectStyle;
+begin
+  Result:= [];
+  if Pos('c', S)>0 then Include(Result, msControlSelect);
+  if Pos('s', S)>0 then Include(Result, msShiftSelect);
+  if Pos('v', S)>0 then Include(Result, msVisibleOnly);
+  if Pos('i', S)>0 then Include(Result, msSiblingOnly);
+end;
 
 end.
-
 

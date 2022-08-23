@@ -185,6 +185,7 @@ cCommand_ClipboardPaste_Select = 1001
 cCommand_ClipboardPaste_KeepCaret = 1002
 cCommand_ClipboardPaste_Column = 1003 | _CmdFlag_SelReset
 cCommand_ClipboardPaste_ColumnKeepCaret = 1004 | _CmdFlag_SelReset
+cCommand_ClipboardPasteAndIndent = 1005
 cCommand_ClipboardCopy = 1006
 cCommand_ClipboardCopyAdd = 1007
 cCommand_ClipboardCut = 1008
@@ -197,6 +198,8 @@ cCommand_ClipboardAltPaste_Column = 1013 or _CmdFlag_SelReset
 cCommand_ClipboardAltPaste_ColumnKeepCaret = 1014 or _CmdFlag_SelReset
 #these use "Secondary selection" (alternative clipboard on gtk2)
 cCommand_ClipboardAltAltPaste = 1015
+cCommand_ClipboardPasteFromRecents = 1016
+cCommand_ClipboardClearRecents = 1017
 
 cCommand_TextCaseLower = 1020
 cCommand_TextCaseUpper = 1021
@@ -266,6 +269,7 @@ cmd_FileCloseAll       = 2513
 cmd_FileCloseAndDelete = 2514
 cmd_FileExportHtml     = 2515
 cmd_RepaintEditor      = 2516
+cmd_FileReopenRecent   = 2517
 
 cmd_OpsOpenDefaultAndUser = 2519
 cmd_OpsClearRecent     = 2520
@@ -317,6 +321,7 @@ cmd_ToggleSidePanelAndSyntaxTree = 2565
 cmd_OpsFontSizeReset = 2566
 cmd_FindPythonLib = 2567
 cmd_ToggleFileNotification = 2568
+cmd_ToggleFindDialog_AndFocus = 2569
 
 cmd_ChooseTranslation = 2570
 cmd_ChooseThemeUI     = 2571
@@ -356,6 +361,8 @@ cmd_FileOpen_TextViewer    = 2603
 cmd_FileOpen_HexViewer     = 2604
 cmd_FileOpen_UnicodeViewer = 2605
 cmd_SelectExpandToWord_Skip = 2606
+cmd_SelectExpandToText = 2607
+cmd_SelectExpandToText_Skip = 2608
 
 cmd_SwitchTab_HotkeyNext = 2610
 cmd_SwitchTab_HotkeyPrev = 2611
@@ -405,9 +412,8 @@ cmd_CopyFilenameFull = 2651
 cmd_CopyFilenameDir  = 2652
 cmd_CopyFilenameName = 2653
 
-cmd_SortAsc          = 2654 #deleted
-cmd_SortDesc         = 2655 #deleted
-
+cmd_TabUsesSpaces_On    = 2655
+cmd_TabUsesSpaces_Off   = 2656
 cmd_ToggleTabUsesSpaces = 2657
 cmd_ConvertTabsToSpaces = 2658
 cmd_ConvertSpacesToTabsLeading = 2659
@@ -432,9 +438,14 @@ cmd_LineEndWin        = 2677
 cmd_LineEndUnix       = 2678
 cmd_LineEndMac        = 2679
 
-cmd_DeleteNewColorAttrs    = 2683
+cmd_LineEndWin_Caret     = 2680
+cmd_LineEndUnix_Caret    = 2681
+cmd_LineEndMac_Caret     = 2682
+cmd_LineEndDefault_Caret = 2683
+
 cmd_FoldingEnable          = 2684
 cmd_FoldingDisable         = 2685
+cmd_DeleteNewColorAttrs    = 2686
 
 cmd_MenuEnc           = 2691
 cmd_MenuEnds          = 2692
@@ -451,7 +462,6 @@ cmd_HelpMouse     = 2703
 cmd_HelpChangelog = 2704
 cmd_HelpLexers    = 2705
 cmd_HelpIssues    = 2706
-cmd_HelpHotkeys   = 2707
 cmd_HelpCheckUpdates = 2708
 
 cmd_Encoding_ansi_NoReload      = 2710
@@ -472,6 +482,7 @@ cmd_Encoding_mac_NoReload       = 2724
 cmd_Encoding_iso1_NoReload      = 2725
 cmd_Encoding_iso2_NoReload      = 2726
 cmd_Encoding_iso15_NoReload     = 2727
+cmd_Encoding_iso16_NoReload     = 2728
 cmd_Encoding_cp437_NoReload     = 2730
 cmd_Encoding_cp850_NoReload     = 2731
 cmd_Encoding_cp852_NoReload     = 2732
@@ -483,6 +494,14 @@ cmd_Encoding_cp949_NoReload     = 2737
 cmd_Encoding_cp950_NoReload     = 2738
 cmd_Encoding_utf32le_NoReload   = 2739
 cmd_Encoding_utf32be_NoReload   = 2740
+cmd_Encoding_iso9_NoReload      = 2741
+cmd_Encoding_iso14_NoReload     = 2742
+cmd_Encoding_iso5_NoReload      = 2743
+cmd_Encoding_iso10_NoReload     = 2744
+cmd_Encoding_iso13_NoReload     = 2745
+cmd_Encoding_iso7_NoReload      = 2746
+cmd_Encoding_iso3_NoReload      = 2747
+cmd_Encoding_iso4_NoReload      = 2748
 
 cmd_Encoding_ansi_Reload      = 2750
 cmd_Encoding_utf8bom_Reload   = 2751
@@ -502,6 +521,7 @@ cmd_Encoding_mac_Reload       = 2764
 cmd_Encoding_iso1_Reload      = 2765
 cmd_Encoding_iso2_Reload      = 2766
 cmd_Encoding_iso15_Reload     = 2767
+cmd_Encoding_iso16_Reload     = 2768
 cmd_Encoding_cp437_Reload     = 2770
 cmd_Encoding_cp850_Reload     = 2771
 cmd_Encoding_cp852_Reload     = 2772
@@ -513,6 +533,14 @@ cmd_Encoding_cp949_Reload     = 2777
 cmd_Encoding_cp950_Reload     = 2778
 cmd_Encoding_utf32le_Reload   = 2779
 cmd_Encoding_utf32be_Reload   = 2780
+cmd_Encoding_iso9_Reload      = 2781
+cmd_Encoding_iso14_Reload     = 2782
+cmd_Encoding_iso5_Reload      = 2783
+cmd_Encoding_iso10_Reload     = 2784
+cmd_Encoding_iso13_Reload     = 2785
+cmd_Encoding_iso7_Reload      = 2786
+cmd_Encoding_iso3_Reload      = 2787
+cmd_Encoding_iso4_Reload      = 2788
 
 cmd_Markers_SelectToCaret      = 2798
 cmd_Markers_DeleteToCaret      = 2799
@@ -528,8 +556,6 @@ cmd_LinkAtPopup_Open           = 2808
 cmd_LinkAtPopup_Copy           = 2809
 
 cmd_MacroStart                 = 2810
-cmd_MacroStop                  = 2811 # deprecated 2021.10
-cmd_MacroCancel                = 2812 # deprecated 2021.10
 
 cmd_TreeGotoNext               = 2815
 cmd_TreeGotoPrev               = 2816
@@ -549,6 +575,10 @@ cmd_BracketHighlightToggle     = 2842
 cmd_BracketJump                = 2845
 cmd_BracketSelect              = 2846
 cmd_BracketSelectInside        = 2847
+
+cmd_TabSize_Set2               = 2862
+cmd_TabSize_Set4               = 2864
+cmd_TabSize_Set8               = 2868
 
 cmd_GroupActivate1             = 2901
 cmd_GroupActivate2             = 2902

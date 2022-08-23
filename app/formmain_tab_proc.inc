@@ -28,18 +28,17 @@ begin
   F.OnLexerChange:= @FrameLexerChange;
   F.OnAppClickLink:= @FrameConfirmLink;
   F.OnCallAutoCompletion:= @DoAutoComplete_Delayed;
+  F.LexerChooseFunc:= @DoDialogMenuLexerChoose;
+  F.OnGetSaveDialog:= @DoGetSaveDialog;
+  F.Splitter.OnPaint:= @SplitterOnPaintDummy;
 
   F.Groups:= Groups;
-  F.LexerChooseFunc:= @DoDialogMenuLexerChoose;
-  F.OnGetSaveDialog:=@DoGetSaveDialog;
   F.OnInitAdapter(F.Adapter[F.Ed1]);
 
   F.Ed1.PopupText:= PopupText;
   F.Ed2.PopupText:= PopupText;
 
   F.NotifEnabled:= false;
-
-  F.Splitter.OnPaint:=@SplitterOnPaintDummy;
 end;
 
 function TfmMain.CreateTab(APages: TATPages; const ACaption: string;
@@ -125,8 +124,6 @@ var
   Tabs: TATTabs;
   D: TATTabData;
   F: TEditorFrame;
-  Params: TAppVariantArray;
-  SFrameFilterText: UnicodeString;
 begin
   Tabs:= Sender as TATTabs;
   D:= Tabs.GetTabData(Tabs.TabIndex);
@@ -137,7 +134,7 @@ begin
   F:= D.TabObject as TEditorFrame;
 
   //avoid duplicate calls when session is loaded (and TabIndex is set there 2 times)
-  if FSessionIsLoading then
+  if AppSessionIsLoading then
   begin
     if F=FLastFocusedFrame then exit;
     FLastFocusedFrame:= F;
@@ -147,17 +144,29 @@ begin
   begin
     //prevent ListIndexError on file_open(..)
     if not FDisableTreeClearing then
-      if F.Editor<>FCodetreeForEditor then
+      if F.Editor<>AppCodetreeState.Editor then
         DoCodetree_Clear;
-
-    if F.CanFocus and F.CanSetFocus then
-      F.SetFocus;
   end;
 
-  SFrameFilterText:= UTF8Decode(F.CodetreeFilter);
-  if CodeTreeFilterInput.Text<>SFrameFilterText then
+  //if we fire 'on_tab_change' during session loading, Auto Save plugin may activate
+  //and overwrite the session (it saves the session)
+  if not (AppSessionIsLoading or AppSessionIsClosing) then
+    DoOnTabFocusFinalization(F, true);
+end;
+
+procedure TfmMain.DoOnTabFocusFinalization(F: TEditorFrame; AAllowEventOnTabChange: boolean);
+var
+  SFilterText: UnicodeString;
+begin
+  if F=nil then exit;
+  if not F.IsEditorFocused then
+    if F.CanFocus and F.CanSetFocus then
+      F.SetFocus;
+
+  SFilterText:= UTF8Decode(F.CodetreeFilter);
+  if CodeTreeFilterInput.Text<>SFilterText then
   begin
-    CodeTreeFilterInput.Text:= SFrameFilterText;
+    CodeTreeFilterInput.Text:= SFilterText;
     CodeTreeFilter_OnChange(nil);
     CodeTreeFilterInput.Items.Assign(F.CodetreeFilterHistory);
   end;
@@ -166,18 +175,11 @@ begin
   DoOps_LoadOptionsLexerSpecific(F, F.Editor);
 
   UpdateStatusbar;
-  SetLength(Params, 0);
-  DoPyEvent(F.Editor, cEventOnTabChange, Params);
 
-  //apply "Highlight all matches" on focusing new tab
-  if Assigned(fmFind) and fmFind.Visible then
-  begin
-    UpdateFindDialogEnabled(F);
+  if AAllowEventOnTabChange then
+    DoPyEvent(F.Editor, cEventOnTabChange, []);
 
-    if fmFind.Enabled then
-      fmFind.UpdateState(false); //if 'true', we have issue #3244
-                                 //if 'true', also the 'select-all' result is reset on focusing editor
-  end;
+  UpdateFindDialogOnTabFocusing(F);
 end;
 
 procedure TfmMain.UpdateTabsActiveColor(F: TEditorFrame);
@@ -249,8 +251,8 @@ var
   Btn, Res: Integer;
   Msg: string;
   bNeedTreeUpd, bSavedOk: boolean;
+  bModified: boolean;
   Adapter: TATAdapterEControl;
-  Params: TAppVariantArray;
 begin
   D:= (Sender as TATTabs).GetTabData(ATabIndex);
   if D=nil then exit;
@@ -281,18 +283,19 @@ begin
 
   if not Application.Terminated then
   begin
-    SetLength(Params, 0);
-    if DoPyEvent(Frame.Editor, cEventOnCloseBefore, Params).Val = evrFalse then
+    if DoPyEvent(Frame.Editor, cEventOnCloseBefore, []).Val = evrFalse then
     begin
       ACanClose:= false;
       Exit
     end;
   end;
 
+  bModified:= Frame.Modified;
+
   if Application.Terminated then
     Res:= ID_OK
   else
-  if Frame.TabPinned and not FSessionIsClosing then
+  if Frame.TabPinned and not AppSessionIsClosing then
   begin
     //need to activate tab, before msgbox
     (Sender as TATTabs).TabIndex:= ATabIndex;
@@ -303,7 +306,7 @@ begin
 
     //second confirm for pinned+modified tab
     if Res=ID_OK then
-      if Frame.Modified then
+      if bModified then
       begin
         Btn:= MB_OKCANCEL;
         Msg:= Format(msgConfirmSaveModifiedTab, [D.TabCaptionFull]);
@@ -312,7 +315,7 @@ begin
       end;
   end
   else
-  if Frame.Modified then
+  if bModified then
   begin
     //need to activate tab, before msgbox
     (Sender as TATTabs).TabIndex:= ATabIndex;
@@ -559,15 +562,12 @@ end;
 *)
 
 procedure TfmMain.DoOnTabMove(Sender: TObject; NFrom, NTo: Integer);
-var
-  Params: TAppVariantArray;
 begin
   //tab closed: set flag
   if NTo=-1 then
     PyEditorMaybeDeleted:= true;
 
-  SetLength(Params, 0);
-  DoPyEvent(CurrentEditor, cEventOnTabMove, Params);
+  DoPyEvent(CurrentEditor, cEventOnTabMove, []);
 end;
 
 

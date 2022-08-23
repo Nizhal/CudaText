@@ -32,8 +32,6 @@ begin
   end
   else
     DoDialogFind(false);
-
-  UpdateSidebarButtonFind;
 end;
 
 procedure TfmMain.DoBottom_OnHide(Sender: TObject);
@@ -43,6 +41,13 @@ begin
   Frame:= CurrentFrame;
   if Assigned(Frame) then
     Frame.SetFocus;
+
+  UpdateEditorShowCaret;
+end;
+
+procedure TfmMain.DoBottom_OnShow(Sender: TObject);
+begin
+  UpdateEditorShowCaret;
 end;
 
 procedure TfmMain.DoBottom_OnCloseFloatForm(Sender: TObject; var CloseAction: TCloseAction);

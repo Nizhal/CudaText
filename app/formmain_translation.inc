@@ -59,7 +59,7 @@ var
   fn: string;
   ini: TIniFile;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if FileExists(fn) then
   begin
     ini:= TIniFile.Create(fn);
@@ -101,7 +101,7 @@ var
   ini: TIniFile;
   Sep: TATStringSeparator;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
 
   ini:= TIniFile.Create(fn);
@@ -140,20 +140,19 @@ begin
     DoLocMenuItem(mnuFileEndUn, msgEndUnix);
     DoLocMenuItem(mnuFileEndMac, msgEndMac);
 
-    DoLocString(cStrMenuitemUndo, ini, 'm_e', 'undo');
-    DoLocString(cStrMenuitemRedo, ini, 'm_e', 'redo');
-    DoLocString(cStrMenuitemCut, ini, 'm_e', 'cut');
-    DoLocString(cStrMenuitemCopy, ini, 'm_e', 'cp');
-    DoLocString(cStrMenuitemPaste, ini, 'm_e', 'pst');
-    DoLocString(cStrMenuitemDelete, ini, 'm_e', 'del');
-    DoLocString(cStrMenuitemSelectAll, ini, 'm_se', 'al');
+    DoLocString(ATEditorOptions.TextMenuitemUndo, ini, 'm_e', 'undo');
+    DoLocString(ATEditorOptions.TextMenuitemRedo, ini, 'm_e', 'redo');
+    DoLocString(ATEditorOptions.TextMenuitemCut, ini, 'm_e', 'cut');
+    DoLocString(ATEditorOptions.TextMenuitemCopy, ini, 'm_e', 'cp');
+    DoLocString(ATEditorOptions.TextMenuitemPaste, ini, 'm_e', 'pst');
+    DoLocString(ATEditorOptions.TextMenuitemDelete, ini, 'm_e', 'del');
+    DoLocString(ATEditorOptions.TextMenuitemSelectAll, ini, 'm_se', 'al');
 
-    DoLocMenuitem(mnuEditUndo, cStrMenuitemUndo);
-    DoLocMenuitem(mnuEditRedo, cStrMenuitemRedo);
-    DoLocMenuitem(mnuEditCut, cStrMenuitemCut);
-    DoLocMenuitem(mnuEditCopy, cStrMenuitemCopy);
-    DoLocMenuitem(mnuEditPaste, cStrMenuitemPaste);
-    DoLocMenuitem(mnuEditDel, cStrMenuitemDelete);
+    DoLocMenuitem(mnuEditUndo, ATEditorOptions.TextMenuitemUndo);
+    DoLocMenuitem(mnuEditRedo, ATEditorOptions.TextMenuitemRedo);
+    DoLocMenuitem(mnuEditCut, ATEditorOptions.TextMenuitemCut);
+    DoLocMenuitem(mnuEditCopy, ATEditorOptions.TextMenuitemCopy);
+    DoLocMenuitem(mnuEditPaste, ATEditorOptions.TextMenuitemPaste);
 
     DoLocMenuitem(ini, mnuEdit, 'm_e', '_');
     DoLocMenuitem(ini, mnuEditUndo, 'm_e', 'undo');
@@ -161,7 +160,8 @@ begin
     DoLocMenuitem(ini, mnuEditCut, 'm_e', 'cut');
     DoLocMenuitem(ini, mnuEditCopy, 'm_e', 'cp');
     DoLocMenuitem(ini, mnuEditPaste, 'm_e', 'pst');
-    DoLocMenuitem(ini, mnuEditDel, 'm_e', 'del');
+    DoLocMenuitem(ini, mnuEditPasteIndent, 'm_e', 'pst_in');
+    DoLocMenuitem(ini, mnuEditPasteHist, 'm_e', 'pst_hs');
 
     msgCopySub:= ini.ReadString('m_e', 'cp_', msgCopySub);
     msgCopyFilenameName:= ini.ReadString('m_e', 'cp_name', msgCopyFilenameName);
@@ -214,7 +214,7 @@ begin
     DoLocMenuitem(ini, mnuEditCharmap, 'm_e', 'map');
 
     DoLocMenuitem(ini, mnuSel, 'm_se', '_');
-    DoLocMenuitem(mnuSelAll, cStrMenuitemSelectAll);
+    DoLocMenuitem(mnuSelAll, ATEditorOptions.TextMenuitemSelectAll);
     DoLocMenuitem(ini, mnuSelSplit, 'm_se', 'sp');
     DoLocMenuitem(ini, mnuSelExtLine, 'm_se', 'ex');
     DoLocMenuitem(ini, mnuSelExtWord, 'm_se', 'ex_wo');
@@ -387,11 +387,11 @@ begin
     DoLocToolbarButtonHint(ToolbarMain, 'f_new', msgFileNew);
     DoLocToolbarButtonHint(ToolbarMain, 'f_open', msgFileOpen);
     DoLocToolbarButtonHint(ToolbarMain, 'f_save', msgFileSave);
-    DoLocToolbarButtonHint(ToolbarMain, 'e_copy', cStrMenuitemCopy);
-    DoLocToolbarButtonHint(ToolbarMain, 'e_cut', cStrMenuitemCut);
-    DoLocToolbarButtonHint(ToolbarMain, 'e_paste', cStrMenuitemPaste);
-    DoLocToolbarButtonHint(ToolbarMain, 'e_undo', cStrMenuitemUndo);
-    DoLocToolbarButtonHint(ToolbarMain, 'e_redo', cStrMenuitemRedo);
+    DoLocToolbarButtonHint(ToolbarMain, 'e_copy', ATEditorOptions.TextMenuitemCopy);
+    DoLocToolbarButtonHint(ToolbarMain, 'e_cut', ATEditorOptions.TextMenuitemCut);
+    DoLocToolbarButtonHint(ToolbarMain, 'e_paste', ATEditorOptions.TextMenuitemPaste);
+    DoLocToolbarButtonHint(ToolbarMain, 'e_undo', ATEditorOptions.TextMenuitemUndo);
+    DoLocToolbarButtonHint(ToolbarMain, 'e_redo', ATEditorOptions.TextMenuitemRedo);
     if Assigned(mnuViewUnpri) then
       DoLocToolbarButtonHint(ToolbarMain, 'unpri', mnuViewUnpri.Caption);
     if Assigned(mnuViewMinimap) then
@@ -407,7 +407,7 @@ begin
     msgThemeDefault:= ini.ReadString('ui', 'deft', msgThemeDefault);
     msgThemeName:= ini.ReadString('ui', 'th_nm', msgThemeName);
     //cTextEditorLocked:= ini.ReadString('ui', 'ed_w', cTextEditorLocked);
-    cTextHintScrollPrefix:= ini.ReadString('ui', 'line', cTextHintScrollPrefix);
+    ATEditorOptions.TextHintScrollPrefix:= ini.ReadString('ui', 'line', ATEditorOptions.TextHintScrollPrefix);
     msgTooltipClearFilter:= ini.ReadString('ui', 'clr_f', msgTooltipClearFilter);
     CodeTreeFilterReset.Hint:= msgTooltipClearFilter;
     msgMenuLexersForFile:= ini.ReadString('ui', 'lex_dlg', msgMenuLexersForFile);
@@ -431,7 +431,6 @@ begin
     msgStatusbarWrapStates[0]:= ini.ReadString('sta', 'wr0', msgStatusbarWrapStates[0]);
     msgStatusbarWrapStates[1]:= ini.ReadString('sta', 'wr1', msgStatusbarWrapStates[1]);
     msgStatusbarWrapStates[2]:= ini.ReadString('sta', 'wr2', msgStatusbarWrapStates[2]);
-    msgStatusbarWrapStates[3]:= ini.ReadString('sta', 'wr3', msgStatusbarWrapStates[3]);
 
     msgStatusbarHintCaret:= ini.ReadString('sta', 'crt', msgStatusbarHintCaret);
     msgStatusbarHintEnc:= ini.ReadString('sta', 'enc', msgStatusbarHintEnc);
@@ -494,13 +493,13 @@ begin
     DoLocString(msgLinkOpenSite, ini, 'ui', 'lnk_a');
     DoLocString(msgLinkOpenEmail, ini, 'ui', 'lnk_e');
 
-    DoLocMenuitem(mnuTextUndo, cStrMenuitemUndo);
-    DoLocMenuitem(mnuTextRedo, cStrMenuitemRedo);
-    DoLocMenuitem(mnuTextCut, cStrMenuitemCut);
-    DoLocMenuitem(mnuTextCopy, cStrMenuitemCopy);
-    DoLocMenuitem(mnuTextPaste, cStrMenuitemPaste);
-    DoLocMenuitem(mnuTextDelete, cStrMenuitemDelete);
-    DoLocMenuitem(mnuTextSel, cStrMenuitemSelectAll);
+    DoLocMenuitem(mnuTextUndo, ATEditorOptions.TextMenuitemUndo);
+    DoLocMenuitem(mnuTextRedo, ATEditorOptions.TextMenuitemRedo);
+    DoLocMenuitem(mnuTextCut, ATEditorOptions.TextMenuitemCut);
+    DoLocMenuitem(mnuTextCopy, ATEditorOptions.TextMenuitemCopy);
+    DoLocMenuitem(mnuTextPaste, ATEditorOptions.TextMenuitemPaste);
+    DoLocMenuitem(mnuTextDelete, ATEditorOptions.TextMenuitemDelete);
+    DoLocMenuitem(mnuTextSel, ATEditorOptions.TextMenuitemSelectAll);
     DoLocMenuitem(ini, mnuTextGotoDef, 'ct', 'godef');
     DoLocMenuitem(ini, mnuTextOpenUrl, 'ct', 'url');
 
@@ -508,16 +507,17 @@ begin
     DoLocString(msgConsoleNavigate, ini, 'ct', 'nav');
     DoLocString(msgConsoleToggleWrap, ini, 'ct', 'wr');
 
-    DoLocString(cStrMenuitemFoldAll, ini, 'ct', 'fld_a');
-    DoLocString(cStrMenuitemUnfoldAll, ini, 'ct', 'fld_un');
-    DoLocString(cStrMenuitemFoldLevel, ini, 'ct', 'fld_lv');
+    DoLocString(ATEditorOptions.TextMenuitemFoldAll, ini, 'ct', 'fld_a');
+    DoLocString(ATEditorOptions.TextMenuitemUnfoldAll, ini, 'ct', 'fld_un');
+    DoLocString(ATEditorOptions.TextMenuitemFoldLevel, ini, 'ct', 'fld_lv');
     DoLocString(msgTreeSorted, ini, 'ct', 'tr_sr');
 
     DoLocString(msgTabsizeUseSpaces, ini, 'ct', 'ussp');
     DoLocString(msgTabsizeConvSpaces, ini, 'ct', 'cnv_t');
     DoLocString(msgTabsizeConvTabs, ini, 'ct', 'cnv_s');
 
-    ButtonCancel.Caption:= msgButtonCancel;
+    if Assigned(ButtonCancel) then
+      ButtonCancel.Caption:= msgButtonCancel;
 
     //----------------strings
     DoLocString(msgCannotOpenFile                , ini, 'se', 'OpenFile');
@@ -529,7 +529,7 @@ begin
     DoLocString(msgCannotSaveFile                , ini, 'se', 'SaveFile');
     DoLocString(msgCannotSaveFileWithEnc         , ini, 'se', 'SaveWithEnc');
     DoLocString(msgCannotSaveUserConf            , ini, 'se', 'SaveUserConf');
-    DoLocString(msgCannotReadConfig                , ini, 'se', 'ReadConf');
+    DoLocString(msgCannotReadConfig              , ini, 'se', 'ReadConf');
     DoLocString(msgCannotReloadUntitledTab       , ini, 'se', 'ReloadUntitledTab');
     DoLocString(msgCannotFindMatch               , ini, 'se', 'FindMatch');
     DoLocString(msgCannotFindInstallInfInZip     , ini, 'se', 'FindInstallInfInZip');
@@ -538,6 +538,7 @@ begin
     DoLocString(msgCannotInstallAddonApi         , ini, 'se', 'AddonApi');
     DoLocString(msgCannotAutocompleteMultiCarets , ini, 'se', 'AutocompleteCarets');
 
+    DoLocString(msgCmdPaletteCaption             , ini, 'si', 'CmdPalette');
     DoLocString(msgStatusChangedLinesCount       , ini, 'si', 'ChangedLineCount');
     DoLocString(msgStatusPluginHotkeyBusy        , ini, 'si', 'PluginHotkeyBusy');
     DoLocString(msgStatusSyntaxThemesOff         , ini, 'si', 'SyntaxThemesOff');
@@ -577,12 +578,13 @@ begin
     DoLocString(msgStatusEndsChanged             , ini, 'si', 'EndsChanged');
     DoLocString(msgStatusEncChanged              , ini, 'si', 'EncChanged');
     DoLocString(msgStatusGotoFileLineCol         , ini, 'si', 'FileLineCol');
-    DoLocString(msgStatusHelpOnKeysConfig        , ini, 'si', 'HelpOnKeysConfig');
     DoLocString(msgStatusClickingLogLine         , ini, 'si', 'ClickingLogLine');
     DoLocString(msgStatusNoGotoDefinitionPlugins , ini, 'si', 'NoGotoDefinitionPlugins');
     DoLocString(msgStatusFilenameAlreadyOpened   , ini, 'si', 'FilenameAlreadyOpened');
     DoLocString(msgStatusNeedToCloseTabSavedOrDup, ini, 'si', 'NeedToCloseTabSavedOrDup');
     DoLocString(msgStatusHotkeyBusy              , ini, 'si', 'HotkeyBusy');
+    DoLocString(msgStatusFontSizeChanged         , ini, 'si', 'FontSizeChanged');
+    DoLocString(msgStatusLexerDisabledBySize     , ini, 'si', 'LexerDisabledBySize');
     DoLocString(msgGotoDialogInfoExt             , ini, 'si', 'GotoInfoExt');
 
     DoLocString(msgConfirmSyntaxThemeSameName    , ini, 'sc', 'ThemeSyntaxSame');
@@ -590,6 +592,7 @@ begin
     DoLocString(msgConfirmHotkeyList             , ini, 'sc', 'HotkeyList');
     DoLocString(msgConfirmOkNoHotkeys            , ini, 'sc', 'OkWithoutKeys');
     DoLocString(msgConfirmFileChangedOutside     , ini, 'sc', 'FileChangedOutside');
+    DoLocString(msgConfirmFileDeletedOutside     , ini, 'sc', 'FileDeletedOutside');
     DoLocString(msgConfirmReloadIt               , ini, 'sc', 'ReloadIt');
     DoLocString(msgConfirmReloadYes              , ini, 'sc', 'ReloadYes');
     DoLocString(msgConfirmReloadNoMore           , ini, 'sc', 'ReloadNoMore');

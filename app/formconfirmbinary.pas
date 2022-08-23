@@ -68,7 +68,7 @@ begin
   F:= TfmConfirmBinary.Create(nil);
   try
     if ATooBig then
-      S:= msgFileTooBig + Format(' (%d M)', [FileSize(AFilename) div (1024*1024)])
+      S:= msgFileTooBig + Format(' (%dM, "ui_max_size_open": %d)', [FileSize(AFilename) div (1024*1024), UiOps.MaxFileSizeToOpen])
     else
       S:= msgFileMaybeNotText;
 
@@ -138,7 +138,7 @@ var
   ini: TIniFile;
   fn: string;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
   ini:= TIniFile.Create(fn);
   try

@@ -216,6 +216,7 @@ def json_update(path, key, val):
 
     with open(path, 'w', encoding='utf-8') as f:
         f.write(j_str)
+        os.fsync(f)
 
 def format_opt_change(ch):
     scope_str = ch.scope
@@ -527,8 +528,7 @@ class DialogMK2:
             else:   # if no saved selected opt - select first
                 _ind = 0
             listbox_proc(self._h_list, LISTBOX_SET_SEL, index=_ind)
-            _top = max(0, _ind-3)
-            listbox_proc(self._h_list, LISTBOX_SET_TOP, index=_top)
+            listbox_proc(self._h_list, LISTBOX_SET_TOP, index=max(0, _ind-5))
             #### click event
             self._on_opt_click(id_dlg=self.h, id_ctl=-1)
 
@@ -891,8 +891,8 @@ class DialogMK2:
             ind = 0
             if self._cur_opt_name  and  self._cur_opt_name in self._list_opt_names:
                 ind = self._list_opt_names.index(self._cur_opt_name)
-            #listbox_proc(self._h_list, LISTBOX_SET_TOP, max(0, ind-3)) # selecting is not helpful
             listbox_proc(self._h_list, LISTBOX_SET_SEL, ind)
+            listbox_proc(self._h_list, LISTBOX_SET_TOP, max(0, ind-5))
 
         self._on_opt_click(id_dlg=self.h, id_ctl=-1)
 
@@ -1338,12 +1338,16 @@ class DialogMK2:
         pass;       LOG and print('APPLY_CHANGES')
 
         # check if current value in edit is changed, create option change if it is
-        try:
-            edit_val = self.val_eds.get_edited_value(self._cur_opt)
-        except ValueError:      # exception happens when trying to cast empty str to float|int
-            edit_val = None
-        if edit_val is not None  and  edit_val != '':
-            self.add_opt_change(self._cur_opt_name, self.scope, edit_val)
+        val_edit_changed = (self.val_eds.val_edit is None) or \
+                           (self.val_eds.val_edit.get_prop(PROP_LINE_STATE, 0) != LINESTATE_NORMAL)
+        if val_edit_changed:
+            try:
+                edit_val = self.val_eds.get_edited_value(self._cur_opt)
+            except ValueError:      # exception happens when trying to cast empty str to float|int
+                edit_val = None
+            if edit_val is not None:
+                # and  edit_val != '': # commented: see CudaText issue #3924
+                self.add_opt_change(self._cur_opt_name, self.scope, edit_val)
 
         if not self._opt_changes  and  not closing:
             msg_status(_("No option changes has been made"))

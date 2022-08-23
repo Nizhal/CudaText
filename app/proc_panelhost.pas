@@ -40,6 +40,7 @@ type
 type
   TAppPanelOnCommand = procedure(const ACallback: string) of object;
   TAppPanelOnGetTitle = function(const ACaption: string): string of object;
+  TAppPanelOnContextPopup = procedure(const ACaption: string) of object;
 
 type
   { TAppPanelHost }
@@ -50,6 +51,7 @@ type
     FAlign: TAlign;
     FToolbarUpdateCount: integer;
     FToolbarUpdateTime: QWord;
+    FOnContextPopup: TAppPanelOnContextPopup;
     function GetFloating: boolean;
     function GetPanelSize: integer;
     function GetVisible: boolean;
@@ -58,6 +60,7 @@ type
     procedure SetPanelSize(AValue: integer);
     procedure SetVisible(AValue: boolean);
     procedure HandleButtonClick(Sender: TObject);
+    procedure HandleRightClick(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
     procedure UpdateTitle;
   public
     PanelGrouper: TCustomControl;
@@ -72,6 +75,7 @@ type
     FormFloatBounds: TRect;
     ShowTitleForSide: boolean;
     ShowTitleForBottom: boolean;
+    OnShow: TNotifyEvent;
     OnHide: TNotifyEvent;
     OnCommand: TAppPanelOnCommand;
     OnCloseFloatForm: TCloseEvent;
@@ -97,6 +101,7 @@ type
     procedure InitFormFloat;
     property ToolbarUpdateCount: integer read FToolbarUpdateCount;
     property ToolbarUpdateTime: QWord read FToolbarUpdateTime;
+    property OnContextPopup: TAppPanelOnContextPopup read FOnContextPopup write FOnContextPopup;
   end;
 
 var
@@ -120,7 +125,16 @@ begin
 end;
 
 destructor TAppPanelHost.Destroy;
+var
+  Panel: TAppPanelItem;
+  i: integer;
 begin
+  for i:= Panels.Count-1 downto 0 do
+  begin
+    Panel:= TAppPanelItem(Panels.Items[i]);
+    Panel.Free;
+  end;
+
   Panels.Clear;
   FreeAndNil(Panels);
   inherited Destroy;
@@ -145,6 +159,7 @@ begin
   Splitter:= TSplitter.Create(FOwner);
   Splitter.Align:= Align;
   Splitter.Parent:= PanelRoot;
+  Splitter.MinSize:= 100;
 
   UpdateSplitter;
 end;
@@ -169,6 +184,11 @@ end;
 
 procedure TAppPanelHost.SetFloating(AValue: boolean);
 begin
+  {$ifdef LCLGTK2}
+  //disable floating panels on GTK2, fixing #4204
+  exit;
+  {$endif}
+
   if GetFloating=AValue then exit;
 
   if AValue then
@@ -255,10 +275,15 @@ begin
 
       UpdateTitle;
     end;
+
+    if Assigned(OnShow) then
+      OnShow(Self);
   end
   else
-  if Assigned(OnHide) then
-    OnHide(nil);
+  begin
+    if Assigned(OnHide) then
+      OnHide(Self);
+  end;
 
   UpdateButtons;
 end;
@@ -325,6 +350,7 @@ var
   Obj: TObject;
   Ctl: TCustomControl;
 begin
+  Result:= false;
   Num:= CaptionToPanelIndex(ACaption);
   bExist:= Num>=0;
 
@@ -356,7 +382,7 @@ begin
 
   if not bExist then
   begin
-    Toolbar.AddButton(AImageIndex, @HandleButtonClick, ACaption, ACaption, '', false);
+    Toolbar.AddButton(AImageIndex, @HandleButtonClick, @HandleRightClick, ACaption, ACaption, '', false);
     UpdateToolbarControls;
   end;
 
@@ -378,7 +404,12 @@ begin
   Panels.Add(Panel);
 
   //save module/method to Btn.DataString
-  Toolbar.AddButton(AImageIndex, @HandleButtonClick, ACaption, ACaption,
+  Toolbar.AddButton(
+    AImageIndex,
+    @HandleButtonClick,
+    @HandleRightClick,
+    ACaption,
+    ACaption,
     AModule+'.'+AMethod,
     false);
   UpdateToolbarControls;
@@ -535,6 +566,19 @@ begin
     OnCommand(Btn.DataString);
 
   UpdatePanels(SCaption, true, false);
+end;
+
+procedure TAppPanelHost.HandleRightClick(Sender: TObject; MousePos: TPoint;
+  var Handled: Boolean);
+var
+  Btn: TATButton;
+begin
+  if Assigned(FOnContextPopup) then
+  begin
+    Btn:= Sender as TATButton;
+    FOnContextPopup(Btn.Caption);
+    Handled:= true;
+  end;
 end;
 
 procedure TAppPanelHost.UpdateSplitter;

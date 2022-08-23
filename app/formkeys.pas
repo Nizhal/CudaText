@@ -15,6 +15,7 @@ uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, ButtonPanel,
   StdCtrls, Menus, ExtCtrls, IniFiles,
   LclType, LclProc, LazUTF8, LazFileUtils,
+  ATSynEdit,
   ATSynEdit_Keymap,
   proc_globdata,
   proc_customdialog,
@@ -50,6 +51,8 @@ type
     procedure FormShow(Sender: TObject);
     procedure HelpButtonClick(Sender: TObject);
     procedure OKButtonClick(Sender: TObject);
+    procedure panelPressMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
     procedure TimerAddTimer(Sender: TObject);
   private
     { private declarations }
@@ -82,7 +85,7 @@ var
   ini: TIniFile;
   fn: string;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
   ini:= TIniFile.Create(fn);
   try
@@ -172,6 +175,12 @@ begin
   end;
 end;
 
+procedure TfmKeys.panelPressMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+begin
+  if HandleMouseDownToHandleExtraMouseButtons(Self, Button, Shift) then exit;
+end;
+
 procedure TfmKeys.TimerAddTimer(Sender: TObject);
 begin
   TimerAdd.Enabled:= false;
@@ -208,19 +217,11 @@ procedure TfmKeys.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState
 begin
   if not panelPress.Visible then exit;
 
-  if
-    (key=VK_MENU) or
-    (key=VK_LMENU) or
-    (key=VK_RMENU) or
-    (key=VK_CONTROL) or
-    (key=VK_LCONTROL) or
-    (key=VK_RCONTROL) or
-    (key=VK_SHIFT) or
-    (key=VK_LSHIFT) or
-    (key=VK_RSHIFT) or
-    (key=VK_LWIN) or
-    (key=VK_RWIN) then
-      begin key:= 0; exit end;
+  if not AppKeyIsAllowedAsCustomHotkey(Key, Shift) then
+  begin
+    Key:= 0;
+    exit
+  end;
 
   FKeyPressed:= ShortCut(Key, Shift);
   key:= 0;

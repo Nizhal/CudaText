@@ -255,7 +255,7 @@ object SyntAnal13: TLibSyntAnalyzer
       StatesRemove = 7
       StatesAbsent = 1024
       TokenType = 16
-      Expression = '^[\x20\x09]{0,3}`{3,}\x20*.*$'
+      Expression = '(?<=^\x20{0,3})`{3,}\x20*\w.*$'
       ColumnFrom = 0
       ColumnTo = 0
     end
@@ -265,7 +265,7 @@ object SyntAnal13: TLibSyntAnalyzer
       StatesRemove = 1024
       StatesPresent = 1024
       TokenType = 17
-      Expression = '^[\x20\x09]{0,3}`{3,}\x20*$'
+      Expression = '(?<=^\x20{0,3})`{3,}\x20*$'
       ColumnFrom = 0
       ColumnTo = 0
     end
@@ -275,7 +275,7 @@ object SyntAnal13: TLibSyntAnalyzer
       StatesAdd = 2048
       StatesRemove = 7
       TokenType = 18
-      Expression = '^[\x20\x09]{0,3}~{3,}\x20*\w+.*$'
+      Expression = '(?<=^\x20{0,3})~{3,}\x20*\w.*$'
       ColumnFrom = 0
       ColumnTo = 0
     end
@@ -284,7 +284,7 @@ object SyntAnal13: TLibSyntAnalyzer
       StyleName = '``` edge'
       StatesRemove = 2048
       TokenType = 19
-      Expression = '^[\x20\x09]{0,3}~{3,}\x20*$'
+      Expression = '(?<=^\x20{0,3})~{3,}\x20*$'
       ColumnFrom = 0
       ColumnTo = 0
     end
@@ -343,8 +343,8 @@ object SyntAnal13: TLibSyntAnalyzer
       StatesAbsent = 3072
       TokenType = 15
       Expression = 
-        '(?<=[\l_\x{2026}\?!\.,;:~\*\)>])__(?!\l\x{2026}\?!) |'#13#10'(?<=[\l_\' +
-        'x{2026}\?!\.,;:~\)>])\*\*'
+        '(?<=[\l_\x{2026}\?!\.,;:~\*\)>])__(?![\l\x{2026}\?!]) |'#13#10'(?<=[\l' +
+        '_\x{2026}\?!\.,;:~\)>])\*\*'
       ColumnFrom = 0
       ColumnTo = 0
     end
@@ -368,8 +368,8 @@ object SyntAnal13: TLibSyntAnalyzer
       StatesAbsent = 3072
       TokenType = 15
       Expression = 
-        '(?<=[\l_\x{2026}\?!\.,;:~\*\)>])_(?!\l\x{2026}\?!) |'#13#10'(?<=[\l_\x' +
-        '{2026}\?!\.,;:~\)>\*])\*'
+        '(?<=[\l_\x{2026}\?!\.,;:~\*\)>])_(?![\l\x{2026}\?!]) |'#13#10'(?<=[\l_' +
+        '\x{2026}\?!\.,;:~\)>\*])\*'
       ColumnFrom = 0
       ColumnTo = 0
     end
@@ -622,7 +622,7 @@ object SyntAnal13: TLibSyntAnalyzer
       StyleName = 'Math BG'
       StatesAbsent = 3072
       TokenType = 3
-      Expression = '(\${1,2}).+\1'
+      Expression = '(?s)(\${1,2}).+?\1'
       ColumnFrom = 0
       ColumnTo = 0
     end
@@ -939,7 +939,7 @@ object SyntAnal13: TLibSyntAnalyzer
       StatesAbsent = 3
       StartExpression = '<\?'
       EndExpression = '\?>'
-      SyntAnalyzer = SyntAnal15
+      SyntAnalyzer = SyntAnal14
       IncludeBounds = True
     end
     item
@@ -960,13 +960,19 @@ object SyntAnal13: TLibSyntAnalyzer
       DisplayName = 'YAML front matter'
       StartExpression = '\A---(\s*yaml)?$'
       EndExpression = '^(---|\.\.\.)$'
-      SyntAnalyzer = SyntAnal22
+      SyntAnalyzer = SyntAnal21
     end
     item
       DisplayName = 'JSON front matter'
       StartExpression = '\A---\s*json$'
       EndExpression = '^---$'
       SyntAnalyzer = SyntAnal11
+    end
+    item
+      DisplayName = 'Fenced block'
+      StartExpression = '(?<=^\x20{0,3})(`{3,}|~{3,})\x20*\w.*$'
+      EndExpression = '(?<=^\x20{0,3})(`{3,}|~{3,})\x20*$'
+      SyntAnalyzer = SyntAnal8
     end>
   SampleText.Strings = (
     '---'
@@ -1080,7 +1086,7 @@ object SyntAnal13: TLibSyntAnalyzer
   LexerName = 'Markdown'
   SkipSpaces = False
   Notes.Strings = (
-    'By Alexey (CudaText)'
+    'By Alexey Torgashin (CudaText)'
     'Parser states used:'
     '- 1: italic'
     '- 2: bold'

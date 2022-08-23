@@ -3,13 +3,435 @@
   - fixed
   * changed
 
-1.148.1 (2021/11)
+1.169.0 (2022/08)
+
++ add: handle the situation 'file was deleted outside' more detailed: show additional non-modal confirmation to close the tab (thanks @lookoutside, @JairoMartinezA)
++ add: tree-helper for reStructuredText: calculate header levels more properly (thanks @lookoutside) 
++ add: in Python, final 'comments' must be excluded from final fold range (thanks @veksha)
+* change: changed the background-color of 'notification panels' inside the editor
+* change: macOS: adapt default hotkeys for macOS, for commands: "go to text begin/end", "caret to line begin/end", "go to word previous/next" (thanks @veksha)
+- fix: file with UTF-32 BE signature was detected as 'maybe not text'
+- fix: regression in 1.165.x: opening of file without final line-break was adding final line-break anyway
+- fix: couple of glithes on macOS (thanks @veksha)
+- fix: Emmet must not auto-complete 'ok:' for example (thanks @eltonfabricio10) 
+- fix: "Go to bookmark" did not focus target group (thanks @MiroslavMatas)
+- fix: in maximized window, clicking on the vert-scrollbar right-most pixel did not work (thanks @veksha)
+- fix: with "scrollbar_themed":false, caret can move half below the bottom border (thanks @veksha)
+
+1.168.5 (2022/08)
+
++ add: command "Undo" handles also color-attribs, which are added e.g. by 'Color Text' plugin
++ add: commands "delete to_document_begin/ to_document_end/ word_left/ word_right/ word_at_caret" and APIs delete/replace, they now delete affected color-attribs
+- fix: macOS: bug in blinking of caret (thanks @veksha)
+- fix: macOS: crash "list index error" (thanks @JairoMartinezA)
+- fix: regression, broken option "mouse_rt_click_moves_caret" (thanks @sl23)
+- fix: lexer Batch: ^-char before line-break must continue the string literal
+
+1.168.0 (2022/07)
+
++ add: command-line parameter '-verbose' for debugging
+- fix: couple of issues with saving read/only files (thanks @veksha)
+- fix: Linux Qt5: with "caret_after_end":true, on going up/down over short lines, caret moves lefter 
+- fix: Linux: file 'ast.py' in the current folder was breaking many plugins (thanks @veksha)
+- fix: lexer Bash: wrong highlight in '~/.local' (thanks @eltonfabricio10)
+
+1.167.5 (2022/07)                                              
+
++ add: use translated button captions in message-boxes, both internal and API (thanks @hexaae)
++ add: wiki page https://wiki.freepascal.org/CudaText_VS_other_editors
++ add: option "renderer_tweaks" has new sub-option "l" (thanks @veksha)
+- fix: regression in 1.166.5: saved _named_ session was not reopened (thanks @tmsg)
+- fix: sometimes, bookmarks-section in the history file was purged by mistake (thanks @MiroslavMatas)
+- fix: click on the folded-block-rectangle hides caret (thanks @veksha)
+- fix: in e.g. Python lexer, new typed text may be 'catched' by the upper _folded_ block (thanks @veksha)
+- fix: on some Linux systems, with dots_per_inch=91, minimap is empty (thanks @veksha)
+- fix: lexers XML/XML^: highlight quoted string only after '=' (thanks @veksha)
+- fix: lexer Markdown: rule for italics
+
+1.167.0 (2022/07)
+
++ add: API to speedup ExTerminal plugin (thanks @veksha)
++ add: dialog 'Go to': handle also leading '+' like the trailing one
++ add: list "File / Open recent" stores also pictures/binaries
++ add: TRegExpr engine: update "uppercase/lowercase tables" for some unicode ranges (by @AmigoJack)
+
+- fix/optimization: rendering with 'markers' on 100k+ lines was very slow
+- fix/optimization: command "Inverse bookmarks" was very-very slow in 100k+ lines documents
+- fix/optimization: plugin Git Status was very-very slow if Git changes had 10k+ lines
+- fix/optimization: during mass replacement, pair-bracket-finder must not activate
+
+- fix: sometimes, 'markers' were painted with artifact lines
+- fix: on Windows, startup with 2+ groups did not restore "maximized" state (thanks @veksha)
+- fix: on Windows, picture viewer: dragging of small picture was not disabled
+- fix: on tab switching, window caption must be updated without pause (thanks @charliewales)
+- fix: file must appear in "File / Open recent" if default-session is active (thanks @veksha, @DUOLabs333)
+- fix: couple of issues with Up/Down/PageUp/PageDown with "caret_after_end" on/off (thanks @veksha)
+- fix: 'floating' panels feature is now disabled in GTK2 version, because of the IDE (or GTK2) bug (thanks @veksha)
+- fix: could not continue selection by mouse when cursor goes over minimap (thanks @veksha)
+
+1.166.5 (2022/07)
+
++ add: small optimization: LSP plugin should not start when app starts with single empty tab
+- fix: on opening another project, current project-session was not auto-saved (thanks @MiroslavMatas)
+- fix: crash on loading session with confirmation for 'binary' file (thanks @kvichans)
+- fix: on loading session with active 2nd group, empty tab was appearing (thanks @kvichans)
+* change: on loading session, don't check files for 'binary' content
+
+1.166.2 (2022/06)
+
++ add: support encoding iso-8859-3
++ add: support encoding iso-8859-4
++ add: support encoding iso-8859-7
++ add: support encoding iso-8859-10
++ add: support encoding iso-8859-13
++ add: option "autocomplete_acp" (thanks @veksha)
+- fix: with "ui_tab_angled":true, drag-drop of tabs must be allowed onto inter-tab small gap
+
+1.166.0 (2022/06)
+
++ add: support encoding iso-8859-5
++ add: support encoding iso-8859-14
++ add: support encoding iso-8859-16
++ add: lexer must support 'dynamic highlight' if any sub-lexer supports it; example is Vue lexer (thanks @zhaolinlau)
++ add: Emmet plugin handles Tab-key in Vue lexer too (thanks @zhaolinlau)
+* change: on calling Find dialog, if none of options "find_suggest_xxxx" do suggestion, 'find what' field is not cleared; Ctrl+F from the Find dialog now selects all 'find what' (thanks @andersaamodt)
+* change: Windows Python upgraded to 3.8
+- fix: couple of bugs in plugin API (thanks @veksha)
+- fix: regression in 1.165.2: Shift+F3 in Find dialog (thanks @hiiamboris)
+- fix: Windows: issue with Alt+Tab and "ui_taskbar_mode":false (thanks @veksha) 
+- fix: after "fold all", all folded ranges must have [+] icon, even those affected by "fold_icon_min_range" option (thanks @tmsg)
+- fix: lexer PHP: don't highlight 'class name' after '->'
+
+1.165.2 (2022/06)
+
++ add: input boxes + API-created editors: use the same key-mapping as main editor (thanks @DUOLabs333)
++ add: commands "(without undo) sort xxxx" set sorted range line-states to 'changed'
++ add: lexer CSS: support new 'units'
+- fix: change default value of "renderer_tweaks__linux" to "" on Linux Qt5
+- fix: TRegExpr engine: fix issues with 'regex recursion' (thanks @CaptainFlint)
+- fix: macros playback must restore previous state of search options (thanks @hiiamboris)
+- fix: freezing on startup with Git Status plugin, in some cases (thanks @veksha)
+- fix: few rendering issues with proportional fonts: tab-chars, indentations (thanks @Hobbes)
+- fix: commands "(without undo) sort xxxx" incorrectly removed blank lines (thanks @TomC)
+- fix: lexer YAML bug
+
+1.165.0 (2022/05)
+
++ add: add time limit for syntax highlighting in minimap: new option "minimap_coloring_time":15
++ add: improve rendering speed for _lite_ lexers, on long wrapped lines (thanks @veksha)
++ add: improve filtering in Command Palette: find space-separated words in _any_ order, like Sublime Text (thanks @veksha)
++ add: lexer CSS: syntax-highlight color functions 'hwb()', 'lab()', 'lch()'
++ add: HTML color underlines: support 'rgb(255, 55, 255, .5)', 'rgb(255 55 255 / .5)', 'rgba(255 55 255 / .5)'
+* change: change the behaviour of command "skip next occurrence of selected word" to better mimic Sublime Text (thanks @veksha)
+- fix: UI flickering on adding plugin's sidepanel buttons (thanks @veksha)
+- fix: bug in Comments plugin (thanks @eltonfabricio10)
+
+1.164.0 (2022/05)
+
++ add: major change: support for proportional fonts in the editor (no option)
++ add: 'listbox_ex' UI control: on scrolling, don't leave space on the bottom (thanks @veksha)
++ add: lexer parser for indent-based folding: if 'group index'=21 (lexer properties dialog in SynWrite), parser will _skip_ checking of pair brackets (for 'group index'=20, checking for pair brackets will run, which is good for Python)
+- fix: "autocomplete_trigger_chars" did not work in HTML for "<", without changing "nonword_chars" (thanks @eltonfabricio10)
+
+1.163.4 (2022/05)
+
++ add: code-tree filling time is limited now, by new option "ui_tree_fill_max_time":1000 (in msec)
++ add: API for 'treeview' multi-selection
++ add: disabled buttons (in Find dialog, in main toolbar) are shown with a crossing-line, to be better visible as disabled
+* change: default of "find_hotkey_find_next" changed to "F3" (thanks @sergey)
+- fix: command "Paste and indent" must not force final newline (thanks @veksha)
+- fix: Terminal Plus steals focus after auto-completion closes (thanks @veksha)
+- fix: regression in 1.163.2: startup session silently skipped (thanks @mix-7)
+- fix: regression in 1.160.2 for code-tree; reverted 'faster filling of the code-tree' (thanks @dimon40001)
+- fix: a couple of minor bugs (rarely visible) in TRegExpr engine
+- fix: menu checkmarks in "View / Split tab" were not updated ok (thanks @sergey)
+
+1.163.0 (2022/04)
+
++ add: new command "add next occurrence of selected text (not whole-word)" (thanks @veksha)
++ add: new command "skip next occurrence of selected text"
++ add: Windows (10 and 11): auto-set window title color to dark (thanks @ags1234)
+- fix: file with XML/Python encoding signature could not be re-read in different cpXXXX encoding (thanks @ertank)
+- fix: hotkeys were not inited completely for .txt files in a project's session (thanks @MiroslavMatas) 
+
+1.162.5 (2022/04)
+
++ add: on editing of a line, which is start of a folded block, do unfolding of that block (thanks @veksha)
++ add: plugin Comments: support 'Line comment' commands if 'line comment' chars are absent, but 'range comment' chars are present; e.g. in CSS (thanks @ildarkhasanshin)
++ add: plugin Insert Time: added format 'unix' (Unix-time), it will be added to config after you delete the config + restart the app (thanks @mix-7)
+- fix: issue with "ui_one_instance":true on a multi-user Linux/Unix system (thanks @bogen85)
+- fix: issue with too greedy folding with "auto_fold_comments" in Nim lexer (thanks @veksha)
+
+1.162.0 (2022/04)
+
++ add: Project Manager: the work is done to support auto-saving of the last project (even untitled), and auto-loading of last active project on app start. So if user e.g. drag-drops a folder on CudaText, this makes the new project "temporary", and after app restart, "temporary" project will be restored. Also app option "ui_auto_save_session" defaults to 'true' now, to be like Sublime Text / VSCode. (thanks opennet.ru)
++ add: detection of XML codepage must handle standard codepage names like "windows-1252" (thanks @dinkumoil)
++ add: 'Paste and indent' must overwrite the selection (thanks @veksha)
++ add: viewer allows to activate UTF-8 encoding, and also ISO-8859-9 encoding (thanks opennet.ru)
++ add: code-tree remembers 'Sorted' state per each file-tab (thanks @randomize from opennet.ru)
++ add: commands "fold/unfold/toggle block at current line" support multi-carets
++ add: lexer XML: more highlighting when folding is auto-disabled by "lexer_folding_max_lines" (thanks @ertank)
++ add: lexer XML: highlight numbers too
+* change: paste with middle-click (option "mouse_middle_click":2): place caret to clicked position, like VSCode/Kate (thanks opennet.ru)
+* change: rename menu item "Addons Manager / Install from GitHub" to "Install from Git"
+* change: for folded blocks, horizontal line has different style, dash/dash
+- fix: regression in 1.160.2: flickering on editing in file ending, if file was edited in the beginning
+- fix: Project Manager: bug with the prompt "files not belonging to the project"
+- fix: problem with saving modified files that were reloaded by "ui_auto_save_session":true (thanks @thatfuckingbird)
+
+1.161.0 (2022/04)
+
++ add: show information-panel on the top, when option "ui_max_size_lexer" disables the normal lexer
++ add: detect encoding in XML files by signature like <?xml encoding="ISO-8859-9"?> (thanks @ertank)
++ add: Command Palette and API menus 'fuzzy search' improved: first show items with plain matches, then show items with fuzzy-only matches; similar to Sublime Text (thanks @adoeller)
++ add: Addon Manager: enabled 'fuzzy search' in menus
+
+1.160.2 (2022/04)
+
++ add: dialog Find/Replace now shows inside the floating-groups too, when activated from there
++ add: command-line parameter -c=cuda_module_name,method_name (thanks @jczanfona)
++ add: faster filling of the code-tree (on 3Mb XML file: 2 seconds instead of 14 seconds)
+- fix: regression in syntax highlight after "Comment stream block" (thanks @ildarkhasanshin)
+- fix: Windows: painting of themed menu, when "ui_menu_themed_font_size" value is big (thanks @Ambassador)
+
+1.160.0 (2022/04)
+
++ add: mouse buttons Extra1/Extra2 are supported in the hotkey input dialog; note that you must press buttons while mouse pointer is over editor control; these mouse buttons work as equavalent to keyboard buttons BrowserBack/BrowserForward
++ add: improved keyboard 'accelerators' in the menu 'File / Open recent'
++ add: improved API to open a file-pair: app now suggests to install new lexer also for the 2nd file
++ add: improved API to show 'decorations on gutter'
++ add: more stability of the multi-threaded parser (before, file ~/cudatext.error could appear, please report if that file appears again with new info)
++ add: the minimal size of "unprinted spaces/ line ends" dots changed from 2 px to 1 px (thanks @ildarkhasanshin)
++ add: lexer PHP: folding of 'case' blocks (thanks @ildarkhasanshin)
+* change: lexer PHP: simpler highlight HereDoc blocks
+- fix: "Open URL" in context menu was disabled if menu is called by ContextMenu key (thanks @ildarkhasanshin)
+
+1.159.0 (2022/03)
+
++ add: Project Manager: added 'project sessions' - sessions which belong to the current project and are embedded into project file *.cuda-proj. Added several menu items to the 'gear' menu in the ProjManager, to work with 'project sessions'. (thanks @GHNewbiee)
++ add: Project Manager removes the file, on doing "File / Close and delete file" (thanks @MiroslavMatas)
++ add: Project Manager hides deleted files/folders, on opening project (thanks @MiroslavMatas)
++ add: 4 commands in the Command Palette: "change line ends to LF / CR LF / CR / default, for lines(s) with caret" (thanks @myocytebd)
++ add: lexer PHP: add folding for () and [] (thanks @ildarkhasanshin)
+* change: dialog 'Go to bookmark' shows decreased indentations of lines (thanks @ildarkhasanshin)
+- fix: new feature (v1.157) "Paste from history" didn't work on Windows
+
+1.158.2 (2022/03)
+
++ add: default config of "detect_line" option (see the Wiki) includes 'shebang' for Bash and Python (thanks @HugLifeTiZ)
+- fix: write JSON configs (main app + Options Editor Lite) with 'flush buffers', to not wipe them by OS hard reset (thanks @DUOLabs333)
+- fix: too slow RegEx for 'numbers' in lexers C, C++, CSS, Lua, Python
+* change: disabled highlight of Git merge conflict markers: <<<<<<< ======= >>>>>>>
+
+1.158.0 (2022/03)
+
++ add: Project Manager: after "Refresh" action, restore tree-nodes folding + re-select old selected item (thanks @GHNewbiee)
++ add: Emmet plugin: support more abbreviations with Lorem Ipsum: "lorem", "lorem4", "lorem*4", "p*4>lorem" (thanks Rickard)
++ add: lexer Python: folding for {...} and [...] blocks
++ add: update data-files for CSS auto-completion
+- fix: option "find_separate_form" is disabled on GTK2, since that platform has a bug with it
+- fix: Addon Manager: CudaText update checker
+
+1.157.5 (2022/03)
+
++ add: lexer CSS: code-tree is reworked, now it can show OK even huge _minified_ CSS files
++ add: command "Paste and indent" in the Command Palette + upper menu (thanks @DUOLabs333). It mimics Sublime Text command with the same name, you can assign Ctrl+Shift+V to it.
++ add: command "Paste from history" in the Command Palette + upper menu. It mimics Sublime Text command. Feature is controlled by new option "ui_max_history_clipboard".
++ add: command "clipboard: clear history" in the Command Palette
+* change: removed menu item "Edit / Delete" (most apps don't have it)
+* change: lexer CSS: removed 'properties' nodes from code-tree (like in VSCode)
+* change: lexer CSS: removed color names (e.g. 'olive') from code-tree
+
+1.157.0 (2022/03)
+
++ add: support encoding ISO-8859-9 (thanks @ertank)
++ add: command 'tabulation-key uses spaces: turn on'
++ add: command 'tabulation-key uses spaces: turn off'
++ add: command 'tabulation size: set to 2'
++ add: command 'tabulation size: set to 4'
++ add: command 'tabulation size: set to 8'
+* change: prettified ISO encoding names: 'iso88591' -> 'iso-8859-1' etc
+* change/add: better Undo steps, when Del/BkSpace key was pressed many times (thanks @cser)
+* change: plugin Insert Time: move caret to the right side on insertion (thanks @mix-7)
+* change: delete deprecated (in 2021/10) commands 'stop macro' and 'cancel macro'
+* change: delete deprecated (in 2019) reading name of ui/syntax themes from history file, it's read from user.json
+
+1.156.4 (2022/02)
+
++ add: command "reopen recent file" in the Command Palette (thanks @andersaamodt)
++ add: little better Undo, when one of actions was deleting of selected block by Del/BkSpace (thanks @cser)
++ add: char U+00AD is also shown in hex form (thanks @DUOLabs333)
+- fix: big flickering when editing in PHP blocks (thanks @TomBraider42)
+- fix: Find dialog: activating of 'Hi' option cleared the selection, so broke the find 'in selection only' (thanks @tmsg)
+
+1.156.2 (2022/02)
+
+* change/add: option "renderer_tweaks" has new sub-option 's' to show Unicode-spaces in usual form; default is to show Unicode-spaces in Hex form, like Sublime (thanks @DUOLabs333)
+- fix: app crashed with option "links_regex": ""
+- fix: issue in FindInFiles4 plugin when go-to-found-match did not scroll file to needed line
+- fix: regression with option "renderer_anti_flicker":20 (values 1...999): a) Console is not repainted until click; b) plugin Sync Scroll work is broken (thanks @TomBraider42)
+
+1.156.0 (2022/02)
+
+* change: lexer 'Ini files' removed to Addon Manager; instead added _lite_ lexer 'Ini files ^' (thanks @sl23)
++ add: Project Manager: 'Go to file' menu has history of last chosen items, in the list beginning (thanks @andersaamodt)
+- fix: editing in sub-lexer range (e.g. in HTML/PHP) breaks highlighting in that range (thanks @TomBraider42)
+- fix: bug with option "autocomplete_html_autoclose":true with caret on line end (thanks @TomBraider42) 
+- fix: lexer JS: fixes for 'regex literals' rule
+
+1.155.3 (2022/01)
+
+* change: add the workaround for very slow work with huge line length=40M in XML file, which is handled by XML^ lite lexer: app now doesn't parse the line after 4K chars. The limit is taken from the old option "max_line_len_parsed". (thanks @tmsg)
++ add: new command "find: toggle+focus dialog" (thanks @DUOLabs333)
++ add: lexer Lua: add style for "documentation comments"
+- fix: auto-completion for JS block inside PHP file (thanks @TomBraider42)
+- fix: wrong saving of key "session" to "settings/history.json" (thanks @DUOLabs333)
+- fix: wrong opening of several files at once, by Enter from Windows Explorer, with "ui_one_instance":true (thanks @jroblesr)
+- fix: if a tool from plugin External Tools is called while recording a macro, macro becomes incorrect (thanks @cser)
+- fix: dialogs 'Open file'/'Save file as' on Windows have bad looking 'filter' field
+- fix: plugin Colored Indent didn't get on_state call (thanks @JairoMartinezA) 
+- fix: lexer CSS: wrong highlight of 'rgb(func(some), ...)'
+
+1.155.0 (2022/01)
+
++ add: rendering is much faster for the case of huge line length=40M in the word-wrapped mode
++ add/change: improve logic of option "unprinted_content"; its "x" flag now works only with selection; added flag "X" which also works only with selection (thanks @JairoMartinezA)
+* change: delete last enumeration-value of option "wrap_mode" (value 3 worked the same as 2)
+- fix: file loading progress-bar was not shown for huge single-line file
+- fix: on opening of big file with lexer (e.g. size 1M), beginning of the file was not colored until the entire file is parsed
+
+1.154.0 (2022/01)
+
++ add: Ctrl + mouse_wheel_click now adds/removes caret (like in Sublime Text) (thanks @johntor)
++ add: Ctrl + mouse_wheel_drag now makes column selection (almost like in Sublime Text, here it removes old carets)
++ add: it's possible to assign Ctrl+click to 'go to definition', via new value "c" of "mouse_goto_definition" (thanks @johntor)
++ add: better support DocBlock plugin, by allowing the auto-completion inside _documentation_ comments (thanks @TomBraider42)
++ add: Project Manager: command "Go To file" is now much faster (patch by @bscan)
++ add: option "dim_unfocused" dims more correctly (+gutter, +ruler, +folded blocks)
++ add: lexer RegEx handles constructs like [^]] (thanks @kvichans)
+* change: default value of "mouse_goto_definition" changed to "ca" (old value "a" was not Linux compatible)
+- fix: typing the text in 'Overwrite mode' over emoji text
+- fix: search engine bug with RegEx: change of 'case sensitive' (with the same text) did not recompile the RegEx
+- fix: few issues in the Emmet engine (thanks Rickard)
+- fix: command "delete word previous" didn't move caret, if it was after line end (thanks @hiiamboris)
+
+1.153.5 (2022/01)
+
+* change: hotkey for Find (Replace) dialog always results in the search box being focused, like in ST4 and VSCode (thanks @andersaamodt)
++ add: hotkeys of commands "switch tab ..." / "... focus ..." work also in the Find dialog (thanks @andersaamodt)
++ add: better Console message on saving session: "N file(s) + M untitled"
++ add: new API for Auto Save plugin (thanks @andersaamodt)
+- fix: plugin Auto Save could overwrite session file list from another session (thanks @JairoMartinezA)
+- fix: sometimes after session loading, or 'close all tabs', editor UI control hides completely
+
+1.153.0 (2022/01)
+
++ add: it's possible to hide folding gutter icon for small blocks, via new option "fold_icon_min_range"
++ add: show descriptive error message in Console on loading broken lexer
++ add: lexer CSS: add separate styling for '.id' and '#id' like in VSCode (thanks @andersaamodt)
+- fix: regression in 1.152: auto-scrolling (mouse is dragged out of editor) didn't work
+- fix: auto-completion didn't detect proper sub-lexer in fenced code-blocks
+- fix: BackSpace hides the caret if after the line-end and "caret_blink_en":false (thanks @hiiamboris)
+- fix: syntax highlight wasn't updated after 'duplicate line'/'paste' at the end of a sub-lexer block (thanks @WebMechanic)
+
+1.152.5 (2021/12)
+
++ add: picture viewer supports WEBP/TGA/PSD/CUR, if option "picture_types" allows it
++ add: HTML auto-completion: support filenames with spaces
++ add: HTML auto-completion: support picture filetypes WEBP, AVIF (thanks @WebMechanic)
++ add: HTML auto-completion: support filename completion in <SOURCE SRCSET=""> (thanks @WebMechanic)
++ add: lexer Assembly: update opcodes list
+* change: Project Manager: use macro {ProjDir} when storing filenames (relative) to project files (thanks @cser)
+* change: Unicode math chars U+2200...U+22FF now have the auto-detection widths, with "unicode_proportional":true (thanks @cser)
+
+1.152.1 (2021/12)
+
+- fix: lexer Bash: numbers rule (thanks @eltonfabricio10)
+- fix: sometimes after drag-drop of text inside single file, syntax highlight was broken
+- fix: sometimes after installing of a lexer, ui-tabs got none-lexer (thanks @hiiamboris)
+- fix: commands "carets extend: ..." did not respect option "caret_proximity_vert" (thanks @hiiamboris)
+- fix: plugin Comments: bug with selection, which is _backward_ and until start-of-line (thanks @hiiamboris)
+
+1.152.0 (2021/12)
+
++ add: lexer HTML: add sub-lexer 'HTML style' to highlight style="..." blocks like CSS does
++ add: lexer HTML: support inclusions of JSON blocks
++ add: lexer XML: support inclusion of CSS and JS blocks inside 'CDATA'
++ add: lexer CSS: support backslash-escapes in names
++ add: commands Delete/Backspace now handle the caret near emoji (thanks @_92)
++ add: drag-drop of text can be started even in the read-only editor, you can drop to another (writable) editor (thanks @66nuts)
++ add: drag-drop of text: toggle the mouse cursor 'simple drag'<->'multi-drag' on pressing/depressing Ctrl (thanks @66nuts)
++ add: option "ui_session_save_interval" allows negative values too, see new description (thanks @MiroslavMatas)
++ add: Tab-key in the code-tree (focused treeview or filter) should not jump to bottom panel (console input/log), and vice versa (thanks @hiiamboris, @JairoMartinezA)
+- fix: Qt5/macOS: major fix for the text cropped on left, when "renderer_tweaks" misses 'w' (thanks @somewhat)
+- fix: crash on very long line length=120K, with lexer active and wrap=off (thanks Ertan)
+- fix: command "codetree: focus filter" didn't work in GTK2/Qt5 versions
+
+1.151.0 (2021/12)
+
++ add: support for 'fenced code-blocks' in Markdown lexer (thanks @WebMechanic);
+       see new Wiki topic: https://wiki.freepascal.org/CudaText#Fenced_code-blocks
++ add: lexer reST: rework highlight of 'code-blocks'
++ add: lexer PHP: 'HereDoc' blocks with id 'HTML'/'CSS' are syntax-highlighted with HTML/CSS lexer (thanks @WebMechanic)
+- fix: option "caret_proximity_vert" has bad side effect ('ghost caret' when we type text at file end)
+
+1.150.1 (2021/12)
+
++ add: Replace dialog shows toggle-button "$0" for the new option "RegEx substitute"; added sub-option 'E' to "find_hidden_buttons"
++ add: Wiki topic https://wiki.freepascal.org/CudaText#Margins
++ add: published version for macOS ARM 64-bit
+- fix: regression in 1.150: wrong restoring of option "RegEx substitute" on start (thanks @tmsg)
+- fix: plugin Macros exposed the bug: deleting of a macro broke hotkeys of other macros (thanks @hiiamboris)
+- fix: macOS: better mouse-wheel handling (Lazarus fix by Zoe Peterson)
+- fix: lexer YAML: fix 'string' rule, add 'backslash-escaped char' rule
+
+1.150.0 (2021/11)
+
++ add: Project Manager: context menu for files gives new items "Open in default application" and "Focus in file manager" (thanks @WebMechanic)
++ add: dialog Replace has new option, visible only in the "..." menu: "RegEx substitute for 'Replace with'"; it's described in the Wiki topic about Find/Replace dialog
++ add: option "renderer_tweaks" has new sub-option "c" (thanks @hiiamboris)
+- fix: macro with two commands "scroll line down"+"down" did move caret _2_ lines down (thanks @hiiamboris)
+
+1.149.3 (2021/11)
+
++ add: option "renderer_tweaks" has the sub-options "w" and "o"
+* change: option "renderer_tweaks" has the OS suffix
+* change: option "renderer_offsets" is deleted and now it is the sub-option of "renderer_tweaks"
+* change: binary hex viewer: replacement for control-chars is changed from '?' to '.' (thanks @dinkumoil)
+* change: removed old method of bookmarks saving/loading to/from history. Changelog of 1.141 told: duplicate bookmarks history to another key inside "history files.json"; later only this new key will be used and old bookmarks-history in session files will be ignored. 
++ add: option "ui_session_save_interval":30, which allows to disable auto-saving of session to disk every 30 seconds (thanks @66nuts)
++ add: published version for Linux ARM Qt5 (thanks to fpcupdeluxe author)
+
+1.149.0 (2021/11)
+
++ add: show in hex-form 2 more 'Unicode attack' chars: U+01C3, U+3164, like for 'Unicode attack BiDi chars'
++ add: when option "ui_reopen_session":true, also auto-save the session each 30 seconds, to make it safe if PC crashes (thanks @hiiamboris)
++ add: don't allow to reassign hotkeys Tab/Enter/Space/BkSpace w/o modifiers (thanks @WebMechanic)
+- fix: major fix for macOS text rendering - incorrect width of text fragments (visible with "renderer_offsets__mac":false) (thanks @esvignolo)
+- fix: width of Georgian letters should be 100% (thanks @66nuts)
+
+1.148.5 (2021/11)
+
++ add: commands "extend carets: up/down" did not handle going over shorter lines ("caret_after_end":false); now caret column is restored when going long line-> short line-> long line (thanks @GenuZ from linux.org.ru)
++ add: detect that history-configs are filled with null-bytes, e.g. because of PC reset (thanks @ertank)
++ add: menu-dialogs show button "x" to cancel (when system dialog border is off); Command Palette has the caption now
++ add: dialog "View / Lexers" has initially selected item (thanks anon from linux.org.ru)
+- fix: macOS: repainting of UI controls on UI-theme selection (thanks @papirosko)
+- fix: pasting of wide _column_ blocks into short lines, with "caret_after_end":false
+- fix: option "caret_proximity_vert" worked bad with commands "scroll line up/down"
+- fix: regression in 1.107: option "carets_primitive_column_sel":true caused the regression, column blocks were not copied/pasted as column (thanks @GenuZ from linux.org.ru)
+- fix: regression in 1.148.0.2: wrong tail-of-file saving if file size was decreased (thanks @hiiamboris)
+- fix: regression in 1.147: crash on BSD-systems on app exiting (thanks @eastorwest)
+- fix: Windows: NTFS file streams were not preserved on file saving (thanks @squromiv)
+- fix: Windows: file-change-notification marked NTFS stream as modified
+- fix: lexer CSS: fix highlight of @property blocks
+- fix: lexer JSON: default extension must be 'json'
+- fix: lexer Markdown: 'YAML front-matter' rule
+- fix: lexer C++: tokenizing of some operators
 
 + add: Wiki topic https://wiki.freepascal.org/CudaText#Lexers_editing_-_styles_only
 + add: Wiki topic https://wiki.freepascal.org/CudaText_plugins#Embedded_Editor
 + add: Wiki topic https://wiki.freepascal.org/CudaText_plugins#Breadcrumbs
-- fix: Windows: NTFS file streams were not preserved on file saving (thanks @squromiv)
-- fix: Windows: file-change-notification marked NTFS stream as modified
 
 1.148.0 (2021/10)
 

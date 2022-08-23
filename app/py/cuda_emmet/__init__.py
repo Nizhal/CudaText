@@ -9,8 +9,6 @@ _   = get_translation(__file__)  # I18N
 lexers_xml = ['XML', 'XML ^', 'XSL', 'XSLT']
 lexers_css = ['CSS', 'SCSS', 'SASS', 'Sass', 'Stylus', 'LESS']
 
-filename_help = os.path.join(os.path.dirname(__file__), 'help.html')
-
 HTML_TAGS = (
   'a',
   'abbr',
@@ -71,6 +69,25 @@ HTML_TAGS = (
   'legend',
   'li',
   'link',
+  'lorem', # not a tag, only for Emmet
+  'lorem2', # not a tag, only for Emmet
+  'lorem3', # not a tag, only for Emmet
+  'lorem4', # not a tag, only for Emmet
+  'lorem5', # not a tag, only for Emmet
+  'lorem6', # not a tag, only for Emmet
+  'lorem7', # not a tag, only for Emmet
+  'lorem8', # not a tag, only for Emmet
+  'lorem9', # not a tag, only for Emmet
+  'lorem10', # not a tag, only for Emmet
+  'lorem11', # not a tag, only for Emmet
+  'lorem12', # not a tag, only for Emmet
+  'lorem13', # not a tag, only for Emmet
+  'lorem14', # not a tag, only for Emmet
+  'lorem15', # not a tag, only for Emmet
+  'lorem16', # not a tag, only for Emmet
+  'lorem17', # not a tag, only for Emmet
+  'lorem18', # not a tag, only for Emmet
+  'lorem19', # not a tag, only for Emmet
   'main',
   'map',
   'mark',
@@ -143,6 +160,11 @@ def is_abr_before_caret(ed):
     # '!' is a special Emmet snippet
     if s[x-1]=='!': return True
 
+    # solve CudaText issue #4292
+    # chars ']' and '}' must be allowed
+    if s[x-1] in '.,;:\'"/?[{()`~@#$%^&*-+=\\|':
+        return
+
     x1 = x
     x2 = x
     CH = string.punctuation+string.digits
@@ -156,7 +178,8 @@ def is_abr_before_caret(ed):
     while (x1>0) and s[x1-1].isalnum():
         x1 -= 1
 
-    if (x1>0) and (s[x1-1] not in ' \t>'):
+    # symbol before the word? it may be complex snippet like 'li*5' or '#name'. allow.
+    if (x1>0) and (s[x1-1] not in ' \t>-+/&|^~`$%'):
         return True
 
     word = s[x1:x2]
@@ -255,7 +278,8 @@ class Command:
     def help(self):
 
         import webbrowser
-        webbrowser.open_new_tab('file://'+filename_help)
+        fn = os.path.join(os.path.dirname(__file__), 'help.html')
+        webbrowser.open_new_tab('file://'+fn)
         msg_status(_('Opened browser'))
 
 

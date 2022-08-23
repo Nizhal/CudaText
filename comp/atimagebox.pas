@@ -7,6 +7,7 @@ License: MPL 2.0 or LGPL
 unit ATImageBox;
 
 {$mode objfpc}{$H+}
+{$define USE_BGRA}
 
 interface
 
@@ -16,6 +17,9 @@ uses
   LMessages,
   LCLType,
   Forms,
+  {$ifdef USE_BGRA}
+  BGRABitmap,
+  {$endif}
   Math;
 
 const
@@ -716,6 +720,8 @@ begin
 end;
 
 procedure TATImageBox.ImageMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);
+var
+  P: TPoint;
 begin
   if FFocusable then
     SetFocus;
@@ -730,9 +736,15 @@ begin
       Screen.Cursor:= FCursorDrag;
     end;
   end;
+
+  P.X:= X+FImage.Left;
+  P.Y:= Y+FImage.Top;
+  Self.MouseDown(Button, Shift, P.X, P.Y);
 end;
 
 procedure TATImageBox.ImageMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: integer);
+var
+  P: TPoint;
 begin
   if (Button = mbLeft) then
   begin
@@ -740,16 +752,32 @@ begin
     FDragging:= False;
     Screen.Cursor:= crDefault;
   end;
+
+  P.X:= X+FImage.Left;
+  P.Y:= Y+FImage.Top;
+  Self.MouseUp(Button, Shift, P.X, P.Y);
 end;
 
 procedure TATImageBox.ImageMouseMove(Sender: TObject; Shift: TShiftState; X, Y: integer);
+var
+  bAllowX, bAllowY: boolean;
+  P: TPoint;
 begin
   if FDrag and FDragging then
   begin
-    HorzScrollBar.Position:= HorzScrollBar.Position + (FDraggingPoint.X - X);
-    VertScrollBar.Position:= VertScrollBar.Position + (FDraggingPoint.Y - Y);
+    bAllowX:= FImage.Width>ClientWidth;
+    bAllowY:= FImage.Height>ClientHeight;
+
+    if bAllowX then
+      HorzScrollBar.Position:= HorzScrollBar.Position + (FDraggingPoint.X - X);
+    if bAllowY then
+      VertScrollBar.Position:= VertScrollBar.Position + (FDraggingPoint.Y - Y);
     DoScroll;
   end;
+
+  P.X:= X+FImage.Left;
+  P.Y:= Y+FImage.Top;
+  Self.MouseMove(Shift, P.X, P.Y);
 end;
 
 procedure TATImageBox.IncreaseImageZoom(AIncrement: boolean);
@@ -843,9 +871,30 @@ begin
 end;
 
 procedure TATImageBox.LoadFromFile(const AFileName: string);
+{$ifdef USE_BGRA}
+var
+  bg: TBGRABitmap;
+  ext: string;
+{$endif}
 begin
   Clear;
-  FImage.Picture.LoadFromFile(AFileName);
+
+  {$ifdef USE_BGRA}
+  ext:= ExtractFileExt(AFileName);
+  if (ext='.webp') or (ext='.psd') or (ext='.tga') or (ext='.tif') or (ext='.tiff')
+    or (ext='.cur') or (ext='.svg') or (ext='.pcx') then
+  begin
+    bg:= TBGRABitmap.Create(AFileName);
+    try
+      FImage.Picture.Bitmap.Assign(bg);
+    finally
+      FreeAndNil(bg);
+    end;
+  end
+  else
+  {$endif}
+    FImage.Picture.LoadFromFile(AFileName);
+
   UpdateInfo;
 end;
 

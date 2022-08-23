@@ -25,6 +25,7 @@ implementation
 uses
   TreeHelper_Markdown,
   TreeHelper_MediaWiki,
+  TreeHelper_Ini,
   TreeHelper_reST;
 
 //--------------------------------------------------------------
@@ -34,6 +35,11 @@ begin
   Result:= false;
   Data.Clear;
   case ALexer of
+    'Ini files ^':
+      begin
+        Result:= true;
+        TTreeHelperIni.GetHeaders(Ed, Data);
+      end;
     'Markdown':
       begin
         Result:= true;

@@ -23,6 +23,7 @@ implementation
 uses
   FileUtil, LazFileUtils,
   Process,
+  proc_editor,
   proc_files,
   proc_msg,
   proc_globdata;
@@ -32,36 +33,49 @@ begin
   Ed.SaveToFile(fn);
 end;
 
-function IsBadResultFile(const fn: string): boolean;
+function IsBadResultFile(const fn: string; AllowEmpty: boolean): boolean;
 begin
-  Result:= (not FileExists(fn)) or (FileUtil.FileSize(fn)=0);
+  Result:= (not FileExists(fn)) or
+    (not AllowEmpty and (FileUtil.FileSize(fn)=0));
 end;
 
 procedure SaveViaTempCopy(Ed: TATSynEdit; const fn: string);
 var
   fnTemp: string;
   SOutput: string;
+  bDocEmpty: boolean;
 begin
+  bDocEmpty:= EditorIsEmpty(Ed);
   fnTemp:= GetTempFileName('', 'cudatext_');
   SaveSimple(Ed, fnTemp);
-  if IsBadResultFile(fnTemp) then
-    raise EFileNotFoundException.Create(msgCannotSaveFile+#10+fnTemp);
+  Ed.FileName:= fn; //Ed.FileName was changed to fnTemp
+
+  if IsBadResultFile(fnTemp, bDocEmpty) then
+    raise EFileNotFoundException.Create(msgCannotSaveFile+#10+AppCollapseHomeDirInFilename(fnTemp));
 
   if cSystemHasPkExec and UiOps.AllowRunPkExec then
   begin
     if DirectoryIsWritable(ExtractFileDir(fn)) then
-      CopyFile(fnTemp, fn)
+    begin
+      if not CopyFile(fnTemp, fn) then
+        raise EWriteError.Create(msgCannotSaveFile+#10+AppCollapseHomeDirInFilename(fn));
+    end
     else
     begin
       if not RunCommand('pkexec', ['/bin/cp', '-T', fnTemp, fn], SOutput, [poWaitOnExit]) then
-        raise EFileNotFoundException.Create(msgCannotFindPkExec+#10+msgStatusSavedTempFile+#10+fnTemp);
+        raise EFileNotFoundException.Create(msgCannotFindPkExec+#10+msgStatusSavedTempFile+#10+AppCollapseHomeDirInFilename(fnTemp));
     end;
   end
   else
-    CopyFile(fnTemp, fn);
+  begin
+    if not CopyFile(fnTemp, fn) then
+      raise EWriteError.Create(msgCannotSaveFile+#10+AppCollapseHomeDirInFilename(fn));
+  end;
 
-  if IsBadResultFile(fn) then
-    raise EFileNotFoundException.Create(msgCannotSaveFile+#10+fn+#10+msgStatusSavedTempFile+#10+fnTemp);
+  if IsBadResultFile(fn, bDocEmpty) then
+    raise EFileNotFoundException.Create(
+          msgCannotSaveFile+#10+AppCollapseHomeDirInFilename(fn)+#10+
+          msgStatusSavedTempFile+#10+AppCollapseHomeDirInFilename(fnTemp));
   DeleteFile(fnTemp);
 end;
 

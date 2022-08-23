@@ -19,6 +19,7 @@ uses
   ec_SyntAnal,
   ec_syntax_format,
   ATSynEdit,
+  ATSynEdit_Globals,
   ATSynEdit_Adapter_EControl,
   proc_msg,
   proc_globdata,
@@ -153,7 +154,7 @@ var
   ini: TIniFile;
   fn: string;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
   ini:= TIniFile.Create(fn);
   try
@@ -247,15 +248,15 @@ begin
   for i:= 0 to FAnalyzer.Formats.Count-1 do
     FAnalyzer.Formats.Items[i].Assign(FFormats[i]);
 
-  DoSaveLexerStylesToFile_JsonLexerOps(
+  Lexer_SaveStylesToFile_JsonLexerOps(
     FAnalyzer,
-    GetAppLexerOpsFilename(FAnalyzer.LexerName)
+    AppFile_LexerOps(FAnalyzer.LexerName)
     );
 end;
 
 procedure TfmLexerProp.SaveChangedComments;
 begin
-  with TIniFile.Create(GetAppLexerMapFilename(FAnalyzer.LexerName)) do
+  with TIniFile.Create(AppFile_LexerMap(FAnalyzer.LexerName)) do
   try
     if edCmtStream1.Text<>'' then
     begin
@@ -501,9 +502,9 @@ begin
 
     F.edSample.Font.Name:= AFontName;
     F.edSample.Font.Size:= AFontSize;
-    F.edSample.Gutter[F.edSample.GutterBandBookmarks].Visible:= false;
-    F.edSample.Gutter[F.edSample.GutterBandNumbers].Visible:= false;
-    F.edSample.Gutter[F.edSample.GutterBandStates].Visible:= false;
+    F.edSample.Gutter[F.edSample.Gutter.FindIndexByTag(ATEditorOptions.GutterTagBookmarks)].Visible:= false;
+    F.edSample.Gutter[F.edSample.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible:= false;
+    F.edSample.Gutter[F.edSample.Gutter.FindIndexByTag(ATEditorOptions.GutterTagLineStates)].Visible:= false;
     F.edSample.OptMarginRight:= 2000;
 
     F.Adapter.Lexer:= An;

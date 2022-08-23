@@ -9,13 +9,18 @@ Copyright (c) Alexey Torgashin
 
 procedure TfmMain.UpdateCaption;
 begin
-  FNeedUpdateCaption:= true;
+  // before, we only set FNeedUpdateCaption to True, so TimerAppIdle
+  // did the work. now, we update caption immediately.
+  //FNeedUpdateCaption:= true;
+
+  UpdateCaption_RealWork;
 end;
 
 procedure TfmMain.UpdateCaption_RealWork;
 var
   F: TEditorFrame;
-  SName, SSession, Name1, Name2: string;
+  SName, SSession, SSessionRootPath,
+  Name1, Name2: string;
 begin
   F:= CurrentFrame;
   if F=nil then exit;
@@ -43,9 +48,14 @@ begin
   else
     SName:= F.TabCaption;
 
-  SSession:= ChangeFileExt(ExtractFileName(AppSessionName), '');
+  SSplitByChar(AppSessionName, '|', SSession, SSessionRootPath);
+  SSession:= ChangeFileExt(ExtractFileName(SSession), '');
   if (SSession<>'') and (SSession<>'history session') then
-    SSession:= ' {'+SSession+'}'
+  begin
+    if SBeginsWith(SSessionRootPath, '/sessions/') then
+      Delete(SSessionRootPath, 1, Length('/sessions/'));
+    SSession:= ' {'+SSession+IfThen(SSessionRootPath<>'', ':'+SSessionRootPath)+'}'
+  end
   else
     SSession:= '';
 
@@ -90,18 +100,8 @@ end;
 
 procedure TfmMain.UpdateSidebarButtonFind;
 begin
-  ToolbarSideMid.Buttons[0].Checked:= Assigned(fmFind) and fmFind.Visible;
-end;
-
-procedure TfmMain.UpdateSomeStates(F: TEditorFrame);
-begin
-  if F=nil then exit;
-
-  UpdateTabCaptionsFromFolders;
-
-  UpdateSidebarButtonFind;
-
-  UpdateMenuChecks(F);
+  if ToolbarSideMid.ButtonCount>0 then
+    ToolbarSideMid.Buttons[0].Checked:= Assigned(fmFind) and fmFind.Visible;
 end;
 
 procedure TfmMain.UpdateToolbarButtons(F: TEditorFrame);
@@ -167,6 +167,7 @@ var
   N: integer;
   FrameKind: TATEditorFrameKind;
 begin
+  if F=nil then exit;
   Ed:= F.Editor;
   FrameKind:= F.FrameKind;
 
@@ -217,12 +218,17 @@ begin
   end;
 
   //------
-  case EditorGetStatusType(Ed) of
-    selSmall:   fmt:= UiOps.StatusSmallSel;
-    selStream:  fmt:= UiOps.StatusStreamSel;
-    selCol:     fmt:= UiOps.StatusColSel;
-    selCarets:  fmt:= UiOps.StatusCarets;
-    else        fmt:= UiOps.StatusNoSel;
+  case EditorGetSelectionKind(Ed) of
+    selkindSmallSel:
+      fmt:= UiOps.StatusSmallSel;
+    selkindStreamSel:
+      fmt:= UiOps.StatusStreamSel;
+    selkindColumnSel:
+      fmt:= UiOps.StatusColSel;
+    selkindCarets:
+      fmt:= UiOps.StatusCarets;
+    else
+      fmt:= UiOps.StatusNoSel;
   end;
   DoStatusbarTextByTag(AStatus, StatusbarTag_Caret, EditorFormatStatus(Ed, fmt));
 
@@ -268,58 +274,57 @@ begin
   DoStatusbarTextByTag(AStatus, StatusbarTag_Msg, GetStatusbarPrefix(F)+FLastStatusbarMessage);
 end;
 
-procedure TfmMain.InitStatusbarControls;
+procedure TfmMain.InitStatusProgress;
 begin
-  //place StatusProgress+ButtonCancel onto Statusbar and anchor to right
-  with StatusProgress do
+  if not Assigned(StatusProgress) then
   begin
-    Visible:= false;
-    Parent:= Status;
-    AnchorSideRight.Control:= Status;
-    AnchorSideRight.Side:= asrBottom;
-    AnchorSideBottom.Control:= Status;
-    AnchorSideBottom.Side:= asrBottom;
-    AnchorSideTop.Control:= Status;
-    AnchorSideTop.Side:= asrTop;
-    Anchors:= [akRight, akTop, akBottom];
-    BorderSpacing.Around:= 2;
-    Width:= UiOps.ProgressbarWidth;
+    StatusProgress:= TATGauge.Create(Self);
+    with StatusProgress do
+    begin
+      Visible:= false;
+      Parent:= Status;
+      AnchorSideRight.Control:= Status;
+      AnchorSideRight.Side:= asrBottom;
+      AnchorSideBottom.Control:= Status;
+      AnchorSideBottom.Side:= asrBottom;
+      AnchorSideTop.Control:= Status;
+      AnchorSideTop.Side:= asrTop;
+      Anchors:= [akRight, akTop, akBottom];
+      BorderSpacing.Around:= 2;
+      MinValue:= 0;
+      MaxValue:= 100;
+      Progress:= 0;
+    end;
   end;
 
-  (*
-  with LexerProgress do
-  begin
-    Parent:= Status;
-    Align:= alRight;
-    //AnchorSideRight.Control:= Status;
-    //AnchorSideRight.Side:= asrRight;
-    //AnchorSideTop.Control:= Status;
-    //AnchorSideTop.Side:= asrTop;
-    //AnchorSideBottom.Control:= Status;
-    //AnchorSideBottom.Side:= asrBottom;
-    //Anchors:= [akRight, akTop];
-    BorderSpacing.Around:= 2;
-    Kind:= gkVerticalBar;
-    ShowText:= false;
-    Width:= UiOps.ProgressbarHeightSmall;
-  end;
-  *)
+  StatusProgress.DoubleBuffered:= UiOps.DoubleBuffered;
+  StatusProgress.Width:= ATEditorScale(UiOps.ProgressbarWidth);
+  StatusProgress.Font.Assign(Self.Font);
+end;
 
-  with ButtonCancel do
+procedure TfmMain.InitButtonCancel;
+begin
+  if not Assigned(ButtonCancel) then
   begin
-    Visible:= false;
-    Parent:= Status;
-    AnchorSideRight.Control:= StatusProgress;
-    AnchorSideBottom.Control:= StatusProgress;
-    AnchorSideBottom.Side:= asrBottom;
-    AnchorSideTop.Control:= StatusProgress;
-    Anchors:= [akRight, akTop, akBottom];
-    BorderSpacing.Right:= 2;
-    Width:= UiOps.ProgressbarWidth;
+    InitStatusProgress;
+    ButtonCancel:= TATButton.Create(Self);
+    with ButtonCancel do
+    begin
+      Visible:= false;
+      Parent:= Status;
+      OnClick:= @ButtonCancelClick;
+      AnchorSideRight.Control:= StatusProgress;
+      AnchorSideBottom.Control:= StatusProgress;
+      AnchorSideBottom.Side:= asrBottom;
+      AnchorSideTop.Control:= StatusProgress;
+      Anchors:= [akRight, akTop, akBottom];
+      BorderSpacing.Right:= 2;
+    end;
   end;
 
-  //UpdateLexerProgressbar(0, false);
-  UpdateGlobalProgressbar(0, false);
+  ButtonCancel.DoubleBuffered:= UiOps.DoubleBuffered;
+  ButtonCancel.Caption:= msgButtonCancel;
+  ButtonCancel.Width:= ATEditorScale(UiOps.ProgressbarWidth);
 end;
 
 procedure TfmMain.UpdateCurrentFrame(AUpdatedText: boolean = false); inline;
@@ -361,7 +366,7 @@ begin
   end;
 
   if AndHeight then
-    Form.Height:= AppScale(UiOps.ListboxSizeY);
+    Form.Height:= ATEditorScale(UiOps.ListboxSizeY);
 end;
 
 
@@ -386,6 +391,7 @@ begin
     FFinder.Editor:= Ed;
     FFindStop:= false;
     FFindConfirmAll:= mrNone;
+    InitButtonCancel;
     ButtonCancel.Show;
     UpdateGlobalProgressbar(0, true);
     if AUpdateEnableAll then
@@ -398,7 +404,8 @@ begin
   end
   else
   begin
-    ButtonCancel.Hide;
+    if Assigned(ButtonCancel) then
+      ButtonCancel.Hide;
     UpdateGlobalProgressbar(0, false);
     if AUpdateEnableAll then
       UpdateEnabledAll(true);
@@ -481,7 +488,7 @@ var
   id: TAppPanelId;
 begin
   Self.Font.Name:= UiOps.VarFontName;
-  Self.Font.Size:= AppScaleFont(UiOps.VarFontSize);
+  Self.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
   Self.Font.Color:= GetAppColor(apclTabFont);
 
   Groups.SetTabFont(Self.Font);
@@ -492,11 +499,9 @@ begin
     GroupsF3.SetTabFont(Self.Font);
   end;
 
-  StatusProgress.Font.Assign(Self.Font);
-
   //dont set font for PanelLeft/PanelBottom, id effects
   CodeTree.Tree.Font.Name:= UiOps.VarFontName;
-  CodeTree.Tree.Font.Size:= AppScaleFont(UiOps.VarFontSize);
+  CodeTree.Tree.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
 
   CodeTreeFilterInput.Font.Name:= EditorOps.OpFontName;
   CodeTreeFilterInput.Font.Size:= EditorOps.OpFontSize;
@@ -506,13 +511,13 @@ begin
       with AppPanels[id] do
       begin
         PanelTitle.Font.Name:= UiOps.VarFontName;
-        PanelTitle.Font.Size:= AppScaleFont(UiOps.VarFontSize);
+        PanelTitle.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
       end;
 
   ATFlatTheme.FontName:= UiOps.VarFontName;
   ATFlatTheme.FontSize:= UiOps.VarFontSize;
-  ATFlatTheme.ScalePercents:= UiOps.Scale;
-  ATFlatTheme.ScaleFontPercents:= UiOps.ScaleFont;
+  ATFlatTheme.ScalePercents:= ATEditorScalePercents;
+  ATFlatTheme.ScaleFontPercents:= ATEditorScaleFontPercents;
 
   if Assigned(fmFind) then
     fmFind.UpdateFonts;
@@ -523,7 +528,7 @@ end;
 procedure TfmMain.DoApplyFont_UiStatusbar;
 begin
   UpdateThemeStatusbar;
-  Status.HeightInitial:= Max(UiOps.StatusHeightMin, AppScale(AppThemeStatusbar.FontSize * UiOps.StatusHeightPercents div 100));
+  Status.HeightInitial:= Max(UiOps.StatusHeightMin, ATEditorScale(AppThemeStatusbar.FontSize * UiOps.StatusHeightPercents div 100));
   Status.Height:= Status.HeightInitial;
 end;
 
@@ -536,7 +541,7 @@ end;
 procedure TfmMain.UpdateMenuRecents(sub: TMenuItem);
 var
   mi: TMenuItem;
-  SName: string;
+  SName, SAccel: string;
   i: integer;
 begin
   if sub=nil then exit;
@@ -544,11 +549,20 @@ begin
 
   for i:= 0 to AppListRecents.Count-1 do
   begin;
-    mi:= TMenuItem.Create(Self);
-    SName:= IntToStr(i+1)+'.  '+
+    if i<9 then
+      SAccel:= '&'+IntToStr(i+1)+'.  '
+    else
+    if i<10+Ord('Z')-Ord('A') then
+      SAccel:= '&'+Chr(i-9+Ord('A'))+'.  '
+    else
+      SAccel:= '';
+    SName:=
       ExtractFileName(AppListRecents[i])+'  ('+
       ExtractFileDir(AppListRecents[i])+')';
-    mi.Caption:= StringReplace(SName, '&', '&&', [rfReplaceAll]);
+    SName:= StringReplace(SName, '&', '&&', [rfReplaceAll]);
+
+    mi:= TMenuItem.Create(sub);
+    mi.Caption:= SAccel + SName;
     mi.Tag:= i;
     mi.OnClick:= @MenuRecentItemClick;
     sub.Add(mi);
@@ -578,14 +592,14 @@ begin
 
   Frame:= TGroupsHelper.GetEditorFrame(Ed);
   if Frame=nil then exit;
-  //if Frame.FrameKind<>efkEditor then exit;
 
-  SFileName:= Frame.GetFileName(Ed);
+  SFileName:= Frame.FileName;
   if SFileName='' then exit;
 
-  Frame.DoSaveHistory(Ed);
+  if Frame.FrameKind=efkEditor then
+    Frame.DoSaveHistory(Ed);
 
-  if not Frame.InSession then
+  if (not Frame.InSession) or IsDefaultSessionActive then
     SAddStringToHistory(
       AppCollapseHomeDirInFilename(SFileName),
       AppListRecents,
@@ -625,9 +639,9 @@ begin
   UpdateStatusbar;
 end;
 
-procedure TfmMain.DoApplyFrameOps(F: TEditorFrame;
-  const Op: TEditorOps; AForceApply: boolean);
+procedure TfmMain.DoApplyFrameOps(F: TEditorFrame; const Op: TEditorOps; AForceApply: boolean);
 begin
+  if F=nil then exit;
   EditorApplyOps(F.Ed1, Op, AForceApply, not F.TabSizeChanged, Groups.Mode=gmOne, false);
   EditorApplyOps(F.Ed2, Op, AForceApply, not F.TabSizeChanged, Groups.Mode=gmOne, false);
 
@@ -654,7 +668,7 @@ begin
   if not Assigned(mi) then exit;
 
   if mi.Tag=0 then
-    mi.Tag:= PtrInt(TAppMenuProps.Create);
+    mi.Tag:= PtrInt(TAppMenuProps.Create(Self));
 
   TAppMenuProps(mi.Tag).CommandString:= AHint;
 end;
@@ -664,7 +678,7 @@ begin
   if not Assigned(mi) then exit;
 
   if mi.Tag=0 then
-    mi.Tag:= PtrInt(TAppMenuProps.Create);
+    mi.Tag:= PtrInt(TAppMenuProps.Create(Self));
 
   TAppMenuProps(mi.Tag).CommandCode:= cmd;
   mi.OnClick:= @MenuMainClick;
@@ -786,7 +800,8 @@ begin
   UpdateMenuItemHotkey(mnuEditCut, cCommand_ClipboardCut);
   UpdateMenuItemHotkey(mnuEditCopy, cCommand_ClipboardCopy);
   UpdateMenuItemHotkey(mnuEditPaste, cCommand_ClipboardPaste);
-  UpdateMenuItemHotkey(mnuEditDel, cCommand_TextDeleteSelection);
+  UpdateMenuItemHotkey(mnuEditPasteIndent, cCommand_ClipboardPasteAndIndent);
+  UpdateMenuItemHotkey(mnuEditPasteHist, cCommand_ClipboardPasteFromRecents);
 
   UpdateMenuItemHotkey(mnuEditCopyLine, cmd_CopyLine);
   UpdateMenuItemHotkey(mnuEditCopyAppend, cCommand_ClipboardCopyAdd);
@@ -938,7 +953,7 @@ begin
   if Assigned(saved.item1) then saved.item1.Checked:= AValue;
 end;
 
-procedure TfmMain.UpdateMenuChecks(F: TEditorFrame);
+procedure TfmMain.UpdateMenuChecks_Frame(F: TEditorFrame);
 var
   Ed: TATSynEdit;
 begin
@@ -946,8 +961,8 @@ begin
   Ed:= F.Editor;
 
   UpdateMenuItemChecked(mnuViewWrap, mnuViewWrap_Alt, Ed.OptWrapMode<>cWrapOff);
-  UpdateMenuItemChecked(mnuViewNums, mnuViewNums_Alt, Ed.Gutter.Items[Ed.GutterBandNumbers].Visible);
-  UpdateMenuItemChecked(mnuViewFold, mnuViewFold_Alt, Ed.Gutter.Items[Ed.GutterBandFolding].Visible);
+  UpdateMenuItemChecked(mnuViewNums, mnuViewNums_Alt, Ed.Gutter.Items[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible);
+  UpdateMenuItemChecked(mnuViewFold, mnuViewFold_Alt, Ed.Gutter.Items[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible);
   UpdateMenuItemChecked(mnuViewRuler, mnuViewRuler_Alt, Ed.OptRulerVisible);
   UpdateMenuItemChecked(mnuViewMinimap, mnuViewMinimap_Alt, Ed.OptMinimapVisible);
   UpdateMenuItemChecked(mnuViewMicromap, mnuViewMicromap_Alt, Ed.OptMicromapVisible);
@@ -957,11 +972,10 @@ begin
   UpdateMenuItemChecked(mnuViewUnpriSpacesTail, mnuViewUnpriSpacesTail_Alt, Ed.OptUnprintedSpacesTrailing);
   UpdateMenuItemChecked(mnuViewUnpriEnds, mnuViewUnpriEnds_Alt, Ed.OptUnprintedEnds);
   UpdateMenuItemChecked(mnuViewUnpriEndsDet, mnuViewUnpriEndsDet_Alt, Ed.OptUnprintedEndsDetails);
+end;
 
-  UpdateMenuItemChecked(mnuViewSplitNo, mnuViewSplitNo_Alt, not F.Splitted);
-  UpdateMenuItemChecked(mnuViewSplitV, mnuViewSplitV_Alt, F.Splitted and not F.SplitHorz);
-  UpdateMenuItemChecked(mnuViewSplitH, mnuViewSplitH_Alt, F.Splitted and F.SplitHorz);
-
+procedure TfmMain.UpdateMenuChecks_Global;
+begin
   UpdateMenuItemChecked(mnuViewToolbar, mnuViewToolbar_Alt, ShowToolbar);
   UpdateMenuItemChecked(mnuViewStatus, mnuViewStatus_Alt, ShowStatus);
   UpdateMenuItemChecked(mnuViewFullscr, mnuViewFullscr_Alt, ShowFullscreen);
@@ -988,6 +1002,14 @@ begin
   UpdateMenuItemChecked(mnuGr6, mnuGr6_Alt, Groups.Mode= gm6Grid);
 end;
 
+procedure TfmMain.UpdateMenuChecks_FrameSplit(F: TEditorFrame);
+begin
+  if F=nil then exit;
+  UpdateMenuItemChecked(mnuViewSplitNo, mnuViewSplitNo_Alt, not F.Splitted);
+  UpdateMenuItemChecked(mnuViewSplitV, mnuViewSplitV_Alt, F.Splitted and not F.SplitHorz);
+  UpdateMenuItemChecked(mnuViewSplitH, mnuViewSplitH_Alt, F.Splitted and F.SplitHorz);
+end;
+
 procedure TfmMain.UpdateTreeByTimer;
 begin
   TimerTreeFill.Enabled:= false;
@@ -1012,25 +1034,35 @@ var
   Frame: TEditorFrame;
   Ed: TATSynEdit;
   Ada: TATAdapterEControl;
+  bLiteLexer: boolean;
+  Tick: QWord;
 begin
   if AConsiderTreeVisible then
     if not AppPanels[cPaneSide].Visible then exit;
 
   Frame:= CurrentFrame;
   if Frame=nil then exit;
-  Ed:= Frame.Editor;
+  CodeTree.Tree.SortType:= Frame.CodetreeSortType;
 
-  Ada:= Frame.Adapter[Ed];
-  if (Ada=nil) or (Ada.AnClient=nil) then
+  Ed:= Frame.Editor;
+  bLiteLexer:= Ed.AdapterForHilite is TATLiteLexer;
+
+  if bLiteLexer then
+    Ada:= nil
+  else
   begin
-    DoCodetree_Clear;
-    exit
+    Ada:= Frame.Adapter[Ed];
+    if (Ada=nil) or (Ada.AnClient=nil) then
+    begin
+      DoCodetree_Clear;
+      exit
+    end;
   end;
 
   if not Frame.EnabledCodeTree[Ed] then
   begin
     //don't clear tree, it may be filled by plugin
-    UpdateTreeSelection(Frame, Ed); //needed even for disabled CodeTree (for plugins)
+    UpdateTreeSelection(Ed); //needed even for disabled CodeTree (for plugins)
     exit;
   end;
 
@@ -1043,11 +1075,12 @@ begin
   end;
   }
 
-  while Ada.TreeBusy do
-  begin
-    Application.ProcessMessages;
-    if Application.Terminated then exit;
-  end;
+  if Assigned(Ada) then
+    while Ada.TreeBusy do
+    begin
+      Application.ProcessMessages;
+      if Application.Terminated then exit;
+    end;
 
   if AFill then
   begin
@@ -1059,19 +1092,25 @@ begin
       FCodetreeBuffer:= TTreeView.Create(Self);
 
     if not RunTreeHelper(Frame, FCodetreeBuffer) then
-      Ada.TreeFill(FCodetreeBuffer);
+      if Assigned(Ada) then
+      begin
+        //Tick:= GetTickCount64;
+        Ada.TreeFill(FCodetreeBuffer, UiOps.TreeFillMaxTime);
+        //Tick:= GetTickCount64-Tick;
+        //MsgLogConsole('Tree filling: '+IntToStr(Tick)+'ms');
+      end;
 
     if FCodetreeBuffer.Items.Count>0 then
       DoTreeviewCopy(FCodetreeBuffer, Frame.CachedTreeview[Ed]);
 
-    //Lazarus don't sort new items
+    //Lazarus doesn't sort new items
     if CodeTree.Tree.SortType<>stNone then
       FCodetreeBuffer.AlphaSort;
 
     DoTreeviewCopy(FCodetreeBuffer, CodeTree.Tree);
 
     //force update scrollbar
-    CodeTree.Tree.Font.Size:= AppScaleFont(UiOps.VarFontSize);
+    CodeTree.Tree.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
     CodeTree.Tree.Perform(CM_CHANGED, 0, 0);
 
     DoCodetree_UpdateVersion(Ed);
@@ -1079,24 +1118,35 @@ begin
   end;
 
   UpdateTreeFilter;
-  UpdateTreeSelection(Frame, Ed);
+  UpdateTreeSelection(Ed);
 end;
 
-procedure TfmMain.UpdateTreeSelection(Frame: TEditorFrame; Ed: TATSynEdit);
+procedure TfmMain.UpdateTreeSelection(Ed: TATSynEdit);
 var
   Caret: TATCaretItem;
+  NSelLine: integer;
 begin
   if not UiOps.TreeAutoSync then exit;
 
+  if Ed=nil then exit;
   if Ed.Carets.Count=0 then exit;
   Caret:= Ed.Carets[0];
 
   CodetreeSelectItemForPosition(
     CodeTree.Tree,
-    Caret.PosX, Caret.PosY
+    Caret.PosX,
+    Caret.PosY,
+    NSelLine
     );
 
-  DoPyEvent_AppState(APPSTATE_CODETREE_SET_SELECTION);
+  if (AppCodetreeState.SelLine<>NSelLine) or
+    (AppCodetreeState.Editor<>Ed) then
+  begin
+    AppCodetreeState.Editor:= Ed;
+    AppCodetreeState.SelLine:= NSelLine;
+    if AppCodetreeState.SelLine>=0 then
+      DoPyEvent_AppState(APPSTATE_CODETREE_SET_SELECTION);
+  end;
 end;
 
 procedure TfmMain.UpdateMenuEnc(AMenu: TMenuItem);
@@ -1243,27 +1293,27 @@ begin
   ToolbarMain.Images:= TImageList.Create(Self);
   ToolbarMain.Images.AllocBy:= 20;
 
-  ToolbarMain.AddButton(0, @DoToolbarClick, 'f_new', 'New file', IntToStr(cmd_FileNew), false);
+  ToolbarMain.AddButton(0, @DoToolbarClick, nil, 'f_new', 'New file', IntToStr(cmd_FileNew), false);
   ToolbarMain.AddDropdown(-1, nil, @DoFileNewMenu_ToolbarClick);
-  ToolbarMain.AddButton(1, @DoToolbarClick, 'f_open', 'Open file', IntToStr(cmd_FileOpen), false);
+  ToolbarMain.AddButton(1, @DoToolbarClick, nil, 'f_open', 'Open file', IntToStr(cmd_FileOpen), false);
   ToolbarMain.AddDropdown(-1, PopupRecents);
-  ToolbarMain.AddButton(2, @DoToolbarClick, 'f_save', 'Save file', IntToStr(cmd_FileSave), false);
+  ToolbarMain.AddButton(2, @DoToolbarClick, nil, 'f_save', 'Save file', IntToStr(cmd_FileSave), false);
   ToolbarMain.AddSep;
-  ToolbarMain.AddButton(3, @DoToolbarClick, 'e_cut', 'Cut', IntToStr(cCommand_ClipboardCut), false);
-  ToolbarMain.AddButton(4, @DoToolbarClick, 'e_copy', 'Copy', IntToStr(cCommand_ClipboardCopy), false);
-  ToolbarMain.AddButton(5, @DoToolbarClick, 'e_paste', 'Paste', IntToStr(cCommand_ClipboardPaste), false);
-  ToolbarMain.AddButton(6, @DoToolbarClick, 'e_undo', 'Undo', IntToStr(cCommand_Undo), false);
-  ToolbarMain.AddButton(7, @DoToolbarClick, 'e_redo', 'Redo', IntToStr(cCommand_Redo), false);
+  ToolbarMain.AddButton(3, @DoToolbarClick, nil, 'e_cut', 'Cut', IntToStr(cCommand_ClipboardCut), false);
+  ToolbarMain.AddButton(4, @DoToolbarClick, nil, 'e_copy', 'Copy', IntToStr(cCommand_ClipboardCopy), false);
+  ToolbarMain.AddButton(5, @DoToolbarClick, nil, 'e_paste', 'Paste', IntToStr(cCommand_ClipboardPaste), false);
+  ToolbarMain.AddButton(6, @DoToolbarClick, nil, 'e_undo', 'Undo', IntToStr(cCommand_Undo), false);
+  ToolbarMain.AddButton(7, @DoToolbarClick, nil, 'e_redo', 'Redo', IntToStr(cCommand_Redo), false);
   ToolbarMain.AddSep;
-  ToolbarMain.AddButton(8, @DoToolbarClick, 'unpri', 'Toggle unprinted chars', IntToStr(cCommand_ToggleUnprinted), false);
-  ToolbarMain.AddButton(9, @DoToolbarClick, 'map', 'Toggle minimap', IntToStr(cCommand_ToggleMinimap), false);
+  ToolbarMain.AddButton(8, @DoToolbarClick, nil, 'unpri', 'Toggle unprinted chars', IntToStr(cCommand_ToggleUnprinted), false);
+  ToolbarMain.AddButton(9, @DoToolbarClick, nil, 'map', 'Toggle minimap', IntToStr(cCommand_ToggleMinimap), false);
   ToolbarMain.AddSep;
-  ToolbarMain.AddButton(10, @DoToolbarClick, 'indent', 'Indent block', IntToStr(cCommand_TextIndent), false);
-  ToolbarMain.AddButton(11, @DoToolbarClick, 'unindent', 'Unindent block', IntToStr(cCommand_TextUnIndent), false);
+  ToolbarMain.AddButton(10, @DoToolbarClick, nil, 'indent', 'Indent block', IntToStr(cCommand_TextIndent), false);
+  ToolbarMain.AddButton(11, @DoToolbarClick, nil, 'unindent', 'Unindent block', IntToStr(cCommand_TextUnIndent), false);
 
   ToolbarMain.AddDropdown(12, PopupToolbarCase);
   ToolbarMain.AddDropdown(13, PopupToolbarComment);
-  ToolbarMain.AddButton(14, @DoToolbarClick, 'opt', 'Options Editor', 'module=cuda_prefs;cmd=dlg_cuda_options;', false);
+  ToolbarMain.AddButton(14, @DoToolbarClick, nil, 'opt', 'Options Editor', 'module=cuda_prefs;cmd=dlg_cuda_options;', false);
 end;
 
 
@@ -1276,6 +1326,8 @@ const
   cSidebarIconMenu     = 5;
 
 procedure TfmMain.DoOps_LoadSidebarIcons;
+const
+  cCallerAPI = 'DoOps_LoadSidebarIcons';
 var
   Parts: TRegexParts;
   Str: string;
@@ -1293,18 +1345,19 @@ begin
   if not DirectoryExists(Str) then
   begin
     MsgLogConsole(Format(msgCannotFindData, [Str]));
+    MsgStdout(Format(msgCannotFindData, [Str]));
     ToolbarSideMid.UpdateControls;
     exit;
   end;
 
   Str+= DirectorySeparator;
 
-  UpdateImagelistWithIconFromFile(ImageListSide, Str+'tree.png');
-  UpdateImagelistWithIconFromFile(ImageListSide, Str+'console.png');
-  UpdateImagelistWithIconFromFile(ImageListSide, Str+'output.png');
-  UpdateImagelistWithIconFromFile(ImageListSide, Str+'validate.png');
-  UpdateImagelistWithIconFromFile(ImageListSide, Str+'find.png');
-  UpdateImagelistWithIconFromFile(ImageListSide, Str+'menu.png');
+  UpdateImagelistWithIconFromFile(ImageListSide, Str+'tree.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(ImageListSide, Str+'console.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(ImageListSide, Str+'output.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(ImageListSide, Str+'validate.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(ImageListSide, Str+'find.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(ImageListSide, Str+'menu.png', cCallerAPI);
 
   if UiOps.LogConsoleDetailedStartupTime then
   begin
@@ -1332,16 +1385,19 @@ begin
   if not DirectoryExists(SPath) then
   begin
     MsgLogConsole(Format(msgCannotFindData, [SPath]));
+    MsgStdout(Format(msgCannotFindData, [SPath]));
     exit;
   end;
   SPath+= DirectorySeparator;
 
   Sep.Init(UiOps.TreeIconFilenames);
   while Sep.GetItemStr(SItem) do
-    UpdateImagelistWithIconFromFile(ImageListTree, SPath+SItem+'.png');
+    UpdateImagelistWithIconFromFile(ImageListTree, SPath+SItem+'.png', 'DoOps_LoadCodetreeIcons');
 end;
 
 procedure TfmMain.DoOps_LoadToolbarIcons;
+const
+  cCallerAPI = 'DoOps_LoadToolbarIcons';
 var
   Parts: TRegexParts;
   Str: string;
@@ -1356,6 +1412,7 @@ begin
   if not DirectoryExists(Str) then
   begin
     MsgLogConsole(Format(msgCannotFindData, [Str]));
+    MsgStdout(Format(msgCannotFindData, [Str]));
     Exit;
   end;
 
@@ -1365,21 +1422,21 @@ begin
   Img.Clear;
 
   Str+= DirectorySeparator;
-  UpdateImagelistWithIconFromFile(Img, Str+'f_new.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'f_open.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'f_save.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'e_cut.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'e_copy.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'e_paste.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'e_undo.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'e_redo.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'unpri.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'map.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'indent.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'unindent.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'case.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'comment.png');
-  UpdateImagelistWithIconFromFile(Img, Str+'opt.png');
+  UpdateImagelistWithIconFromFile(Img, Str+'f_new.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'f_open.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'f_save.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'e_cut.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'e_copy.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'e_paste.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'e_undo.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'e_redo.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'unpri.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'map.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'indent.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'unindent.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'case.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'comment.png', cCallerAPI);
+  UpdateImagelistWithIconFromFile(Img, Str+'opt.png', cCallerAPI);
 
   if UiOps.LogConsoleDetailedStartupTime then
   begin
@@ -1391,9 +1448,9 @@ end;
 
 procedure TfmMain.InitSidebar;
 begin
-  ToolbarSideTop.AddButton(cSidebarIconMenu, @DoSidebar_MainMenuClick, msgPanelMenu_Init, msgPanelMenu_Init, '', false);
+  ToolbarSideTop.AddButton(cSidebarIconMenu, @DoSidebar_MainMenuClick, nil, msgPanelMenu_Init, msgPanelMenu_Init, '', false);
 
-  ToolbarSideMid.AddButton(cSidebarIconFind, @DoBottom_FindClick, msgPanelSearch_Init, msgPanelSearch_Init, '', false);
+  ToolbarSideMid.AddButton(cSidebarIconFind, @DoBottom_FindClick, nil, msgPanelSearch_Init, msgPanelSearch_Init, '', false);
   ToolbarSideMid.AddSep;
 
   AppPanels[cPaneSide].Add(msgPanelTree_Init, cSidebarIconTree, PtrInt(Pointer(PanelCodeTreeAll)), @DoSidebar_OnShowCodeTree);
@@ -1535,9 +1592,9 @@ begin
     PopupTree.Items.Add(mnuTreeSorted);
   end;
 
-  mnuTreeFoldAll.Caption:= cStrMenuitemFoldAll;
-  mnuTreeUnfoldAll.Caption:= cStrMenuitemUnfoldAll;
-  mnuTreeFoldLevel.Caption:= cStrMenuitemFoldLevel;
+  mnuTreeFoldAll.Caption:= ATEditorOptions.TextMenuitemFoldAll;
+  mnuTreeUnfoldAll.Caption:= ATEditorOptions.TextMenuitemUnfoldAll;
+  mnuTreeFoldLevel.Caption:= ATEditorOptions.TextMenuitemFoldLevel;
   mnuTreeSorted.Caption:= msgTreeSorted;
 
   mnuTreeSorted.Checked:= CodeTree.Tree.SortType<>stNone;
@@ -1565,6 +1622,29 @@ begin
       mi.OnClick:= @MenuPicScaleClick;
       PopupPicScale.Items.Add(mi);
     end;
+  end;
+end;
+
+procedure TfmMain.UpdateEditorShowCaret;
+//solves issue #4022
+//it makes sense for all Wrap modes
+var
+  Ed: TATSynEdit;
+  Caret: TATCaretItem;
+begin
+  Ed:= CurrentEditor;
+  if Assigned(Ed) and (Ed.Carets.Count=1) then
+  begin
+    Caret:= Ed.Carets[0];
+    Application.ProcessMessages; //must have
+    Ed.DoShowPos(
+      Point(Caret.PosX, Caret.PosY),
+      UiOps.FindIndentHorz,
+      UiOps.FindIndentVert,
+      false, //Unfold
+      true, //AllowUpdate
+      true //AllowProximity
+      );
   end;
 end;
 

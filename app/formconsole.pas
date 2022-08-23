@@ -17,6 +17,7 @@ uses
   PythonEngine,
   ATStrings,
   ATSynEdit,
+  ATSynEdit_Globals,
   ATSynEdit_Edits,
   ATSynEdit_Commands,
   ATSynEdit_Adapter_Simple,
@@ -29,6 +30,7 @@ uses
   proc_globdata,
   proc_customdialog,
   proc_customdialog_dummy,
+  proc_editor,
   proc_msg;
 
 type
@@ -87,6 +89,7 @@ type
     property IsDoubleBuffered: boolean write SetIsDoubleBuffered;
     property MemoWordWrap: boolean read GetWordWrap write SetWordWrap;
     procedure SetFocus; override;
+    procedure ApplyTheme;
   end;
 
 var
@@ -217,6 +220,9 @@ begin
     UpdateWrapInfo(true);
     DoCommand(cCommand_GotoTextEnd, cInvokeAppInternal);
     ColumnLeft:= 0;
+
+    //extra params of Update() are not needed
+    Update;
   end;
 end;
 
@@ -286,6 +292,7 @@ begin
   EdInput.Name:= 'input';
   EdInput.Parent:= Self;
   EdInput.Align:= alBottom;
+  EdInput.Keymap:= AppKeymapMain;
   EdInput.WantTabs:= false;
   EdInput.TabStop:= true;
   EdInput.OnCommand:= @InputOnCommand;
@@ -313,7 +320,7 @@ begin
 
   EdMemo.OptTabSize:= 4;
   EdMemo.OptBorderFocusedActive:= EditorOps.OpActiveBorderInControls;
-  EdMemo.OptBorderWidthFocused:= AppScale(EditorOps.OpActiveBorderWidth);
+  EdMemo.OptBorderWidthFocused:= ATEditorScale(EditorOps.OpActiveBorderWidth);
   EdMemo.OptBorderWidth:= 0;
   EdMemo.OptShowURLs:= false;
   EdMemo.OptCaretVirtual:= false;
@@ -495,9 +502,15 @@ begin
   AHandled:= true;
 end;
 
+procedure TfmConsole.ApplyTheme;
+begin
+  EditorApplyTheme(EdInput);
+  EditorApplyTheme(EdMemo);
+  Invalidate;
+end;
+
 finalization
   if Assigned(fmConsole) then
     FreeAndNil(fmConsole);
 
 end.
-

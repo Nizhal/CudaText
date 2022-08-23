@@ -17,7 +17,7 @@ uses
   {$ifdef windows}
   Windows,
   {$endif}
-  Classes, SysUtils, Forms, Controls, Menus,
+  Classes, SysUtils, Forms, Controls, Menus, ExtCtrls,
   Dialogs, Graphics,
   StrUtils,
   syncobjs,
@@ -29,6 +29,7 @@ uses
   IniFiles,
   Process,
   ATSynEdit,
+  ATSynEdit_Globals,
   ATSynEdit_Keymap,
   ATSynEdit_Keymap_Init,
   ATSynEdit_Adapter_litelexer,
@@ -36,7 +37,6 @@ uses
   ATStringProc,
   ATStringProc_Separator,
   ATFlatThemes,
-  ATListbox,
   ATStatusBar,
   ATScrollBar,
   ATTabs,
@@ -73,9 +73,21 @@ type
   TAppCommandsDelayed = specialize TQueue<TAppCommandDelayed>;
 
 var
+  AppSessionIsLoading: boolean = false;
+  AppSessionIsClosing: boolean = false;
   AppActiveForm: TObject = nil;
   AppThemeStatusbar: TATFlatTheme;
+  AppApiOnStartActivated: boolean = false;
   AppApiDialogCounter: integer = 0;
+  AppCodetreeState: record
+    Editor: TATSynEdit;
+    Lexer: string;
+    Version: Int64;
+    SelLine: integer;
+    DblClicking: boolean;
+    NeedsSelJump: boolean;
+  end;
+  AppLexersLastDetected: TStringList = nil;
 
 type
   TApp3States = (
@@ -108,9 +120,12 @@ type
     );
 
 const
-  cAppSessionDefault = 'history session.json';
   cAppHistoryElementChar: array[TAppHistoryElement] of char =
     'tchsTeblwMmrunSfkCFi';
+
+const
+  cAppSessionDefaultBase = 'history session';
+  cAppSessionDefault = cAppSessionDefaultBase+'.json';
 
 const
   cAppMaxGroup = Pred(6+3); //6 normal groups + 3 floating groups
@@ -124,6 +139,8 @@ var
     end;
 var
   AppListRecents: TStringList = nil;
+  AppListTimers: TStringList = nil;
+  AppStatusbarMessages: TStringList = nil;
   AppBookmarkImagelist: TImageList = nil;
   AppApiFlatTheme: TATFlatTheme;
   AppAlwaysNewInstance: boolean = false;
@@ -131,33 +148,39 @@ var
   AppServerId: string = 'cudatext.0'; //used by TUniqueInstance (which is used only on Unix)
 
 var
-  AppFrameList1: TFPList; //all frames - for main thread
-  AppFrameList2: TFPList; //all frames - for file watcher thread
-  AppFrameListDeleting: TFPList; //frames which need to be Free'd
-                              //we don't free frames instantly, because watcher thread can access them
+  AppFrameList1: TFPList = nil;
+    //all frames - for main thread
 
-  AppEventLister: TEvent; //event set to signaled, when main thread has done AppFrameList2 updating
-  AppEventWatcher: TEvent; //event set to signaled, when watcher thread is not busy
+  AppFrameList2: TFPList = nil;
+    //all frames - for file watcher thread
 
-type
-  TAppKeyValue = class
-    Key: string;
-    Value: string;
-  end;
+  AppFrameListDeleting: TFPList = nil;
+    //frames which need to be Free'd
+    //we don't free frames instantly, because watcher thread can access them
+
+  AppEventLister: TEvent = nil; //event set to signaled, when main thread has done AppFrameList2 updating
+  AppEventWatcher: TEvent = nil; //event set to signaled, when watcher thread is not busy
 
 type
   { TAppKeyValues }
 
   TAppKeyValues = class(TFPList)
+  private type
+    TAppKeyValue = class
+      Key: string;
+      Value: string;
+    end;
   public
     procedure Add(const AKey, AValue: string);
+    destructor Destroy; override;
     function GetValue(const AKey, ADefValue: string): string;
+    function GetValueByRegex(ALine: string; ACaseSens: boolean): string;
   end;
 
 var
-  AppConfig_Detect: TAppKeyValues;
-  AppConfig_DetectLine: TAppKeyValues;
-  AppConfig_PGroups: TAppKeyValues;
+  AppConfig_Detect: TAppKeyValues = nil;
+  AppConfig_DetectLine: TAppKeyValues = nil;
+  AppConfig_PGroups: TAppKeyValues = nil;
 
 const
   AppExtensionThemeUi = '.cuda-theme-ui';
@@ -180,15 +203,23 @@ type
     StatusbarFontSize: integer;
     DoubleBuffered: boolean;
 
+    //timer delay for many commands. see proc_cmd.pas, function IsCommandNeedTimer.
+    //if too low, we have risk of crash in 'close tab' commands. 150ms is safe.
+    CommandTimerInterval: integer;
+    //Sleep() delay used when plugin calls Editor.cmd() (for the same list of commands).
+    PyCommandSleepInterval: integer;
+
     PyLibrary: string;
     PyChangeSlow: integer;
+    PyOutputCopyToStdout: boolean;
     InfoAboutOptionsEditor: boolean;
     AllowFrameParsing: boolean; //must be set in FormMain.OnShow
     AllowRunPkExec: boolean;
+    AllowCheckConfigsForNullBytes: boolean;
 
     LogPluginIniting: boolean;
     LogSessions: boolean;
-    LogDebug: boolean;
+    //LogDebug: boolean;
     LogConsole: boolean;
     LogConsoleDetailedStartupTime: boolean;
 
@@ -219,6 +250,7 @@ type
     MaxFileSizeForLexer: integer;
     MaxStatusbarMessages: integer;
 
+    AutocompleteAcpFiles: boolean;
     AutocompleteHtml: boolean;
     AutocompleteHtml_AutoClose: boolean;
     AutocompleteHtml_Lexers: string;
@@ -238,6 +270,7 @@ type
     ListboxCompleteSizeY: integer;
     ListboxFuzzySearch: boolean;
     ListboxHotkeyFontSizeDelta: integer;
+    ListboxTopItemIndent: integer;
 
     TabsShowFoldersSuffix: boolean;
     TabsShowFoldersMaxLevels: integer;
@@ -275,6 +308,7 @@ type
 
     CmdPaletteFilterKeep: boolean;
     CmdPaletteFilterText: string;
+    CmdPaletteFilterText_Forced: string;
 
     HistoryDisabledStr: string;
     HistoryItems: array[TAppHistoryElement] of boolean;
@@ -300,6 +334,7 @@ type
     FindShow_SyntaxElements: boolean;
     FindShow_HiAll: boolean;
     FindShow_ConfirmRep: boolean;
+    FindShow_RegexSubst: boolean;
 
     FindIndentVert: integer;
     FindIndentHorz: integer;
@@ -318,6 +353,7 @@ type
     InitialDir: string;
     ConfirmLinksClicks: boolean;
     ConfirmSaveEmptyUntitledTab: boolean;
+    SplittersUsePoorStyle: boolean;
 
     ExportHtmlNumbers: boolean;
     ExportHtmlFontName: string;
@@ -332,6 +368,8 @@ type
     TreeFilterLayout: integer;
     TreeSublexers: boolean;
     TreeIconFilenames: string;
+    TreeFillMaxTime: integer;
+    TreeFillMaxTimeForAPI: integer;
 
     NewdocLexer: string;
     NewdocEnc: string;
@@ -367,12 +405,11 @@ type
     ShowStatusbar: boolean;
     ShowToolbar: boolean;
     ShowTitlePath: boolean;
-    Scale: integer;
-    ScaleFont: integer;
 
     ReopenSession: boolean;
     ReopenSessionWithCmdLine: boolean;
-    AutoSaveSession: boolean;
+    SessionSaveInterval: integer;
+    SessionSaveOnExit: boolean;
     BackupLastSessions: integer;
     SaveModifiedTabsOnClose: boolean;
 
@@ -385,17 +422,21 @@ type
     PluginDialogsModalFormStyle: TFormStyle;
     FloatGroupsShowInTaskbar: TShowInTaskbar;
     OneInstance: boolean;
+
     NotificationEnabled: boolean;
     NotificationTimeSeconds: integer;
     NotificationConfirmReload: integer;
-    MarkFilesDeletedOutsideAsModified: boolean;
+    PromptToCloseFileDeletedOutside: boolean;
+    NotificationPanelHeight: integer;
+    NotificationButtonHeight: integer;
+    NotificationButtonsDistance: integer;
+
     NonTextFiles: integer; //0: prompt, 1: open, 2: don't open
     NonTextFilesBufferKb: integer;
     ReloadUnsavedConfirm: boolean;
     ReloadFollowTail: boolean;
     CheckLowDiskSpace: Int64; //minimal disk free space in bytes; can be 0 to disable the check
     FullScreen: string;
-    MouseGotoDefinition: string;
 
     Emmet_AddSlashToEmptyTags: boolean;
     Emmet_CommentTags: boolean;
@@ -432,24 +473,10 @@ var
   UiOps: TUiOps;
 
 const
-  OpStr_FontName = 'font_name'+cOptionSystemSuffix;
-  OpStr_FontName_i = 'font_name_i'+cOptionSystemSuffix;
-  OpStr_FontName_b = 'font_name_b'+cOptionSystemSuffix;
-  OpStr_FontName_bi = 'font_name_bi'+cOptionSystemSuffix;
-  OpStr_FontSize = 'font_size'+cOptionSystemSuffix;
-  OpStr_FontSize_i = 'font_size_i'+cOptionSystemSuffix;
-  OpStr_FontSize_b = 'font_size_b'+cOptionSystemSuffix;
-  OpStr_FontSize_bi = 'font_size_bi'+cOptionSystemSuffix;
-  OpStr_FontQuality = 'font_quality'+cOptionSystemSuffix;
-  OpStr_FontLigatures = 'font_ligatures'; //+cOptionSystemSuffix;
   OpStr_UiFontName = 'ui_font_name'+cOptionSystemSuffix;
   OpStr_UiFontSize = 'ui_font_size'+cOptionSystemSuffix;
   OpStr_UiFontOutputName = 'ui_font_output_name'+cOptionSystemSuffix;
   OpStr_UiFontOutputSize = 'ui_font_output_size'+cOptionSystemSuffix;
-  OpStr_UiFontStatusbarName = 'ui_font_statusbar_name'+cOptionSystemSuffix;
-  OpStr_UiFontStatusbarSize = 'ui_font_statusbar_size'+cOptionSystemSuffix;
-  OpStr_UiDoubleBuffered = 'ui_buffered'+cOptionSystemSuffix;
-  OpStr_DefEncodingIsUtf8 = 'def_encoding_utf8'+cOptionSystemSuffix;
 
 type
   TEditorOps = record
@@ -475,8 +502,7 @@ type
     OpSpacingY: integer;
     OpTabSize: integer;
     OpTabSpaces: boolean;
-    OpTabMaxPosExpanded: integer;
-    OpMaxLineLenForAccurateCharWidths: integer;
+
     OpMaxLineLenForBracketFinder: integer;
     OpMaxLineLenToTokenize: integer;
 
@@ -489,7 +515,6 @@ type
     OpOverwriteOnPaste: boolean;
     OpPasteWithEolAtLineStart: boolean;
 
-    OpAutoFoldComments: integer;
     OpAutoCloseBracketsMultiCarets: boolean;
     OpAutoCloseBrackets: string;
     OpAutocompleteAutoshowCharCount: integer;
@@ -552,15 +577,6 @@ type
     OpUnprintedShow: boolean;
     OpUnprintedContent: string;
 
-    OpUnprintedReplaceSpec: boolean;
-    OpUnprintedReplaceToCode: string;
-
-    OpUnprintedTabArrowLen: integer;
-    OpUnprintedSpaceDotScale: integer;
-    OpUnprintedEndDotScale: integer;
-    OpUnprintedEndFontScale: integer;
-    OpUnprintedTabPointerScale: integer;
-
     //wrap
     OpWrapMode: integer;
     OpWrapIndented: boolean;
@@ -589,6 +605,7 @@ type
     OpCaretsPrimitiveColumnSel: boolean;
     OpCaretKeepVisibleOnScroll: boolean;
     OpCaretProximityVert: integer;
+    OpCaretOnLoadingLimitByLineEnds: boolean;
 
     //general
     OpKeepSelFontColor: boolean;
@@ -622,6 +639,7 @@ type
     OpNonWordChars: UnicodeString;
     OpFoldStyle: integer;
     OpFoldTooltipShow: boolean;
+    OpFoldIconForMinimalRangeHeight: integer;
 
     //indent
     OpIndentAuto: boolean;
@@ -632,9 +650,9 @@ type
     OpIndentMakesWholeLineSel: boolean;
 
     //mouse
+    OpMouseGotoDefinition: string;
     OpMouse2ClickDragSelectsWords: boolean;
     OpMouseDragDrop: boolean;
-    OpMouseDragDropFocusTarget: boolean;
     OpMouseMiddleClickAction: integer;
     OpMouseRightClickMovesCaret: boolean;
     OpMouseEnableColumnSelection: boolean;
@@ -670,55 +688,62 @@ var
   EditorOps: TEditorOps;
 
 var
-  AppDir_Home: string;
-  AppDir_Settings: string;
-  AppDir_SettingsDefault: string;
-  AppDir_Py: string;
-  AppDir_Data: string;
-  AppDir_Lexers: string;
-  AppDir_LexersLite: string;
-  AppDir_DataThemes: string;
-  AppDir_DataAutocomplete: string;
-  AppDir_DataAutocompleteSpec: string;
-  AppDir_DataLang: string;
-  AppDir_DataSidebarIcons: string;
-  AppDir_DataCodetreeIcons: string;
-  AppDir_DataToolbarIcons: string;
+  AppUserName: string = '';
+  AppDir_Home: string = '';
+  AppDir_Settings: string = '';
+  AppDir_SettingsDefault: string = '';
+  AppDir_Py: string = '';
+  AppDir_Data: string = '';
+  AppDir_Lexers: string = '';
+  AppDir_LexersLite: string = '';
+  AppDir_DataThemes: string = '';
+  AppDir_DataAutocomplete: string = '';
+  AppDir_DataAutocompleteSpec: string = '';
+  AppDir_DataLang: string = '';
+  AppDir_DataSidebarIcons: string = '';
+  AppDir_DataCodetreeIcons: string = '';
+  AppDir_DataToolbarIcons: string = '';
   AppDir_LastInstalledAddon: string = '';
-  AppFile_OptionsDefault: string;
-  AppFile_OptionsUserInit: string;
-  AppFile_OptionsUser: string;
-  AppFile_History: string;
-  AppFile_HistoryFiles: string;
-  AppFile_Hotkeys: string;
-  AppFile_PluginsIni: string;
+  AppFile_OptionsDefault: string = '';
+  AppFile_OptionsUserInit: string = '';
+  AppFile_OptionsUser: string = '';
+  AppFile_History: string = '';
+  AppFile_HistoryFiles: string = '';
+  AppFile_Hotkeys: string = '';
+  AppFile_PluginsIni: string = '';
+  AppFile_LogConsole: string = '';
 
-function GetAppLangFilename: string;
-function GetAppUndoFilename(const fn: string; IsRedo: boolean): string;
+function AppFile_Session: string;
+function AppFile_Language: string;
+function AppFile_UndoRedo(const fn: string; IsRedo: boolean): string;
 
-function EscapeLexerFilename(const ALexName: string): string;
-function GetAppLexerFilename(const ALexName: string): string;
-function GetAppLexerMapFilename(const ALexName: string): string;
-function GetAppLexerOpsFilename(const ALexName: string): string;
-function GetAppLexerAcpFilename(const ALexName: string): string;
-function GetAppLexerSpecificConfig(ALexer: string; ADefaultConfig: boolean=false): string;
-function GetAppFilenameIsIgnoredForSession(const AFilename: string): boolean;
+function AppFile_Lexer(const ALexName: string): string;
+function AppFile_LexerMap(const ALexName: string): string;
+function AppFile_LexerOps(const ALexName: string): string;
+function AppFile_LexerAcp(const ALexName: string): string;
+function AppFile_LexerSpecificConfig(ALexer: string; ADefaultConfig: boolean=false): string;
+function AppFile_IsIgnoredForSession(const AFilename: string): boolean;
+
+function AppSessionName_ForHistoryFile: string;
+function IsDefaultSession(const S: string): boolean;
 function IsDefaultSessionActive: boolean;
 
-function MsgBox(const Str: string; Flags: Longint): integer;
+function MsgBox(const AText: string; AFlags: Longint): integer;
 procedure MsgBadConfig(const fn, msg: string);
 procedure MsgStdout(const Str: string; AllowMsgBox: boolean = false);
 procedure MsgLogConsole(const AText: string);
+procedure MsgLogToFilename(const AText, AFilename: string; AWithTime: boolean);
+procedure MsgOldApi(const s: string);
+procedure MsgFileFromSessionNotFound(const fn: string);
 
-function AppScale(AValue: integer): integer;
-function AppScaleFont(AValue: integer): integer;
-//procedure AppScaleScrollbar(C: TATScroll);
 function AppListboxItemHeight(AScale, ADoubleHeight: boolean): integer;
 procedure AppGetFileProps(const FileName: string; out P: TAppFileProps);
 procedure AppUpdateWatcherFrames;
+procedure AppStopListTimers;
 
 procedure FixFormPositionToDesktop(F: TForm);
 procedure FixRectPositionToDesktop(var F: TRect);
+function IsColorDark(C: TColor): boolean;
 
 type
   { TKeymapHelper }
@@ -746,10 +771,6 @@ type
       const AMenuitemCaption, AModuleName, AMethodName, ALexerName, AHotkey: string): boolean;
   end;
 
-function DoLexerDetectByFilenameOrContent(const AFilename: string;
-  AChooseFunc: TecLexerChooseFunc): TecSyntAnalyzer;
-procedure DoLexerEnum(L: TStringList; AlsoDisabled: boolean = false);
-
 function DoReadOneStringFromFile(const AFilename: string): string;
 function DoReadContentFromFile(const AFilename: string): string;
 procedure DoWriteStringToFile(const AFilename, AText: string);
@@ -759,6 +780,7 @@ function AppExpandHomeDirInFilename(const fn: string): string;
 function AppExpandFileNameWithDir(const AFileName, ADir: string): string;
 function AppConfigKeyForBookmarks(Ed: TATSynEdit): string;
 procedure AppDiskCheckFreeSpace(const fn: string);
+function AppKeyIsAllowedAsCustomHotkey(Key: Word; Shift: TShiftState): boolean;
 
 var
   AppManager: TecLexerList = nil;
@@ -771,8 +793,8 @@ var
   AppKeymapLexers: TStringList = nil;
 
 type
-  TStrEvent = procedure(Sender: TObject; const ARes: string) of object;
-  TStrFunction = function(const AStr: string): boolean of object;
+  TAppStringEvent = procedure(Sender: TObject; const AStr: string) of object;
+  TAppStringFunction = function(const AStr: string): boolean of object;
 
 type
   TAppEncodingRecord = record
@@ -782,7 +804,7 @@ type
   end;
 
 const
-  AppEncodings: array[0..38] of TAppEncodingRecord = (
+  AppEncodings: array[0..47] of TAppEncodingRecord = (
     (Sub: ''; Name: cEncNameUtf8_NoBom; ShortName: 'utf8'),
     (Sub: ''; Name: cEncNameUtf8_WithBom; ShortName: 'utf8_bom'),
     (Sub: ''; Name: cEncNameUtf16LE_NoBom; ShortName: 'utf16le'),
@@ -798,6 +820,7 @@ const
     (Sub: 'eu'; Name: 'cp1251'; ShortName: 'cp1251'),
     (Sub: 'eu'; Name: 'cp1252'; ShortName: 'cp1252'),
     (Sub: 'eu'; Name: 'cp1253'; ShortName: 'cp1253'),
+    (Sub: 'eu'; Name: 'cp1254'; ShortName: 'cp1254'),
     (Sub: 'eu'; Name: 'cp1257'; ShortName: 'cp1257'),
     (Sub: 'eu'; Name: '-'; ShortName: ''),
     (Sub: 'eu'; Name: 'cp437'; ShortName: 'cp437'),
@@ -805,11 +828,19 @@ const
     (Sub: 'eu'; Name: 'cp852'; ShortName: 'cp852'),
     (Sub: 'eu'; Name: 'cp866'; ShortName: 'cp866'),
     (Sub: 'eu'; Name: '-'; ShortName: ''),
-    (Sub: 'eu'; Name: 'iso88591'; ShortName: 'iso88591'),
-    (Sub: 'eu'; Name: 'iso88592'; ShortName: 'iso88592'),
-    (Sub: 'eu'; Name: 'iso885915'; ShortName: 'iso885915'),
+    (Sub: 'eu'; Name: 'iso-8859-1'; ShortName: 'iso-8859-1'),
+    (Sub: 'eu'; Name: 'iso-8859-2'; ShortName: 'iso-8859-2'),
+    (Sub: 'eu'; Name: 'iso-8859-3'; ShortName: 'iso-8859-3'),
+    (Sub: 'eu'; Name: 'iso-8859-4'; ShortName: 'iso-8859-4'),
+    (Sub: 'eu'; Name: 'iso-8859-5'; ShortName: 'iso-8859-5'),
+    (Sub: 'eu'; Name: 'iso-8859-7'; ShortName: 'iso-8859-7'),
+    (Sub: 'eu'; Name: 'iso-8859-9'; ShortName: 'iso-8859-9'),
+    (Sub: 'eu'; Name: 'iso-8859-10'; ShortName: 'iso-8859-10'),
+    (Sub: 'eu'; Name: 'iso-8859-13'; ShortName: 'iso-8859-13'),
+    (Sub: 'eu'; Name: 'iso-8859-14'; ShortName: 'iso-8859-14'),
+    (Sub: 'eu'; Name: 'iso-8859-15'; ShortName: 'iso-8859-15'),
+    (Sub: 'eu'; Name: 'iso-8859-16'; ShortName: 'iso-8859-16'),
     (Sub: 'eu'; Name: 'mac'; ShortName: 'mac'),
-    (Sub: 'mi'; Name: 'cp1254'; ShortName: 'cp1254'),
     (Sub: 'mi'; Name: 'cp1255'; ShortName: 'cp1255'),
     (Sub: 'mi'; Name: 'cp1256'; ShortName: 'cp1256'),
     (Sub: 'mi'; Name: '-'; ShortName: ''),
@@ -875,6 +906,8 @@ type
     cEventOnMacro,
     cEventOnAppActivate,
     cEventOnAppDeactivate,
+    cEventOnDeleteFile,
+    cEventOnSidebarPopup,
     cEventOnCLI,
     cEventOnExit
     );
@@ -930,6 +963,8 @@ const
     'on_macro',
     'on_app_activate',
     'on_app_deactivate',
+    'on_delete_file',
+    'on_sidebar_popup',
     'on_cli',
     'on_exit'
     );
@@ -968,14 +1003,16 @@ type
   end;
 
 var
-  AppConsoleQueue: TAppConsoleQueue;
-  AppCommandsDelayed: TAppCommandsDelayed;
-  AppCommandList: TFPList;
-  AppEventList: TFPList;
-  AppTreeHelpers: TFPList;
+  AppConsoleQueue: TAppConsoleQueue = nil;
+  AppCommandsDelayed: TAppCommandsDelayed = nil;
+  AppCommandList: TFPList = nil;
+  AppEventList: TFPList = nil;
+  AppTreeHelpers: TFPList = nil;
+
+procedure AppClearPluginLists;
 
 type
-  TAppMenuProps = class
+  TAppMenuProps = class(TComponent)
   public
     CommandCode: integer;
     CommandString: string;
@@ -1003,6 +1040,8 @@ type
 
     class function CommandCode_To_HotkeyStringId(ACmd: integer): string;
     class function HotkeyStringId_To_CommandCode(const AId: string): integer;
+
+    class function Debug_PluginCommands(const AModule: string): string;
   end;
 
 
@@ -1019,11 +1058,17 @@ procedure DoStatusbarColorByTag(AStatus: TATStatus; ATag: PtrInt; AColor: TColor
 function IsFileTooBigForOpening(const AFilename: string): boolean;
 function IsFileTooBigForLexer(const AFilename: string): boolean;
 function IsOsFullPath(const S: string): boolean;
-procedure DoLexerDetect(const AFilename: string;
+
+procedure Lexer_DetectByFilename(const AFilename: string;
   out Lexer: TecSyntAnalyzer;
   out LexerLite: TATLiteLexer;
   out LexerName: string;
+  out ATooBigForLexer: boolean;
   AChooseFunc: TecLexerChooseFunc);
+function Lexer_DetectByFilenameOrContent(const AFilename: string;
+  AChooseFunc: TecLexerChooseFunc): TecSyntAnalyzer;
+procedure Lexer_EnumAll(L: TStringList; AlsoDisabled: boolean = false);
+
 procedure DoMenuitemEllipsis(c: TMenuItem);
 
 procedure AppOnLexerLoaded(Sender: TObject; ALexer: TecSyntAnalyzer);
@@ -1049,9 +1094,83 @@ uses
   proc_colors,
   proc_lexer_styles;
 
-function MsgBox(const Str: string; Flags: Longint): integer;
+function MsgBox(const AText: string; AFlags: Longint): integer;
+var
+  Typ: TMsgDlgType;
+  Res: TModalResult;
 begin
-  Result:= Application.MessageBox(PChar(Str), PChar(msgTitle), Flags);
+  ////this is not used, to translate button captions:
+  //Result:= Application.MessageBox(PChar(AText), PChar(msgTitle), AFlags);
+
+  case AFlags and $F0 of
+    MB_ICONERROR:
+      Typ:= mtError;
+    MB_ICONWARNING:
+      Typ:= mtWarning;
+    MB_ICONINFORMATION:
+      Typ:= mtInformation;
+    MB_ICONQUESTION:
+      Typ:= mtConfirmation
+    else
+      Typ:= mtInformation;
+  end;
+
+  case AFlags and $0F of
+    MB_OK:
+      Res:= QuestionDlg(msgTitle, AText, Typ,
+            [mrOk, msgButtonOk],
+            0);
+    MB_OKCANCEL:
+      Res:= QuestionDlg(msgTitle, AText, Typ,
+            [mrOk, msgButtonOk,
+            mrCancel, msgButtonCancel],
+            0);
+    MB_ABORTRETRYIGNORE:
+      Res:= QuestionDlg(msgTitle, AText, Typ,
+            [mrAbort, msgButtonAbort,
+            mrRetry, msgButtonRetry,
+            mrIgnore, msgButtonIgnore],
+            0);
+    MB_YESNO:
+      Res:= QuestionDlg(msgTitle, AText, Typ,
+            [mrYes, msgButtonYes,
+            mrNo, msgButtonNo],
+            0);
+    MB_YESNOCANCEL:
+      Res:= QuestionDlg(msgTitle, AText, Typ,
+            [mrYes, msgButtonYes,
+            mrNo, msgButtonNo,
+            mrCancel, msgButtonCancel],
+            0);
+    MB_RETRYCANCEL:
+      Res:= QuestionDlg(msgTitle, AText, Typ,
+            [mrRetry, msgButtonRetry,
+            mrCancel, msgButtonCancel],
+            0);
+    else
+      exit(ID_CANCEL);
+  end;
+
+  case Res of
+    mrOK:
+      Result:= ID_OK;
+    mrCancel:
+      Result:= ID_CANCEL;
+    mrYes:
+      Result:= ID_YES;
+    mrNo:
+      Result:= ID_NO;
+    mrAbort:
+      Result:= ID_ABORT;
+    mrRetry:
+      Result:= ID_RETRY;
+    mrIgnore:
+      Result:= ID_IGNORE;
+    mrClose:
+      Result:= ID_CLOSE;
+    else
+      Result:= ID_CANCEL;
+  end;
 end;
 
 procedure MsgBadConfig(const fn, msg: string);
@@ -1114,7 +1233,11 @@ begin
   {$endif}
 
   {$ifdef haiku}
-  exit('/boot/system/develop/lib/libpython3.6m.so');
+    {$ifdef CPU64}
+    exit('/boot/system/develop/lib/libpython3.7m.so');
+    {$else}
+    exit('/boot/system/develop/lib/x86/libpython3.7m.so');
+    {$endif}
   {$endif}
 
   {$ifdef unix}
@@ -1148,8 +1271,13 @@ var
 {$endif}
 begin
   Result:= fn;
+
   {$ifndef windows}
   S:= AppDir_Home;
+
+  if fn+DirectorySeparator=S then
+    exit('~');
+
   if SBeginsWith(Result, S) then
     Result:= '~'+DirectorySeparator+Copy(Result, Length(S)+1, MaxInt);
   {$endif}
@@ -1257,6 +1385,7 @@ procedure InitDirs_macOS;
 begin
   //from https://github.com/graemeg/freepascal/blob/master/rtl/unix/sysutils.pp
   AppDir_Home:= GetEnvironmentVariable('HOME');
+  AppUserName:= ExtractFileName(AppDir_Home);
   if AppDir_Home<>'' then
     AppDir_Home:= IncludeTrailingPathDelimiter(AppDir_Home);
   OpDirLocal:= AppDir_Home+'Library/Application Support/CudaText';
@@ -1281,6 +1410,7 @@ var
 begin
   //from https://github.com/graemeg/freepascal/blob/master/rtl/unix/sysutils.pp
   AppDir_Home:= GetEnvironmentVariable('HOME');
+  AppUserName:= ExtractFileName(AppDir_Home);
   if AppDir_Home<>'' then
     AppDir_Home:= IncludeTrailingPathDelimiter(AppDir_Home);
 
@@ -1399,6 +1529,7 @@ begin
   AppFile_HistoryFiles:= AppDir_Settings+DirectorySeparator+'history files.json';
   AppFile_Hotkeys:= AppDir_Settings+DirectorySeparator+'keys.json';
   AppFile_PluginsIni:= AppDir_Settings+DirectorySeparator+'plugins.ini';
+  AppFile_LogConsole:= AppDir_Settings+DirectorySeparator+'console.log';
 
   if not FileExists(AppFile_OptionsUser)
     and FileExists(AppFile_OptionsUserInit) then
@@ -1415,11 +1546,18 @@ const
       ('Monaco', 'Liberation Mono', 'DejaVu Sans Mono');
       {$else}
         {$ifdef haiku}
-        ('Noto', 'Monoid Nerd', '');
+        ('Noto Sans Mono', '', '');
         {$else}
         ('DejaVu Sans Mono', 'Liberation Mono', 'Courier New');
         {$endif}
       {$endif}
+    {$endif}
+
+  AppDefaultEdFontSize =
+    {$ifdef haiku}
+    12;
+    {$else}
+    9;
     {$endif}
 
 function InitAppDefaultEdFont: string;
@@ -1445,7 +1583,7 @@ begin
     OpFontName_b:= '';
     OpFontName_bi:= '';
 
-    OpFontSize:= 9;
+    OpFontSize:= AppDefaultEdFontSize;
     OpFontSize_i:= OpFontSize;
     OpFontSize_b:= OpFontSize;
     OpFontSize_bi:= OpFontSize;
@@ -1465,8 +1603,6 @@ begin
 
     OpTabSize:= 4;
     OpTabSpaces:= false;
-    OpTabMaxPosExpanded:= 500;
-    OpMaxLineLenForAccurateCharWidths:= 500;
     OpMaxLineLenToTokenize:= 4000;
     OpMaxLineLenForBracketFinder:= 1000;
 
@@ -1479,7 +1615,6 @@ begin
     OpOverwriteOnPaste:= false;
     OpPasteWithEolAtLineStart:= false; //maybe change it later to True (like Sublime, VSCode)
 
-    OpAutoFoldComments:= 0; //disabled by default, issue #3074
     OpAutoCloseBracketsMultiCarets:= true; //must be True, issue #3235
     OpAutoCloseBrackets:= '([{';
     OpAutocompleteAutoshowCharCount:= 0;
@@ -1539,14 +1674,6 @@ begin
 
     OpUnprintedShow:= false;
     OpUnprintedContent:= 'se';
-    OpUnprintedReplaceSpec:= false;
-    OpUnprintedReplaceToCode:= 'A4';
-
-    OpUnprintedTabArrowLen:= 1;
-    OpUnprintedSpaceDotScale:= 15;
-    OpUnprintedEndDotScale:= 30;
-    OpUnprintedEndFontScale:= 80;
-    OpUnprintedTabPointerScale:= 22;
 
     OpWrapMode:= 0;
     OpWrapIndented:= true;
@@ -1573,6 +1700,7 @@ begin
     OpCaretKeepVisibleOnScroll:= true;
     OpCaretsPrimitiveColumnSel:= true;
     OpCaretProximityVert:= 0;
+    OpCaretOnLoadingLimitByLineEnds:= true;
 
     OpKeepSelFontColor:= false;
     OpShowCurLine:= false;
@@ -1602,9 +1730,10 @@ begin
     OpDimUnfocused:= 0;
     OpCommandLogMaxCount:= 200;
 
-    OpNonWordChars:= cDefaultNonWordChars;
+    OpNonWordChars:= ATEditorOptions.DefaultNonWordChars;
     OpFoldStyle:= 1;
     OpFoldTooltipShow:= false;
+    OpFoldIconForMinimalRangeHeight:= 0;
 
     OpIndentAuto:= true;
     OpIndentAutoKind:= Ord(cIndentAsPrevLine);
@@ -1613,9 +1742,9 @@ begin
     OpUnIndentKeepsAlign:= false;
     OpIndentMakesWholeLineSel:= false;
 
+    OpMouseGotoDefinition:= 'ca';
     OpMouse2ClickDragSelectsWords:= true;
     OpMouseDragDrop:= true;
-    OpMouseDragDropFocusTarget:= true;
     OpMouseMiddleClickAction:= Ord(TATEditorMiddleClickAction.mcaScrolling);
     OpMouseRightClickMovesCaret:= false;
     OpMouseEnableColumnSelection:= true;
@@ -1688,6 +1817,9 @@ begin
 
     DoubleBuffered:= IsDoubleBufferedNeeded;
 
+    CommandTimerInterval:= 50;
+    PyCommandSleepInterval:= CommandTimerInterval+40;
+
     LexerThemes:= true;
     LexerMenuGrouped:= true;
     LexerPostponeUntilShown:= true;
@@ -1716,6 +1848,7 @@ begin
     Win32GetUserFont(ThemedMainMenuFontName, ThemedMainMenuFontSize);
     {$endif}
 
+    AutocompleteAcpFiles:= true;
     AutocompleteHtml:= true;
     AutocompleteHtml_AutoClose:= true;
     AutocompleteHtml_Lexers:= '.*HTML.*|\bPHP\b';
@@ -1730,7 +1863,7 @@ begin
     HtmlBackgroundColorPair[true]:= $101010;
 
     PyLibrary:= InitPyLibraryPath;
-    PictureTypes:= 'bmp,png,jpg,jpeg,gif,ico';
+    PictureTypes:= 'bmp,png,jpg,jpeg,gif,ico,webp,psd,tga,cur';
 
     DefaultTabSplitIsHorz:= false;
     MaxFileSizeToOpen:= 500;
@@ -1744,6 +1877,7 @@ begin
     ListboxCompleteSizeY:= 200;
     ListboxFuzzySearch:= true;
     ListboxHotkeyFontSizeDelta:= 0; //2 gives too small hotkey font on Lin/Win
+    ListboxTopItemIndent:= 4; //listbox TopItem will be ItemIndex-N
 
     TabsShowFoldersSuffix:= true;
     TabsShowFoldersMaxLevels:= 3;
@@ -1807,6 +1941,7 @@ begin
     FindShow_SyntaxElements:= true;
     FindShow_HiAll:= true;
     FindShow_ConfirmRep:= true;
+    FindShow_RegexSubst:= true;
 
     FindIndentVert:= -5;
     FindIndentHorz:= 10;
@@ -1824,6 +1959,7 @@ begin
     InitialDir:= '';
     ConfirmLinksClicks:= true;
     ConfirmSaveEmptyUntitledTab:= false;
+    SplittersUsePoorStyle:= true;
 
     ExportHtmlNumbers:= false;
     ExportHtmlFontSize:= 12;
@@ -1837,17 +1973,21 @@ begin
     TreeFilterLayout:= 1;
     TreeSublexers:= false;
     TreeIconFilenames:= 'dir,st1,st2,st3,box,fx,ar1,ar2,';
+    TreeFillMaxTime:= 1000;
+    TreeFillMaxTimeForAPI:= 6*1000;
 
     PyChangeSlow:= 2000;
+    PyOutputCopyToStdout:= false;
     InfoAboutOptionsEditor:= true;
     AllowFrameParsing:= false;
     AllowRunPkExec:= true;
+    AllowCheckConfigsForNullBytes:= true;
 
     LogPluginIniting:= true;
     LogSessions:= true;
-    LogDebug:= false;
+    //LogDebug:= false;
     LogConsole:= false;
-    LogConsoleDetailedStartupTime:= false; //true;
+    LogConsoleDetailedStartupTime:= false;
 
     NewdocLexer:= '';
     NewdocEnc:= 'utf8';
@@ -1885,12 +2025,10 @@ begin
     ShowToolbar:= false;
     ShowTitlePath:= false;
 
-    Scale:= 100;
-    ScaleFont:= 100;
-
     ReopenSession:= true;
     ReopenSessionWithCmdLine:= false;
-    AutoSaveSession:= false;
+    SessionSaveInterval:= 30;
+    SessionSaveOnExit:= true;
     BackupLastSessions:= 0;
     SaveModifiedTabsOnClose:= true;
 
@@ -1900,20 +2038,25 @@ begin
     AllowSaveOfUnmodifiedFile:= true;
 
     PluginDialogsShowInTaskbar:= {$ifdef windows} false {$else} true {$endif}; //to fix issue #3078 on Linux
-    PluginDialogsModalFormStyle:= {$ifdef LCLQT5} fsNormal {$else} fsStayOnTop {$endif};
+    PluginDialogsModalFormStyle:= fsStayOnTop; //issue #4221, before it was: {$ifdef LCLQT5} fsNormal {$else} fsStayOnTop {$endif};
+
     FloatGroupsShowInTaskbar:= stAlways;
     OneInstance:= true;
+
     NotificationEnabled:= true;
     NotificationTimeSeconds:= 2;
     NotificationConfirmReload:= 1;
-    MarkFilesDeletedOutsideAsModified:= true;
+    PromptToCloseFileDeletedOutside:= true;
+    NotificationPanelHeight:= 31;
+    NotificationButtonHeight:= 25;
+    NotificationButtonsDistance:= 4;
+
     NonTextFiles:= 0;
     NonTextFilesBufferKb:= 64;
     ReloadFollowTail:= true;
     ReloadUnsavedConfirm:= true;
     CheckLowDiskSpace:= 1*1024*1024;
     FullScreen:= 'tp';
-    MouseGotoDefinition:= 'a';
 
     Emmet_AddSlashToEmptyTags:= true;
     Emmet_CommentTags:= false;
@@ -1925,7 +2068,7 @@ begin
     HotkeyFindDialog:= 'Ctrl+F';
     HotkeyReplaceDialog:= 'Ctrl+R';
     HotkeyFindFirst:= 'Alt+Enter';
-    HotkeyFindNext:= '';
+    HotkeyFindNext:= 'F3';
     HotkeyFindPrev:= 'Shift+Enter';
     HotkeyReplaceAndFindNext:= 'Alt+Z';
     HotkeyReplaceNoFindNext:= 'Ctrl+Alt+Z';
@@ -1948,24 +2091,26 @@ begin
 end;
 
 
-procedure SReplaceSpecialFilenameChars(var S: string);
+function Lexer_EscapeFilename(const ALexName: string): string;
+const
+  cBadFilenameChars = '/\*:<>';
+var
+  i: integer;
 begin
-  S:= StringReplace(S, '/', '_', [rfReplaceAll]);
-  S:= StringReplace(S, '\', '_', [rfReplaceAll]);
-  S:= StringReplace(S, '*', '_', [rfReplaceAll]);
-  S:= StringReplace(S, ':', '_', [rfReplaceAll]);
-  S:= StringReplace(S, '<', '_', [rfReplaceAll]);
-  S:= StringReplace(S, '>', '_', [rfReplaceAll]);
+  Result:= ALexName;
+  for i:= 1 to Length(Result) do
+    if Pos(Result[i], cBadFilenameChars)>0 then
+      Result[i]:= '_';
 end;
 
-function GetAppLexerSpecificConfig(ALexer: string; ADefaultConfig: boolean=false): string;
+function AppFile_LexerSpecificConfig(ALexer: string; ADefaultConfig: boolean=false): string;
 var
   dir: string;
 begin
   //support none-lexer here
   if ALexer='' then
     ALexer:= '-';
-  SReplaceSpecialFilenameChars(ALexer);
+  ALexer:= Lexer_EscapeFilename(ALexer);
 
   if ADefaultConfig then
     dir:= AppDir_SettingsDefault
@@ -1975,14 +2120,18 @@ begin
   Result:= dir+DirectorySeparator+'lexer '+ALexer+'.json';
 end;
 
-function GetAppFilenameIsIgnoredForSession(const AFilename: string): boolean;
-var
-  SName: string;
+function AppFile_IsIgnoredForSession(const AFilename: string): boolean;
 begin
-  SName:= ExtractFileName(AFilename);
-  Result:= SameFileName(ExtractFileDir(AFilename), AppDir_Settings) and
-    ( SameFileName(SName, 'history.json') or
-      SameFileName(SName, 'history session.json') );
+  if SameFileName(AFilename, AppFile_History) then
+    exit(true);
+
+  if SameFileName(AFilename, AppFile_HistoryFiles) then
+    exit(true);
+
+  if SameFileName(AFilename, AppDir_Settings+DirectorySeparator+'history session.json') then
+    exit(true);
+
+  Result:= false;
 end;
 
 function AppFile_HotkeysForLexer(AName: string): string;
@@ -1990,10 +2139,9 @@ begin
   //support none-lexer
   if AName='' then
     AName:= '-';
-  SReplaceSpecialFilenameChars(AName);
+  AName:= Lexer_EscapeFilename(AName);
   Result:= AppDir_Settings+DirectorySeparator+'keys lexer '+AName+'.json';
 end;
-
 
 class function TPluginHelper.HotkeyStringId_To_CommandCode(const AId: string): integer;
 begin
@@ -2007,6 +2155,20 @@ begin
   else
     //usual item
     Result:= StrToIntDef(AId, -1);
+end;
+
+class function TPluginHelper.Debug_PluginCommands(const AModule: string): string;
+var
+  CmdItem: TAppCommandInfo;
+  i: integer;
+begin
+  Result:= '';
+  for i:= 0 to AppCommandList.Count-1 do
+  begin
+    CmdItem:= TAppCommandInfo(AppCommandList[i]);
+    if CmdItem.ItemModule=AModule then
+      Result+= CmdItem.CommaStr+#10;
+  end;
 end;
 
 
@@ -2057,13 +2219,12 @@ begin
 end;
 
 
-function DoLexerDetectByFilenameOrContent(const AFilename: string;
+function Lexer_DetectByFilenameOrContent(const AFilename: string;
   AChooseFunc: TecLexerChooseFunc): TecSyntAnalyzer;
 const
   cSignUTF8: string = #$EF#$BB#$BF;
 var
   SNameOnly: string;
-  Item: TAppKeyValue;
   ext, sLine, res: string;
   i: integer;
 begin
@@ -2105,13 +2266,10 @@ begin
     begin
       //skip UTF8 signature, needed for XMLs
       if SBeginsWith(sLine, cSignUTF8) then
-        Delete(sLine, 1, Length(cSignUTF8));
-      for i:= 0 to AppConfig_DetectLine.Count-1 do
-      begin
-        Item:= TAppKeyValue(AppConfig_DetectLine[i]);
-        if SRegexMatchesString(sLine, Item.Key, true) then
-          exit(AppManager.FindLexerByName(Item.Value));
-      end;
+        System.Delete(sLine, 1, Length(cSignUTF8));
+      res:= AppConfig_DetectLine.GetValueByRegex(sLine, true);
+      if res<>'' then
+        exit(AppManager.FindLexerByName(res));
     end;
   end;
 
@@ -2262,11 +2420,11 @@ begin
   if ADoubleHeight then
     Result:= Result * 185 div 100;
   if AScale then
-    Result:= AppScaleFont(Result);
+    Result:= ATEditorScaleFont(Result);
 end;
 
 
-procedure DoLexerEnum(L: TStringList; AlsoDisabled: boolean = false);
+procedure Lexer_EnumAll(L: TStringList; AlsoDisabled: boolean = false);
 var
   an: TecSyntAnalyzer;
   i: integer;
@@ -2285,13 +2443,6 @@ begin
       L.Add(Lexers[i].LexerName+msgLiteLexerSuffix);
 end;
 
-{
-procedure DoLexerSave(an: TecSyntAnalyzer);
-begin
-  if Assigned(an) then
-    an.SaveToFile(GetAppLexerFilename(an.LexerName));
-end;
-}
 
 class function TPluginHelper.CommandGetIndexFromModuleAndMethod(const AText: string): integer;
 var
@@ -2361,7 +2512,7 @@ begin
 end;
 
 
-function GetAppLangFilename: string;
+function AppFile_Language: string;
 begin
   if UiOps.LangName='' then
     Result:= ''
@@ -2369,53 +2520,58 @@ begin
     Result:= AppDir_DataLang+DirectorySeparator+UiOps.LangName+'.ini';
 end;
 
-function EscapeLexerFilename(const ALexName: string): string;
-begin
-  Result:= ALexName;
-  if Result<>'' then
-  begin
-    Result:= StringReplace(Result, ':', '_', [rfReplaceAll]);
-    Result:= StringReplace(Result, '/', '_', [rfReplaceAll]);
-    Result:= StringReplace(Result, '\', '_', [rfReplaceAll]);
-    Result:= StringReplace(Result, '*', '_', [rfReplaceAll]);
-  end;
-end;
-
-function GetLexerFilenameWithExt(ALexName, AExt: string): string;
+function AppFile_LexerExtension(ALexName, AExt: string): string;
 begin
   if ALexName<>'' then
-    Result:= AppDir_Lexers+DirectorySeparator+EscapeLexerFilename(ALexName)+AExt
+    Result:= AppDir_Lexers+DirectorySeparator+Lexer_EscapeFilename(ALexName)+AExt
   else
     Result:= '';
 end;
 
-function GetAppLexerMapFilename(const ALexName: string): string;
+function AppFile_LexerMap(const ALexName: string): string;
 begin
-  Result:= GetLexerFilenameWithExt(ALexName, '.cuda-lexmap');
+  Result:= AppFile_LexerExtension(ALexName, '.cuda-lexmap');
 end;
 
-function GetAppLexerFilename(const ALexName: string): string;
+function AppFile_Lexer(const ALexName: string): string;
 begin
-  Result:= GetLexerFilenameWithExt(ALexName, '.lcf');
+  Result:= AppFile_LexerExtension(ALexName, '.lcf');
 end;
 
-function GetAppLexerOpsFilename(const ALexName: string): string;
+function AppFile_LexerOps(const ALexName: string): string;
 begin
-  Result:= AppDir_Settings+DirectorySeparator+EscapeLexerFilename(ALexName)+'.cuda-lexops';
+  Result:= AppDir_Settings+DirectorySeparator+Lexer_EscapeFilename(ALexName)+'.cuda-lexops';
 end;
 
-function GetAppLexerAcpFilename(const ALexName: string): string;
+function AppFile_LexerAcp(const ALexName: string): string;
 begin
-  Result:= AppDir_DataAutocomplete+DirectorySeparator+EscapeLexerFilename(ALexName)+'.acp';
+  Result:= AppDir_DataAutocomplete+DirectorySeparator+Lexer_EscapeFilename(ALexName)+'.acp';
 end;
 
-function GetAppUndoFilename(const fn: string; IsRedo: boolean): string;
+function AppFile_UndoRedo(const fn: string; IsRedo: boolean): string;
 const
   Ext: array[boolean] of string = ('.undx', '.redx');
 begin
   Result:= ExtractFileDir(fn)+DirectorySeparator+
     '.cudatext'+DirectorySeparator+
     ExtractFileName(fn)+Ext[IsRedo];
+end;
+
+function AppSessionName_ForHistoryFile: string;
+var
+  sDir, sFilename, sJsonPath: string;
+begin
+  if not UiOps.ReopenSession then exit('');
+
+  SSplitByChar(AppSessionName, '|', sFilename, sJsonPath);
+
+  sDir:= ExtractFileDir(sFilename);
+  if sDir='' then exit(AppSessionName);
+
+  if SameFileName(sDir, AppDir_Settings) then
+    Result:= ExtractFileName(sFilename)+IfThen(sJsonPath<>'', '|'+sJsonPath)
+  else
+    Result:= AppSessionName;
 end;
 
 class function TKeymapHelper.GetHotkey(AKeymap: TATKeymap; const ACmdString: string): string;
@@ -2620,12 +2776,16 @@ var
   Keymap: TATKeymap;
   N: integer;
 begin
+  //we must block too early loading of keys-config.
+  //it is called too early from FormShow._Init_ApiOnStart:
+  //  Project Manager restores project, and restores project's _default_ session,
+  //  which loads .txt file, which sets none-lexer, which loads keys-config.
+  if not AppApiOnStartActivated then
+    exit(AppKeymapMain);
+
   N:= AppKeymapLexers.IndexOf(ALexer);
   if N>=0 then
-  begin
-    Result:= TATKeymap(AppKeymapLexers.Objects[N]);
-    exit;
-  end;
+    exit(TATKeymap(AppKeymapLexers.Objects[N]));
 
   Keymap:= TATKeymap.Create;
   Keymap.Assign(AppKeymapMain);
@@ -2663,6 +2823,53 @@ begin
   end;
 end;
 
+
+procedure MsgLogToFilename(const AText, AFilename: string; AWithTime: boolean);
+var
+  f: TextFile;
+  S: string;
+begin
+  AssignFile(f, AFileName);
+  {$Push}
+  {$I-}
+  Append(f);
+  if IOResult<>0 then
+    Rewrite(f);
+  S:= AText;
+  if AWithTime then
+    S:= FormatDateTime('[MM.DD hh:nn] ', Now) + S;
+  Writeln(f, S);
+  CloseFile(f);
+  {$Pop}
+end;
+
+procedure MsgOldApi(const s: string);
+begin
+  MsgLogConsole(Format(msgApiDeprecated, [s]));
+end;
+
+procedure MsgFileFromSessionNotFound(const fn: string);
+begin
+  if not StartsStr(GetTempDir, fn) then
+    MsgLogConsole(Format(msgCannotFindSessionFile, [AppCollapseHomeDirInFilename(fn)]));
+end;
+
+procedure AppClearPluginLists;
+var
+  i: integer;
+begin
+  for i:= AppCommandList.Count-1 downto 0 do
+    TObject(AppCommandList[i]).Free;
+  FreeAndNil(AppCommandList);
+
+  for i:= AppEventList.Count-1 downto 0 do
+    TObject(AppEventList[i]).Free;
+  FreeAndNil(AppEventList);
+
+  for i:= AppTreeHelpers.Count-1 downto 0 do
+    TObject(AppTreeHelpers[i]).Free;
+  FreeAndNil(AppTreeHelpers);
+end;
 
 function AppEncodingShortnameToFullname(const S: string): string;
 var
@@ -2750,24 +2957,27 @@ begin
 end;
 
 
-procedure DoLexerDetect(const AFilename: string;
+procedure Lexer_DetectByFilename(const AFilename: string;
   out Lexer: TecSyntAnalyzer;
   out LexerLite: TATLiteLexer;
   out LexerName: string;
+  out ATooBigForLexer: boolean;
   AChooseFunc: TecLexerChooseFunc);
 begin
   LexerName:= '';
   Lexer:= nil;
   LexerLite:= nil;
+  ATooBigForLexer:= false;
   if AFilename='' then exit;
 
   if IsFileTooBigForLexer(AFilename) then
   begin
     LexerLite:= AppManagerLite.FindLexerByFilename(AFilename);
+    ATooBigForLexer:= true;
   end
   else
   begin
-    Lexer:= DoLexerDetectByFilenameOrContent(AFilename, AChooseFunc);
+    Lexer:= Lexer_DetectByFilenameOrContent(AFilename, AChooseFunc);
     if Lexer=nil then
       LexerLite:= AppManagerLite.FindLexerByFilename(AFilename);
   end;
@@ -2866,6 +3076,19 @@ begin
   inherited Add(Item);
 end;
 
+destructor TAppKeyValues.Destroy;
+var
+  Item: TAppKeyValue;
+  i: integer;
+begin
+  for i:= Count-1 downto 0 do
+  begin
+    Item:= TAppKeyValue(Items[i]);
+    Item.Free;
+  end;
+  inherited Destroy;
+end;
+
 function TAppKeyValues.GetValue(const AKey, ADefValue: string): string;
 var
   Item: TAppKeyValue;
@@ -2880,18 +3103,20 @@ begin
   Result:= ADefValue;
 end;
 
-function AppScale(AValue: integer): integer; inline;
+function TAppKeyValues.GetValueByRegex(ALine: string; ACaseSens: boolean): string;
+var
+  Item: TAppKeyValue;
+  i: integer;
 begin
-  Result:= AValue * UiOps.Scale div 100;
+  Result:= '';
+  for i:= 0 to Count-1 do
+  begin
+    Item:= TAppKeyValue(Items[i]);
+    if SRegexMatchesString(ALine, Item.Key, ACaseSens) then
+      exit(Item.Value);
+  end;
 end;
 
-function AppScaleFont(AValue: integer): integer;
-begin
-  if UiOps.ScaleFont=0 then
-    Result:= AppScale(AValue)
-  else
-    Result:= AValue * UiOps.ScaleFont div 100;
-end;
 
 procedure DoMenuitemEllipsis(c: TMenuItem);
 var
@@ -2906,8 +3131,10 @@ end;
 
 
 function RemoveWindowsStreamSuffix(const fn: string): string;
+{$ifdef windows}
 var
   PosSlash, PosColon: integer;
+{$endif}
 begin
   Result:= fn;
   {$ifdef windows}
@@ -2969,8 +3196,14 @@ begin
         Result:= categ_Plugin;
         N:= Cmd-cmdFirstPluginCommand;
         if N<AppCommandList.Count then
+        begin
           if TAppCommandInfo(AppCommandList[N]).ItemFromApi then
             Result:= categ_PluginSub;
+        end
+        else
+          //we are here when e.g. in plugin Macros user deletes a macro,
+          //so code detects category of deleted command-code
+          Result:= categ_PluginSub;
       end;
     cmdFirstLexerCommand..cmdLastLexerCommand:
       Result:= categ_Lexer;
@@ -3159,10 +3392,16 @@ var
   fn_ops: string;
 begin
   //load *.cuda-lexops
-  fn_ops:= GetAppLexerOpsFilename(ALexer.LexerName);
+  fn_ops:= AppFile_LexerOps(ALexer.LexerName);
   if FileExists(fn_ops) then
-    DoLoadLexerStylesFromFile_JsonLexerOps(ALexer, fn_ops, UiOps.LexerThemes);
+    Lexer_LoadStylesFromFile_JsonLexerOps(ALexer, fn_ops, UiOps.LexerThemes);
 end;
+
+procedure AppOnLexerLoadError(const AFileName, AError: string);
+begin
+  MsgLogConsole('ERROR: '+msgCannotLoadLexerFile+' '+ExtractFileName(AFileName)+'; '+AError);
+end;
+
 
 procedure AppLoadLexers;
 var
@@ -3206,6 +3445,7 @@ begin
   //NTickNormal:= GetTickCount64;
 
   AppManager.OnLexerLoaded:= @AppOnLexerLoaded;
+  AppManager.OnLexerLoadError:= @AppOnLexerLoadError;
   AppManager.InitLibrary(AppDir_Lexers, SErrorLines);
 
   if SErrorLines<>'' then
@@ -3243,11 +3483,34 @@ begin
   ApplyPartStyleFromEcontrolStyle(APart, st);
 end;
 
+function IsDefaultSession(const S: string): boolean;
+var
+  sFilename, sJsonPath: string;
+begin
+  if S='' then
+    exit(true);
+  SSplitByChar(S, '|', sFilename, sJsonPath);
+  Result:=
+    (sJsonPath='') and
+    (ChangeFileExt(ExtractFileName(sFilename), '')=cAppSessionDefaultBase);
+end;
+
 function IsDefaultSessionActive: boolean;
 begin
-  Result:=
-    (AppSessionName='') or
-    (AppSessionName=cAppSessionDefault);
+  Result:= IsDefaultSession(AppSessionName);
+end;
+
+function AppFile_Session: string;
+var
+  sFilename, sJsonPath: string;
+begin
+  Result:= AppSessionName;
+  if Result='' then
+    Result:= cAppSessionDefault;
+
+  SSplitByChar(Result, '|', sFilename, sJsonPath);
+  if ExtractFileDir(sFilename)='' then
+    Result:= AppDir_Settings+DirectorySeparator+Result;
 end;
 
 
@@ -3261,11 +3524,17 @@ end;
 
 function AppDiskGetFreeSpace(const fn: string): Int64;
 begin
-  {$ifdef unix}
-  Result:= SysUtils.DiskFree(SysUtils.AddDisk(ExtractFileDir(fn)));
-  {$else}
-  Result:= SysUtils.DiskFree(SysUtils.GetDriveIDFromLetter(ExtractFileDrive(fn)));
+  {$ifdef linux}
+  //this crashes on FreeBSD 12 x64
+  exit(SysUtils.DiskFree(SysUtils.AddDisk(ExtractFileDir(fn))));
   {$endif}
+
+  {$ifdef windows}
+  exit(SysUtils.DiskFree(SysUtils.GetDriveIDFromLetter(ExtractFileDrive(fn))));
+  {$endif}
+
+  //cannot detect
+  exit(-1);
 end;
 
 procedure AppDiskCheckFreeSpace(const fn: string);
@@ -3282,6 +3551,73 @@ begin
       MB_RETRYCANCEL or MB_ICONWARNING) = ID_CANCEL then exit;
   until false;
 end;
+
+function AppKeyIsAllowedAsCustomHotkey(Key: Word; Shift: TShiftState): boolean;
+begin
+  Result:= true;
+
+  //don't allow to reassign system keys: Alt/Ctrl/Shift/Win
+  if (Key=VK_MENU) or
+     (Key=VK_LMENU) or
+     (Key=VK_RMENU) or
+     (Key=VK_CONTROL) or
+     (Key=VK_LCONTROL) or
+     (Key=VK_RCONTROL) or
+     (Key=VK_SHIFT) or
+     (Key=VK_LSHIFT) or
+     (Key=VK_RSHIFT) or
+     (Key=VK_LWIN) or
+     (Key=VK_RWIN) then
+    exit(false);
+
+  //don't allow to reassign these
+  if (Key in [VK_SPACE, VK_RETURN, VK_TAB, VK_BACK]) and (Shift=[]) then
+    exit(false);
+end;
+
+function IsColorDark(C: TColor): boolean;
+const
+  cMargin = $60;
+var
+  r, g, b: byte;
+begin
+  r:= Red(C);
+  g:= Green(C);
+  b:= Blue(C);
+  Result:= (r<=cMargin) and (g<=cMargin) and (b<=cMargin);
+end;
+
+procedure AppStopListTimers;
+var
+  Obj: TObject;
+  i: integer;
+begin
+  for i:= AppListTimers.Count-1 downto 0 do
+  begin
+    Obj:= AppListTimers.Objects[i];
+    if Assigned(Obj) then
+      TTimer(Obj).Enabled:= false;
+  end;
+end;
+
+{
+procedure AppFreeListTimers;
+var
+  Obj: TObject;
+  i: integer;
+begin
+  for i:= AppListTimers.Count-1 downto 0 do
+  begin
+    Obj:= AppListTimers.Objects[i];
+    if Assigned(Obj) then
+    begin
+      TTimer(Obj).Enabled:= false;
+      Obj.Free;
+    end;
+  end;
+  FreeAndNil(AppListTimers);
+end;
+}
 
 initialization
 
@@ -3301,8 +3637,12 @@ initialization
   Keymap_AddCudatextItems(AppKeymapMain);
 
   AppKeymapLexers:= TStringList.Create;
+  AppKeymapLexers.UseLocale:= false; //speedup Find()
   AppKeymapLexers.Sorted:= true;
   AppKeymapLexers.OwnsObjects:= true;
+
+  FillChar(AppCodetreeState, SizeOf(AppCodetreeState), 0);
+  AppCodetreeState.SelLine:= -1;
 
   FillChar(AppEventsMaxPriorities, SizeOf(AppEventsMaxPriorities), 0);
   FillChar(AppBookmarkSetup, SizeOf(AppBookmarkSetup), 0);
@@ -3318,13 +3658,10 @@ initialization
   AppConfig_DetectLine:= TAppKeyValues.Create;
   AppConfig_PGroups:= TAppKeyValues.Create;
 
-  ////detection of Shell files
-  ////disabled: it detects Python files with shebang
-  //AppConfig_DetectLine_Keys.Add('\#!.+');
-  //AppConfig_DetectLine_Values.Add('Bash script');
-
-  //detection of XML
   AppConfig_DetectLine.Add('<\?xml .+', 'XML');
+  AppConfig_DetectLine.Add('\#!\/bin\/(ba)?sh', 'Bash script');
+  AppConfig_DetectLine.Add('\#!\/usr\/bin\/env (ba)?sh', 'Bash script');
+  AppConfig_DetectLine.Add('\#!\/usr\/bin\/env python\d*', 'Python');
 
   AppFrameList1:= TFPList.Create;
   AppFrameList2:= TFPList.Create;
@@ -3334,6 +3671,8 @@ initialization
 
   AppApiFlatTheme:= ATFlatTheme;
   AppListRecents:= TStringList.Create;
+  AppListRecents.TextLineBreakStyle:= tlbsLF; //for APP_FILE_RECENTS
+  AppListTimers:= TStringList.Create;
 
   ATSynEdit_Commands.cCommand_GotoDefinition:= cmd_GotoDefinition;
 
@@ -3343,12 +3682,19 @@ initialization
   AppManagerLite.OnApplyStyle:= @LiteLexer_ApplyStyle;
   AppManagerThread:= TAppManagerThread.Create(false);
 
+  ATEditorOptions.MaxClipboardRecents:= 15;
+
+  AppStatusbarMessages:= TStringList.Create;
+  AppStatusbarMessages.TextLineBreakStyle:= tlbsLF;
+  AppStatusbarMessages.TrailingLineBreak:= false;
+
 finalization
 
   FreeAndNil(AppManagerThread);
   FreeAndNil(AppManagerLite);
   FreeAndNil(AppManager);
 
+  FreeAndNil(AppStatusbarMessages);
   FreeAndNil(AppListRecents);
   FreeAndNil(AppEventWatcher);
   FreeAndNil(AppEventLister);
@@ -3369,5 +3715,10 @@ finalization
   FreeAndNil(AppConsoleQueue);
   FreeAndNil(AppCommandsDelayed);
 
-end.
+  if Assigned(AppLexersLastDetected) then
+    FreeAndNil(AppLexersLastDetected);
 
+  //AppFreeListTimers; //somehow gives crash on exit, if TerminalPlus was used, in timer_proc(TIMER_DELETE...)
+  //AppClearPluginLists;
+
+end.

@@ -27,6 +27,7 @@ type
     destructor Destroy; override;
     procedure Add(AMapItem: TATKeymapItem; const AStr: string);
     procedure Get(AMapItem: TATKeymapItem; const AStr: string);
+    function DebugText: string;
   end;
 
 implementation
@@ -43,6 +44,7 @@ begin
   inherited;
   L:= TStringList.Create;
   L.OwnsObjects:= true;
+  L.Duplicates:= dupIgnore;
   L.Sorted:= true;
 end;
 
@@ -56,6 +58,11 @@ procedure TAppHotkeyBackup.Add(AMapItem: TATKeymapItem; const AStr: string);
 var
   Pair: TMyKeyPair;
 begin
+  if AStr='' then
+  begin
+    //this should not happen! debug if we are here.
+    exit;
+  end;
   if (AMapItem.Keys1.Length>0) or
     (AMapItem.Keys2.Length>0) then
   begin
@@ -77,6 +84,19 @@ begin
     Pair:= TMyKeyPair(L.Objects[N]);
     AMapItem.Keys1:= Pair.Keys1;
     AMapItem.Keys2:= Pair.Keys2;
+  end;
+end;
+
+function TAppHotkeyBackup.DebugText: string;
+var
+  Pair: TMyKeyPair;
+  i: integer;
+begin
+  Result:= '';
+  for i:= 0 to L.Count-1 do
+  begin
+    Pair:= TMyKeyPair(L.Objects[i]);
+    Result+= Format('%s - (%s, %s)'#10, [L[i], Pair.Keys1.ToString, Pair.Keys2.ToString]);
   end;
 end;
 

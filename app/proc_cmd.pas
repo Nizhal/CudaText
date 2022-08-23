@@ -19,6 +19,7 @@ procedure Keymap_AddCudatextItems(M: TATKeymap);
 
 function IsCommandForMacros(Cmd: integer): boolean;
 function IsCommandNeedTimer(Cmd: integer): boolean;
+function IsCommandHandledFromFindDialog(Cmd: integer): boolean;
 
 type
   TAppCommandCategory = (
@@ -72,6 +73,7 @@ const
   cmd_FileCloseAndDelete = 2514;
   cmd_FileExportHtml     = 2515;
   cmd_RepaintEditor      = 2516;
+  cmd_FileReopenRecent   = 2517;
 
   cmd_OpsOpenDefaultAndUser = 2519;
   cmd_OpsClearRecent     = 2520;
@@ -98,30 +100,31 @@ const
   cmd_ToggleStatusbar    = 2542;
   cmd_ResetPythonPlugins = 2543;
   cmd_DialogCharMap      = 2544;
-  cmd_RunLastCommandPlugin = 2545;
-  cmd_ShowSidePanelAsIs = 2546;
+  cmd_RunLastCommandPlugin= 2545;
+  cmd_ShowSidePanelAsIs   = 2546;
   cmd_ShowSidePanelAndSyntaxTree = 2547;
-  cmd_HideSidePanel = 2548;
-  cmd_DialogSaveTabs = 2549;
+  cmd_HideSidePanel       = 2548;
+  cmd_DialogSaveTabs      = 2549;
   cmd_DialogLexerStyleMap = 2550;
   cmd_RescanPythonPluginsInfFiles = 2551;
   cmd_DialogThemeUi       = 2552;
   cmd_DialogThemeSyntax   = 2553;
   cmd_ShowMainMenuAsPopup = 2554;
-  cmd_DialogLexerMenu = 2555;
-  cmd_ToggleFloatSide = 2556;
-  cmd_ToggleFloatBottom = 2557;
-  cmd_HideBottomPanel = 2558;
-  cmd_OpsFontSizeBigger = 2559;
-  cmd_OpsFontSizeSmaller = 2560;
+  cmd_DialogLexerMenu     = 2555;
+  cmd_ToggleFloatSide     = 2556;
+  cmd_ToggleFloatBottom   = 2557;
+  cmd_HideBottomPanel     = 2558;
+  cmd_OpsFontSizeBigger   = 2559;
+  cmd_OpsFontSizeSmaller  = 2560;
   cmd_ShowPanelConsole_AndFocus   = 2561;
   cmd_ShowPanelOutput_AndFocus    = 2562;
   cmd_ShowPanelValidate_AndFocus  = 2563;
-  cmd_ToggleReplaceDialog = 2564;
-  cmd_ToggleSidePanelAndSyntaxTree = 2565;
-  cmd_OpsFontSizeReset = 2566;
-  cmd_FindPythonLib = 2567;
-  cmd_ToggleFileNotifications = 2568;
+  cmd_ToggleReplaceDialog         = 2564;
+  cmd_ToggleSidePanelAndSyntaxTree= 2565;
+  cmd_OpsFontSizeReset            = 2566;
+  cmd_FindPythonLib               = 2567;
+  cmd_ToggleFileNotifications     = 2568;
+  cmd_ToggleFindDialog_AndFocus   = 2569;
 
   cmd_ChooseTranslation = 2570;
   cmd_ChooseThemeUI     = 2571;
@@ -160,6 +163,8 @@ const
   cmd_FileOpen_HexViewer     = 2604;
   cmd_FileOpen_UnicodeViewer = 2605;
   cmd_SelectExpandToWord_Skip = 2606;
+  cmd_SelectExpandToText = 2607; //like cmd_SelectExpandToWord but ignores whole-words
+  cmd_SelectExpandToText_Skip = 2608;
 
   cmd_SwitchTab_HotkeyNext = 2610;
   cmd_SwitchTab_HotkeyPrev = 2611;
@@ -209,6 +214,8 @@ const
   cmd_CopyFilenameDir  = 2652;
   cmd_CopyFilenameName = 2653;
 
+  cmd_TabUsesSpaces_On    = 2655;
+  cmd_TabUsesSpaces_Off   = 2656;
   cmd_ToggleTabUsesSpaces = 2657;
   cmd_ConvertTabsToSpaces = 2658;
   cmd_ConvertSpacesToTabsLeading = 2659;
@@ -233,9 +240,14 @@ const
   cmd_LineEndUnix       = 2678;
   cmd_LineEndMac        = 2679;
 
-  cmd_DeleteNewColorAttrs    = 2683;
+  cmd_LineEndWin_Caret     = 2680;
+  cmd_LineEndUnix_Caret    = 2681;
+  cmd_LineEndMac_Caret     = 2682;
+  cmd_LineEndDefault_Caret = 2683;
+
   cmd_FoldingEnable          = 2684;
   cmd_FoldingDisable         = 2685;
+  cmd_DeleteNewColorAttrs    = 2686;
 
   cmd_MenuEnc           = 2691;
   cmd_MenuEnds          = 2692;
@@ -249,7 +261,6 @@ const
   cmd_HelpForum     = 2701;
   cmd_HelpWiki      = 2702;
   cmd_HelpIssues    = 2706;
-  cmd_HelpHotkeys   = 2707;
   cmd_HelpCheckUpdates = 2708;
 
   cmd_Encoding_utf8bom_NoReload   = 2711;
@@ -269,6 +280,7 @@ const
   cmd_Encoding_iso1_NoReload      = 2725;
   cmd_Encoding_iso2_NoReload      = 2726;
   cmd_Encoding_iso15_NoReload     = 2727;
+  cmd_Encoding_iso16_NoReload     = 2728;
   cmd_Encoding_cp437_NoReload     = 2730;
   cmd_Encoding_cp850_NoReload     = 2731;
   cmd_Encoding_cp852_NoReload     = 2732;
@@ -280,6 +292,14 @@ const
   cmd_Encoding_cp950_NoReload     = 2738;
   cmd_Encoding_utf32le_NoReload   = 2739;
   cmd_Encoding_utf32be_NoReload   = 2740;
+  cmd_Encoding_iso9_NoReload      = 2741;
+  cmd_Encoding_iso14_NoReload     = 2742;
+  cmd_Encoding_iso5_NoReload      = 2743;
+  cmd_Encoding_iso10_NoReload     = 2744;
+  cmd_Encoding_iso13_NoReload     = 2745;
+  cmd_Encoding_iso7_NoReload      = 2746;
+  cmd_Encoding_iso3_NoReload      = 2747;
+  cmd_Encoding_iso4_NoReload      = 2748;
 
   cmd_Encoding_utf8bom_Reload   = 2751;
   cmd_Encoding_utf8nobom_Reload = 2752;
@@ -298,6 +318,7 @@ const
   cmd_Encoding_iso1_Reload      = 2765;
   cmd_Encoding_iso2_Reload      = 2766;
   cmd_Encoding_iso15_Reload     = 2767;
+  cmd_Encoding_iso16_Reload     = 2768;
   cmd_Encoding_cp437_Reload     = 2770;
   cmd_Encoding_cp850_Reload     = 2771;
   cmd_Encoding_cp852_Reload     = 2772;
@@ -309,6 +330,14 @@ const
   cmd_Encoding_cp950_Reload     = 2778;
   cmd_Encoding_utf32le_Reload   = 2779;
   cmd_Encoding_utf32be_Reload   = 2780;
+  cmd_Encoding_iso9_Reload      = 2781;
+  cmd_Encoding_iso14_Reload     = 2782;
+  cmd_Encoding_iso5_Reload      = 2783;
+  cmd_Encoding_iso10_Reload     = 2784;
+  cmd_Encoding_iso13_Reload     = 2785;
+  cmd_Encoding_iso7_Reload      = 2786;
+  cmd_Encoding_iso3_Reload      = 2787;
+  cmd_Encoding_iso4_Reload      = 2788;
 
   cmd_Markers_SelectToCaret      = 2798;
   cmd_Markers_DeleteToCaret      = 2799;
@@ -324,8 +353,6 @@ const
   cmd_LinkAtPopup_Copy           = 2809;
 
   cmd_MacroStart                 = 2810;
-  cmd_MacroStop                  = 2811;
-  cmd_MacroCancel                = 2812;
 
   cmd_TreeGotoNext               = 2815;
   cmd_TreeGotoPrev               = 2816;
@@ -345,6 +372,10 @@ const
   cmd_BracketJump                = 2845;
   cmd_BracketSelect              = 2846;
   cmd_BracketSelectInside        = 2847;
+
+  cmd_TabSize_Set2               = 2862;
+  cmd_TabSize_Set4               = 2864;
+  cmd_TabSize_Set8               = 2868;
 
   cmd_GroupActivate1             = 2901;
   cmd_GroupActivate2             = 2902;
@@ -382,6 +413,7 @@ begin
   M.Add(cmd_FileCloseAndDelete, 'file: close tab, delete file', [], []);
   M.Add(cmd_FileExit, 'file: quit program', [cXControl+'+Q'], []);
   M.Add(cmd_FileExportHtml, 'file: export to html', [], []);
+  M.Add(cmd_FileReopenRecent, 'file: reopen recent file', [], []);
   M.Add(cmd_OpenContainingFolder, 'file: open folder containing the current file', [], []);
   M.Add(cmd_OpenFileInDefaultApp, 'file: open file in default application', [], []);
 
@@ -461,6 +493,7 @@ begin
   M.Add(cmd_DialogFind, 'dialog: find: show dialog', [cXControl+'+F'], []);
   M.Add(cmd_DialogFind_Hide, 'dialog: find: hide dialog', [], []);
   M.Add(cmd_ToggleFindDialog, 'dialog: find: toggle dialog', [], []);
+  M.Add(cmd_ToggleFindDialog_AndFocus, 'dialog: find: toggle+focus dialog', [], []);
   M.Add(cmd_DialogReplace, 'dialog: replace: show dialog', [cXControl+'+R'], []);
   M.Add(cmd_ToggleReplaceDialog, 'dialog: replace: toggle dialog', [], []);
 
@@ -477,14 +510,23 @@ begin
   M.Add(cmd_GotoLastEditingPos, 'go to last editing pos', [], []);
 
   M.Add(cmd_SelectExpandToWord, 'selection: add next occurrence of selected word', [cXControl+'+Shift+D'], []);
-  M.Add(cmd_SelectExpandToWord_Skip, 'selection: skip (don''t select) next occurrence of selected word', [], []);
+  M.Add(cmd_SelectExpandToText, 'selection: add next occurrence of selected text (not whole-word)', [], []);
+  M.Add(cmd_SelectExpandToWord_Skip, 'selection: skip to next occurrence of selected word', [], []);
+  M.Add(cmd_SelectExpandToText_Skip, 'selection: skip to next occurrence of selected text', [], []);
 
   M.Add(cmd_CopyLine, 'clipboard: copy current line', [], []);
   M.Add(cmd_CopyFilenameFull, 'clipboard: copy full filepath', [], []);
   M.Add(cmd_CopyFilenameDir, 'clipboard: copy filepath only', [], []);
   M.Add(cmd_CopyFilenameName, 'clipboard: copy filename only', [], []);
 
-  M.Add(cmd_ToggleTabUsesSpaces, 'toggle "tabulation-key uses spaces"', [], []);
+  M.Add(cmd_TabUsesSpaces_On, 'tabulation-key uses spaces: turn on', [], []);
+  M.Add(cmd_TabUsesSpaces_Off, 'tabulation-key uses spaces: turn off', [], []);
+  M.Add(cmd_ToggleTabUsesSpaces, 'tabulation-key uses spaces: toggle', [], []);
+
+  M.Add(cmd_TabSize_Set2, 'tabulation size: set to 2', [], []);
+  M.Add(cmd_TabSize_Set4, 'tabulation size: set to 4', [], []);
+  M.Add(cmd_TabSize_Set8, 'tabulation size: set to 8', [], []);
+
   M.Add(cmd_ConvertTabsToSpaces, 'convert tabs (all) to spaces', [], []);
   M.Add(cmd_ConvertTabsToSpacesLeading, 'convert tabs (leading) to spaces', [], []);
   M.Add(cmd_ConvertSpacesToTabsLeading, 'convert spaces (leading) to tabs', [], []);
@@ -553,9 +595,14 @@ begin
   M.Add(cmd_SplitTab6040, 'split tab: 60/40', [], []);
   M.Add(cmd_SplitTab7030, 'split tab: 70/30', [], []);
 
-  M.Add(cmd_LineEndWin, 'change line ends: CRLF', [], []);
-  M.Add(cmd_LineEndUnix, 'change line ends: LF', [], []);
-  M.Add(cmd_LineEndMac, 'change line ends: CR', [], []);
+  M.Add(cmd_LineEndWin, 'change line ends, for entire document: CR LF', [], []);
+  M.Add(cmd_LineEndUnix, 'change line ends, for entire document: LF', [], []);
+  M.Add(cmd_LineEndMac, 'change line ends, for entire document: CR', [], []);
+
+  M.Add(cmd_LineEndWin_Caret, 'change line ends, for line(s) with caret: CR LF', [], []);
+  M.Add(cmd_LineEndUnix_Caret, 'change line ends, for line(s) with caret: LF', [], []);
+  M.Add(cmd_LineEndMac_Caret, 'change line ends, for line(s) with caret: CR', [], []);
+  M.Add(cmd_LineEndDefault_Caret, 'change line ends, for line(s) with caret: default', [], []);
 
   M.Add(cmd_MenuEnc, 'menu: encodings', [], []);
   M.Add(cmd_MenuEnds, 'menu: line ends', [], []);
@@ -589,9 +636,18 @@ begin
   M.Add(cmd_Encoding_cp1257_NoReload, 'change encoding, no reload: cp1257', [], []);
   M.Add(cmd_Encoding_cp1258_NoReload, 'change encoding, no reload: cp1258', [], []);
   M.Add(cmd_Encoding_mac_NoReload, 'change encoding, no reload: mac', [], []);
-  M.Add(cmd_Encoding_iso1_NoReload, 'change encoding, no reload: iso1', [], []);
-  M.Add(cmd_Encoding_iso2_NoReload, 'change encoding, no reload: iso2', [], []);
-  M.Add(cmd_Encoding_iso15_NoReload, 'change encoding, no reload: iso15', [], []);
+  M.Add(cmd_Encoding_iso1_NoReload, 'change encoding, no reload: iso-8859-1', [], []);
+  M.Add(cmd_Encoding_iso2_NoReload, 'change encoding, no reload: iso-8859-2', [], []);
+  M.Add(cmd_Encoding_iso3_NoReload, 'change encoding, no reload: iso-8859-3', [], []);
+  M.Add(cmd_Encoding_iso4_NoReload, 'change encoding, no reload: iso-8859-4', [], []);
+  M.Add(cmd_Encoding_iso5_NoReload, 'change encoding, no reload: iso-8859-5', [], []);
+  M.Add(cmd_Encoding_iso7_NoReload, 'change encoding, no reload: iso-8859-7', [], []);
+  M.Add(cmd_Encoding_iso9_NoReload, 'change encoding, no reload: iso-8859-9', [], []);
+  M.Add(cmd_Encoding_iso10_NoReload, 'change encoding, no reload: iso-8859-10', [], []);
+  M.Add(cmd_Encoding_iso13_NoReload, 'change encoding, no reload: iso-8859-13', [], []);
+  M.Add(cmd_Encoding_iso14_NoReload, 'change encoding, no reload: iso-8859-14', [], []);
+  M.Add(cmd_Encoding_iso15_NoReload, 'change encoding, no reload: iso-8859-15', [], []);
+  M.Add(cmd_Encoding_iso16_NoReload, 'change encoding, no reload: iso-8859-16', [], []);
   M.Add(cmd_Encoding_cp437_NoReload, 'change encoding, no reload: cp437', [], []);
   M.Add(cmd_Encoding_cp850_NoReload, 'change encoding, no reload: cp850', [], []);
   M.Add(cmd_Encoding_cp852_NoReload, 'change encoding, no reload: cp852', [], []);
@@ -618,9 +674,18 @@ begin
   M.Add(cmd_Encoding_cp1257_Reload, 'change encoding, reload: cp1257', [], []);
   M.Add(cmd_Encoding_cp1258_Reload, 'change encoding, reload: cp1258', [], []);
   M.Add(cmd_Encoding_mac_Reload, 'change encoding, reload: mac', [], []);
-  M.Add(cmd_Encoding_iso1_Reload, 'change encoding, reload: iso1', [], []);
-  M.Add(cmd_Encoding_iso2_Reload, 'change encoding, reload: iso2', [], []);
-  M.Add(cmd_Encoding_iso15_Reload, 'change encoding, reload: iso15', [], []);
+  M.Add(cmd_Encoding_iso1_Reload, 'change encoding, reload: iso-8859-1', [], []);
+  M.Add(cmd_Encoding_iso2_Reload, 'change encoding, reload: iso-8859-2', [], []);
+  M.Add(cmd_Encoding_iso3_Reload, 'change encoding, reload: iso-8859-3', [], []);
+  M.Add(cmd_Encoding_iso4_Reload, 'change encoding, reload: iso-8859-4', [], []);
+  M.Add(cmd_Encoding_iso5_Reload, 'change encoding, reload: iso-8859-5', [], []);
+  M.Add(cmd_Encoding_iso7_Reload, 'change encoding, reload: iso-8859-7', [], []);
+  M.Add(cmd_Encoding_iso9_Reload, 'change encoding, reload: iso-8859-9', [], []);
+  M.Add(cmd_Encoding_iso10_Reload, 'change encoding, reload: iso-8859-10', [], []);
+  M.Add(cmd_Encoding_iso13_Reload, 'change encoding, reload: iso-8859-13', [], []);
+  M.Add(cmd_Encoding_iso14_Reload, 'change encoding, reload: iso-8859-14', [], []);
+  M.Add(cmd_Encoding_iso15_Reload, 'change encoding, reload: iso-8859-15', [], []);
+  M.Add(cmd_Encoding_iso16_Reload, 'change encoding, reload: iso-8859-16', [], []);
   M.Add(cmd_Encoding_cp437_Reload, 'change encoding, reload: cp437', [], []);
   M.Add(cmd_Encoding_cp850_Reload, 'change encoding, reload: cp850', [], []);
   M.Add(cmd_Encoding_cp852_Reload, 'change encoding, reload: cp852', [], []);
@@ -699,6 +764,7 @@ begin
     cmd_FileCloseAll,
     cmd_FileCloseAndDelete,
     cmd_FileExportHtml,
+    cmd_FileReopenRecent,
     cmd_ToggleFocusSplitEditors,
     cmd_FocusEditor,
     cmd_FocusNotificationPanel,
@@ -730,6 +796,8 @@ begin
     //cmd_ShowPanelOutput,
     //cmd_ShowPanelValidate,
     cmd_ToggleFindDialog,
+    cmd_ToggleFindDialog_AndFocus,
+    cmd_ToggleReplaceDialog,
     cmd_ToggleSidebar,
     cmd_ToggleToolbar,
     cmd_ToggleStatusbar,
@@ -811,6 +879,40 @@ begin
   end;
 end;
 
+function IsCommandHandledFromFindDialog(Cmd: integer): boolean;
+begin
+  case Cmd of
+    cmd_SwitchTab_HotkeyNext,
+    cmd_SwitchTab_HotkeyPrev,
+    cmd_SwitchTab_SimpleNext,
+    cmd_SwitchTab_SimplePrev,
+    cmd_SwitchTab_Dialog,
+    cmd_SwitchTab_Recent,
+
+    cmd_ShowPanelConsole_AndFocus,
+    cmd_ShowPanelOutput_AndFocus,
+    cmd_ShowPanelValidate_AndFocus,
+    cmd_FocusEditor,
+    cmd_FocusNotificationPanel,
+    cmd_TreeFilterFocus,
+    cmd_TreeFocus,
+
+    cmd_GroupActivateNext,
+    cmd_GroupActivatePrev,
+    cmd_GroupActivate1,
+    cmd_GroupActivate2,
+    cmd_GroupActivate3,
+    cmd_GroupActivate4,
+    cmd_GroupActivate5,
+    cmd_GroupActivate6,
+
+    cmd_FindPrev:
+      Result:= true;
+    else
+      Result:= false;
+  end;
+end;
+
 function IsCommandForMacros(Cmd: integer): boolean;
 begin
   case Cmd of
@@ -822,8 +924,6 @@ begin
     cmdFirstFileCommand..cmdLastFileCommand,
     cmdFirstRecentCommand..cmdLastRecentCommand,
     cmd_MacroStart,
-    cmd_MacroStop,
-    cmd_MacroCancel,
     cmd_DialogCommands,
     cmd_DialogThemeUi,
     cmd_DialogThemeSyntax,
@@ -853,17 +953,26 @@ begin
     cmd_FileCloseAll,
     cmd_FileCloseAndDelete,
     cmd_FileExportHtml,
+    cmd_FileReopenRecent,
     cmd_ToggleFocusSplitEditors,
     cmd_FocusEditor,
     cmd_ToggleBottomPanel,
     cmd_ToggleSidePanel,
     cmd_ToggleFindDialog,
+    cmd_ToggleFindDialog_AndFocus,
+    cmd_ToggleReplaceDialog,
     cmd_ToggleFullScreen,
     cmd_ToggleDistractionFree,
     cmd_ToggleSidebar,
     cmd_ToggleStatusbar,
     cmd_ToggleToolbar,
     cmd_ToggleUiTabs,
+    cmd_TabUsesSpaces_On,
+    cmd_TabUsesSpaces_Off,
+    cmd_ToggleTabUsesSpaces,
+    cmd_ConvertTabsToSpaces,
+    cmd_ConvertSpacesToTabsLeading,
+    cmd_ConvertTabsToSpacesLeading,
     cmd_Groups1,
     cmd_Groups2horz,
     cmd_Groups2vert,
@@ -891,14 +1000,39 @@ begin
     cmd_MenuEnc,
     cmd_MenuEnds,
     cmd_MenuLexers,
+
+    cmd_Markers_SelectToCaret,
+    cmd_Markers_DeleteToCaret,
+    cmd_Markers_DropAtCaret,
+    cmd_Markers_GotoLastNoDelete,
+    cmd_Markers_GotoLastAndDelete,
+    cmd_Markers_ClearAll,
+    cmd_Markers_SwapCaretAndMarker,
+
+    cmd_LinkAtCaret_Open,
+    cmd_LinkAtCaret_Copy,
+
+    cmd_BracketHighlightOn,
+    cmd_BracketHighlightOff,
+    cmd_BracketHighlightToggle,
+    cmd_BracketJump,
+    cmd_BracketSelect,
+    cmd_BracketSelectInside,
+
+    cmd_TabSize_Set2,
+    cmd_TabSize_Set4,
+    cmd_TabSize_Set8,
+
     cmd_ResetPythonPlugins,
     cmd_RescanPythonPluginsInfFiles,
     cmd_FindPythonLib,
+
     cmd_HelpAbout,
     cmd_HelpCheckUpdates,
     cmd_HelpForum,
     cmd_HelpWiki,
     cmd_HelpIssues:
+
       Result:= false;
     else
       Result:= true;

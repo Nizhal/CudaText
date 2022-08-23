@@ -17,8 +17,8 @@ uses
   ATSynEdit;
 
 const
-  cAppExeVersion = '1.148.0.2';
-  cAppApiVersion = 412;
+  cAppExeVersion = '1.169.0.2';
+  cAppApiVersion = 426;
 
 const
   cOptionSystemSuffix =
@@ -55,21 +55,25 @@ const
 const
   EOL = #10;
   msgPythonListError = 'Cannot create new list object'; //no need i18n
-  msgCallbackBad = 'Bad API callback, report to plugin author: %s'; //no i18n
-  msgCallbackDeprecated = 'Deprecated API callback, report to plugin author: %s'; //no i18n
-  msgApiDeprecated = 'Deprecated API usage: %s'; //no i18n
+  msgCallbackBad = 'NOTE: Bad API callback, report to plugin author: %s'; //no i18n
+  msgCallbackDeprecated = 'NOTE: Deprecated API callback, report to plugin author: %s'; //no i18n
+  msgApiDeprecated = 'NOTE: Deprecated API usage: %s'; //no i18n
   msgErrorInTheme = 'NOTE: Theme "%s" misses item "%s"';
-  msgCmdPalettePrefixHelp = '#p – plugins'+EOL+'#l – lexers'+EOL+'#f – opened files'+EOL+'#r – recent files';
   msgRescannedAllPlugins = 'Rescanned all plugins';
   msgWelcomeTabTitle = '(welcome)';
   msgSavedPythonLibOption = 'Saved the option "pylib'+cOptionSystemSuffix+'". Restart CudaText to apply it.';
   msgSearchingInDir = 'Searching:';
   msgErrorLowDiskSpaceMb = 'Free disk space is less than %d Mb. Try to free additional space, then press Retry.';
+  msgErrorNullBytesInFile = 'Config file is broken, because its leading bytes are NULLs:'#10'%s'#10'Press OK to delete it.';
+
+  msgCmdPaletteCaption: string = 'Command palette';
+  msgCmdPaletteTextHint: string = 'F9: set hotkey; input "@hotkey": search';
+  msgCmdPalettePrefixHelp: string = '#p – plugins'+EOL+'#l – lexers'+EOL+'#f – opened files'+EOL+'#r – recent files';
 
   msgErrorPluginIgnored = 'NOTE: Plugin %s is in ignore-list, please remove it';
   msgErrorTooManyFileTabs = 'NOTE: Too many editor-tabs are opened, cannot add tab';
   msgCannotFindLexers = 'NOTE: Cannot find lexers: %s';
-  msgCannotFindData = 'NOTE: Cannot find data: %s';
+  msgCannotFindData = 'ERROR: Cannot find data: %s';
   msgCannotFindSessionFile = 'NOTE: File from session not found: %s';
 
   msgTitle = 'CudaText'; //no i18n
@@ -202,6 +206,7 @@ const
   msgCannotHandleUntitledTab: string = 'Cannot handle the untitled document';
   msgCannotFindLexerInLibrary: string = 'Cannot find lexer in library:';
   msgCannotFindLexerFile: string = 'Cannot find lexer file:';
+  msgCannotLoadLexerFile: string = 'Cannot load lexer file:';
   msgCannotFindSublexerInLibrary: string = 'Cannot find linked sublexer:';
   msgCannotFindWithoutCaret: string = 'Cannot find/replace without caret';
   msgCannotCreateDir: string = 'Cannot create folder:';
@@ -234,7 +239,7 @@ const
   msgStatusbarTextCarets: string = 'carets';
 
   msgStatusbarWrapStates: array[0..Ord(High(TATEditorWrapMode))] of string =
-    ('no wrap', 'wrap', 'margin', 'wnd/mrg');
+    ('no wrap', 'wrap', 'margin');
 
   msgStatusbarHintCaret: string = 'Caret position, selection';
   msgStatusbarHintEnc: string = 'File encoding';
@@ -292,7 +297,6 @@ const
   msgStatusEndsChanged: string = 'Line ends changed';
   msgStatusEncChanged: string = 'Encoding changed';
   msgStatusGotoFileLineCol: string = 'File "%s", Line %d Col %d';
-  msgStatusHelpOnKeysConfig: string = 'To customize hotkeys, call "Help - Command palette", focus needed command, and press F9, you''ll see additional dialog';
   msgStatusClickingLogLine: string = 'Clicking log line';
   msgStatusNoGotoDefinitionPlugins: string = 'No goto-definition plugins installed for this lexer';
   msgStatusFilenameAlreadyOpened: string = 'File name is already opened in another tab:';
@@ -300,6 +304,7 @@ const
   msgStatusHotkeyBusy: string = 'Hotkey is busy: %s';
   msgStatusChangedLinesCount: string = 'Changed %d lines';
   msgStatusFontSizeChanged: string = 'Font size changed to %d%%';
+  msgStatusLexerDisabledBySize: string = 'Option "ui_max_size_lexer":%d disables lexer "%s" in this file (%d Mb)';
 
   msgConfirmHotkeyBusy: string = 'Hotkey is already occupied by command:'#10'%s'#10#10'Overwrite it?';
   msgConfirmHotkeyList: string = 'hotkeys (%d): %s';
@@ -307,6 +312,7 @@ const
   msgConfirmSyntaxThemeSameName: string = 'Syntax theme exists, with the same name as UI theme. Do you want to apply it too?';
   msgConfirmInstallIt: string = 'Do you want to install it?';
   msgConfirmFileChangedOutside: string = 'File was changed outside:';
+  msgConfirmFileDeletedOutside: string = 'File was deleted outside:';
   msgConfirmReloadIt: string = 'Reopen it?';
   msgConfirmReloadYes: string = 'Reload';
   msgConfirmReloadNoMore: string = 'No more notifications';
@@ -326,7 +332,7 @@ const
 
   msgCommandNeedsPython: string =
     'This command requires Python engine.'+
-    ' Set proper value of "pylib*" in user.json.';
+    ' Set proper value of "pylib'+cOptionSystemSuffix+'" in the user.json.';
 
   msgCommandLineHelp =
       'Usage:'+EOL+
@@ -347,9 +353,11 @@ const
       '  -nn             - Don''t suggest to create new file if filename not found'+EOL+
       '  -s=folder       - Set full path of "settings" folder'+EOL+
       '  -i              - Open contents of stdin in new tab (Unix only)'+EOL+
+      '  -verbose        - Copy Python messages to stdout (Unix only)'+EOL+
       '  -id=name - Set single-instance id, for groups of instances (Unix, default: cudatext.0)'+EOL+
-      '  -w=left,top,width,height - Set position/size of app window'+EOL+
-      '  -p=cuda_somename#param1#param2... - Run plugin action via command-line'+EOL+
+      '  -w=left,top,width,height        - Set position/size of the main window'+EOL+
+      '  -c=cuda_module,method           - Run command plugin on startup'+EOL+
+      '  -p=cuda_module#param1#param2... - Run event "on_cli" on startup'+EOL+
       ''+EOL+
       'Filenames can be with ":line" or ":line:column" suffix to place caret.'+EOL+
       'Folder can be passed, will be opened in Project Manager plugin.'+EOL+
@@ -410,6 +418,7 @@ const
   msgFindHint_RepAll: string = 'Replace all matches in current document';
   msgFindHint_RepGlobal: string = 'Replace all matches in all opened tabs';
   msgFindHint_Regex: string = 'Regular expressions';
+  msgFindHint_RegexSubst: string = 'RegEx substitution for ''Replace with''';
   msgFindHint_Case: string = 'Case sensitive';
   msgFindHint_Words: string = 'Whole words';
   msgFindHint_Wrapped: string = 'Wrapped search';

@@ -11,9 +11,13 @@ from .work_local import *
 from .work_remote import *
 from .work_dlg_config import *
 from .work_github import *
-from .work_cudatext_updates__fosshub import check_cudatext
 from .work_install_helper import after_install
 from . import opt
+
+if os.name=='nt':
+    from .work_cudatext_updates__fosshub import check_cudatext
+else:
+    from .work_cudatext_updates__sourceforge import check_cudatext
 
 from cudax_lib import get_translation
 _   = get_translation(__file__)  # i18n
@@ -27,6 +31,7 @@ def collapse_filename(fn):
         fn = fn.replace(_homedir, '~', 1)
     return fn
 
+CATEGORY = _('Category')
 PREINST = 'preinstalled'
 STD_MODULES = (
   'cuda_addonman',
@@ -53,7 +58,7 @@ STD_LEXERS = (
   'C++',
   'CSS',
   'HTML',
-  'Ini files',
+  'HTML style',
   'JavaScript',
   'JSDoc',
   'JSON',
@@ -70,6 +75,7 @@ STD_LEXERS = (
   'YAML',
 )
 STD_LEXERS_LITE = (
+  'Ini files',
   'JSON',
   'Log files',
   'SQL',
@@ -239,13 +245,13 @@ class Command:
         installed_modules = [i['module'] for i in installed if i['kind']=='plugin']
         installed_lexers = [i['name'].replace(' ', '_') for i in installed if i['kind']=='lexer']
 
-        names = [_('<Category>')] + \
+        names = ['<'+CATEGORY+'>'] + \
             [ i['kind'] + ': ' + i['name'] + \
             self.get_item_label(i, installed_modules, installed_lexers) + \
             '\t' + i['desc'] for i in items ]
 
         res = dlg_menu(
-            DMENU_LIST_ALT+DMENU_NO_FUZZY+DMENU_NO_FULLFILTER,
+            DMENU_LIST_ALT+DMENU_NO_FULLFILTER,
             names,
             caption=caption
             )
@@ -256,7 +262,7 @@ class Command:
             res = dlg_menu(
                 DMENU_LIST,
                 kinds,
-                caption=_('Category')
+                caption=CATEGORY
                 )
             if res is None: return
 
@@ -267,9 +273,9 @@ class Command:
                 '\t' + i['desc'] for i in items ]
 
             res = dlg_menu(
-                DMENU_LIST_ALT+DMENU_NO_FUZZY+DMENU_NO_FULLFILTER,
+                DMENU_LIST_ALT+DMENU_NO_FULLFILTER,
                 names,
-                caption=caption+_(' / Category "{}"').format(need_kind)
+                caption=caption+' / '+CATEGORY+' "'+need_kind+'"'
                 )
             if res is None: return
         else:

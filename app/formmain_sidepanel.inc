@@ -15,8 +15,8 @@ const
 var
   Listbox: TATListbox;
 begin
-  if AIndex<0 then exit;
   Listbox:= Sender as TATListbox;
+  if not Listbox.IsIndexValid(AIndex) then exit;
 
   C.Font.Color:= GetAppColor(apclListFont);
   C.Brush.Color:= GetAppColor(apclListBg);
@@ -58,7 +58,7 @@ begin
   if ExtractFileDir(AFilename)='' then
     AFilename:= AppDir_DataSidebarIcons+DirectorySeparator+UiOps.SidebarTheme+DirectorySeparator+AFilename;
 
-  Result:= UpdateImagelistWithIconFromFile(ImageListSide, AFilename);
+  Result:= UpdateImagelistWithIconFromFile(ImageListSide, AFilename, 'DoSidebar_FilenameToImageIndex');
 end;
 
 
@@ -69,8 +69,7 @@ begin
   ok:= false;
   AppPanels[cPaneSide].UpdatePanels(msgPanelTree_Init, false, true);
   if CodeTree.Visible and
-    CodeTreeFilterInput.Visible and
-    CodeTreeFilterInput.Enabled then
+    CodeTreeFilterInput.CanFocus then
   begin
     if AppPanels[cPaneSide].Floating then
       ok:= AppPanels[cPaneSide].FormFloat.Visible
@@ -78,7 +77,15 @@ begin
       ok:= true
   end;
   if ok then
+  begin
     EditorFocus(CodeTreeFilterInput);
+
+    {$ifndef windows}
+    //it helped on Linux gtk2, issue #3755
+    Application.ProcessMessages;
+    CodeTreeFilterInput.SetFocus;
+    {$endif}
+  end;
 end;
 
 procedure TfmMain.DoSidebar_FocusCodetree;
@@ -130,13 +137,11 @@ end;
 procedure TfmMain.DoSidebar_OnPythonCall(const ACallback: string);
 var
   SModule, SMethod: string;
-  Params: TAppVariantArray;
 begin
   if ACallback<>'' then
   begin
     SSplitByChar(ACallback, '.', SModule, SMethod);
-    SetLength(Params, 0);
-    DoPyCommand(SModule, SMethod, Params, cInvokeAppSidebar);
+    DoPyCommand(SModule, SMethod, [], cInvokeAppSidebar);
   end;
 end;
 
@@ -148,5 +153,17 @@ end;
 procedure TfmMain.DoSidebar_OnCloseFloatForm(Sender: TObject; var CloseAction: TCloseAction);
 begin
   UpdateMenuItemChecked(mnuViewSide, mnuViewSide_Alt, false);
+end;
+
+procedure TfmMain.DoSidebar_OnShowHide(Sender: TObject);
+begin
+  UpdateEditorShowCaret;
+end;
+
+procedure TfmMain.DoSidebar_OnContextPopup(const ACaption: string);
+begin
+  DoPyEvent(nil, cEventOnSidebarPopup, [
+    AppVariant(ACaption)
+    ]);
 end;
 

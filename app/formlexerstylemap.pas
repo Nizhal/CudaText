@@ -107,6 +107,7 @@ var
   st: TecSyntaxFormat;
   iStyle: TAppThemeStyleId;
   anSub: TecSyntAnalyzer;
+  NewThemeName: string;
   i: integer;
 begin
   Result:= true;
@@ -114,6 +115,11 @@ begin
   if an=nil then exit;
   if an.Formats.Count=0 then exit;
   if not UiOps.LexerThemes then exit;
+
+  NewThemeName:= UiOps.ThemeSyntax;
+  if NewThemeName='' then
+    NewThemeName:= '-';
+  if NewThemeName=an.AppliedSyntaxTheme then exit;
 
   if LexersAsked.IndexOf(an)>=0 then exit;
   LexersAsked.Add(an);
@@ -152,6 +158,8 @@ begin
         Break
       end;
     end;
+
+    an.AppliedSyntaxTheme:= NewThemeName;
   end;
 end;
 
@@ -243,7 +251,7 @@ var
   i: integer;
 begin
   if LexerName='' then exit;
-  with TIniFile.Create(GetAppLexerMapFilename(LexerName)) do
+  with TIniFile.Create(AppFile_LexerMap(LexerName)) do
   try
     EraseSection(cSectionMap);
     for i:= 0 to ItemsLex.Count-1 do
@@ -258,7 +266,7 @@ var
   i: integer;
 begin
   if LexerName='' then exit;
-  with TIniFile.Create(GetAppLexerMapFilename(LexerName)) do
+  with TIniFile.Create(AppFile_LexerMap(LexerName)) do
   try
     for i:= 0 to ItemsLex.Count-1 do
       ItemsVal[i]:= ReadString(cSectionMap, ItemsLex[i], '');
@@ -286,7 +294,7 @@ var
   ini: TIniFile;
   fn: string;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if not FileExists(fn) then exit;
   ini:= TIniFile.Create(fn);
   try
@@ -306,6 +314,7 @@ end;
 
 initialization
   LexersAsked:= TFPList.Create;
+  EControlOptions.OnLexerApplyTheme:= @DoApplyLexerStylesMap;
 
 finalization
   if Assigned(LexersAsked) then

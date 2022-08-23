@@ -26,11 +26,6 @@ begin
   Result:= AppPython.ObjectToPyInt(Obj);
 end;
 
-procedure MsgOldApi(const s: string);
-begin
-  MsgLogConsole(Format(msgApiDeprecated, [s]));
-end;
-
 function PyHelper_SendMessageFromString(const AText: string): integer;
 var
   H: Int64;
@@ -72,6 +67,7 @@ function PyHelper_EditorFromHandle(Handle: Int64): TATSynEdit;
 var
   Obj: TObject;
   nTab: Integer;
+  Frame: TEditorFrame;
 begin
   Result:= nil;
   if not Assigned(fmMain) then exit;
@@ -89,7 +85,21 @@ begin
 
   case Handle of
     0: //"ed"
-      Result:= fmMain.CurrentEditor;
+      begin
+        Result:= fmMain.CurrentEditor;
+        if Result=nil then
+        begin
+          if fmMain.FrameCount>0 then
+          begin
+            Frame:= fmMain.Frames[0];
+            TGroupsHelper.ForceFrameVisible(Frame);
+            Frame.SetFocus();
+            Result:= Frame.Ed1;
+          end
+          else
+            MsgLogConsole('ERROR: API "ed" is Nil, and no frames; report to author what you are doing');
+        end;
+      end;
 
     cPyEditorHandleMin..cPyEditorHandleMax:
       begin
@@ -338,7 +348,7 @@ begin
           'border_bottom',
           Ord(St.BorderTypeBottom),
           'styles',
-          PChar(FontStylesToString(St.Font.Style))
+          PChar(Lexer_FontStylesToString(St.Font.Style))
           ));
     end;
   end;
@@ -422,17 +432,32 @@ begin
 end;
 
 procedure TfmMain.PythonIOSendUniData(Sender: TObject; const Data: UnicodeString);
+  //
+  procedure MaybeWriteln(const S: UnicodeString); inline;
+  begin
+    {$ifdef unix}
+    if UiOps.PyOutputCopyToStdout then
+      Writeln(S);
+    {$endif}
+  end;
+  //
 var
   Sep: TATStringSeparator;
   S: UnicodeString;
 begin
   if Pos(#10, Data)=0 then
-    AppConsoleQueue.Push(Data)
+  begin
+    AppConsoleQueue.Push(Data);
+    MaybeWriteln(Data);
+  end
   else
   begin
     Sep.Init(Data, #10);
     while Sep.GetItemStr(S) do
+    begin
       AppConsoleQueue.Push(S);
+      MaybeWriteln(S);
+    end;
   end;
 end;
 
@@ -464,7 +489,7 @@ begin
         APP_DIR_PY:
           Result:= PyUnicodeFromString(AppDir_Py);
         APP_FILE_SESSION:
-          Result:= PyUnicodeFromString(fmMain.GetSessionFilename);
+          Result:= PyUnicodeFromString(AppFile_Session);
         APP_DIR_INSTALLED_ADDON:
           Result:= PyUnicodeFromString(AppDir_LastInstalledAddon);
         APP_FILE_RECENTS:
@@ -756,6 +781,10 @@ begin
       end;
 
       Ok:= fmMain.DoFileOpen(StrFile, StrFile2, Pages, StrArgs)<>nil;
+      if Ok then
+        if (StrFile<>'') or (StrFile2<>'') then
+          Application.ProcessMessages; //fixes https://github.com/kvichans/cuda_find_in_files4/issues/44
+
       Result:= PyBool_FromLong(Ord(Ok));
     end
     else
@@ -889,14 +918,28 @@ begin
             Ed.DoCaretSingle(X1, Y1, X2, Y2);
 
             if (NOptions and CARET_OPTION_NO_SCROLL)=0 then
+            begin
+              {
+              //tried to fix issue in FindInFiles 4, but it don't help
+              // https://github.com/kvichans/cuda_find_in_files4/issues/44
+              Ed.DoShowPos(
+                Point(X1, Y1),
+                UiOps.FindIndentHorz,
+                UiOps.FindIndentVert,
+                true, //AUnfold
+                true, //AllowUpdate
+                true //AllowProximity
+                );
+              }
               Ed.DoGotoPos(
                 Point(X1, Y1),
                 Point(X2, Y2),
                 UiOps.FindIndentHorz,
                 UiOps.FindIndentVert,
-                false,
-                true //(NOptions and CARET_OPTION_UNFOLD)<>0
+                false, //APlaceCaret
+                true //ADoUnfold
                 );
+            end;
 
             Result:= ReturnNone;
           end;
@@ -1089,6 +1132,24 @@ begin
             Result:= ReturnNone;
           end;
 
+        MARKERS_DELETE_BY_POS:
+          begin
+            if Ed.Markers.DeleteByPos(X, Y) then
+              Ed.Update;
+            Result:= ReturnNone;
+          end;
+
+        MARKERS_SET_DUPS:
+          begin
+            Ed.Markers.Duplicates:= Bool(NTag);
+            Result:= ReturnNone;
+          end;
+
+        MARKERS_GET_DUPS:
+          begin
+            Result:= PyBool_FromLong(Ord(Ed.Markers.Duplicates));
+          end;
+
         else
           Result:= ReturnNone;
       end;
@@ -1104,20 +1165,26 @@ var
   Ed: TATSynEdit;
   Mark: TATMarkerItem;
   PtrX, PtrY, PtrLen: PChar;
+  PtrColorFont, PtrColorBg, PtrColorBorder, PtrFontBold, PtrFontItalic, PtrFontStrike: PChar;
   StrX, StrY, StrLen: string;
+  StrColorFont, StrColorBg, StrColorBorder, StrFontBold, StrFontItalic, StrFontStrike: string;
   Id, X, Y, NTag, NLen, i: integer;
   NColorFont, NColorBg, NColorBorder: integer;
+  NColorFont_1st, NColorBg_1st, NColorBorder_1st: integer;
   NBorderL, NBorderR, NBorderD, NBorderU: integer;
-  NFontBold, NFontItalic, NFontStrike, NColumn, NMicromapMode: integer;
+  NFontBold, NFontItalic, NFontStrike: integer;
+  NFontBold_1st, NFontItalic_1st, NFontStrike_1st: integer;
+  NColumn, NMicromapMode: integer;
   Obj: TATLinePartClass;
   SepX, SepY, SepLen: TATStringSeparator;
+  SepColorFont, SepColorBg, SepColorBorder, SepFontBold, SepFontItalic, SepFontStrike: TATStringSeparator;
   NStyles: byte;
 begin
   with AppPython.Engine do
-    if Bool(PyArg_ParseTuple(Args, 'Liisssiiiiiiiiiiii:attr',
+    if Bool(PyArg_ParseTuple(Args, 'Liisssssssssiiiiii:attr',
       @H, @Id, @NTag, @PtrX, @PtrY, @PtrLen,
-      @NColorFont, @NColorBg, @NColorBorder,
-      @NFontBold, @NFontItalic, @NFontStrike,
+      @PtrColorFont, @PtrColorBg, @PtrColorBorder,
+      @PtrFontBold, @PtrFontItalic, @PtrFontStrike,
       @NBorderL, @NBorderR, @NBorderD, @NBorderU,
       @NColumn, @NMicromapMode
       )) then
@@ -1126,6 +1193,12 @@ begin
       StrX:= string(PtrX);
       StrY:= string(PtrY);
       StrLen:= string(PtrLen);
+      StrColorFont:= string(PtrColorFont);
+      StrColorBg:= string(PtrColorBg);
+      StrColorBorder:= string(PtrColorBorder);
+      StrFontBold:= string(PtrFontBold);
+      StrFontItalic:= string(PtrFontItalic);
+      StrFontStrike:= string(PtrFontStrike);
 
       case Id of
         MARKERS_GET:
@@ -1210,6 +1283,13 @@ begin
 
         MARKERS_ADD:
           begin
+            NColorFont:= StrToIntDef(StrColorFont, clNone);
+            NColorBg:= StrToIntDef(StrColorBg, clNone);
+            NColorBorder:= StrToIntDef(StrColorBorder, clNone);
+            NFontBold:= StrToIntDef(StrFontBold, 0);
+            NFontItalic:= StrToIntDef(StrFontItalic, 0);
+            NFontStrike:= StrToIntDef(StrFontStrike, 0);
+
             Obj:= TATLinePartClass.Create;
             Obj.Data.ColorFont:= NColorFont;
             Obj.Data.ColorBG:= NColorBg;
@@ -1233,11 +1313,14 @@ begin
             Obj.Data.BorderUp:= TATLineStyle(NBorderU);
             Obj.ColumnTag:= NColumn;
 
-            X:= StrToIntDef(StrX, 0);
-            Y:= StrToIntDef(StrY, 0);
+            X:= StrToIntDef(StrX, MaxInt);
+            Y:= StrToIntDef(StrY, MaxInt);
             NLen:= StrToIntDef(StrLen, 1);
-            Ed.Attribs.Add(X, Y, NTag, NLen, 0, Obj, 0, TATMarkerMicromapMode(NMicromapMode));
-            Ed.Update;
+            if (X<MaxInt) and (Y<MaxInt) then
+            begin
+              Ed.Attribs.Add(X, Y, NTag, NLen, 0, Obj, 0, TATMarkerMicromapMode(NMicromapMode));
+              Ed.Update;
+            end;
             Result:= PyLong_FromLong(Ed.Attribs.Count);
           end;
 
@@ -1247,6 +1330,22 @@ begin
             SepY.Init(StrY);
             SepLen.Init(StrLen);
 
+            SepColorFont.Init(StrColorFont);
+            SepColorBg.Init(StrColorBg);
+            SepColorBorder.Init(StrColorBorder);
+
+            SepFontBold.Init(StrFontBold);
+            SepFontItalic.Init(StrFontItalic);
+            SepFontStrike.Init(StrFontStrike);
+
+            NColorFont_1st:= StrToIntDef(StrColorFont, clNone);
+            NColorBg_1st:= StrToIntDef(StrColorBg, clNone);
+            NColorBorder_1st:= StrToIntDef(StrColorBorder, clNone);
+
+            NFontBold_1st:= StrToIntDef(StrFontBold, 0);
+            NFontItalic_1st:= StrToIntDef(StrFontItalic, 0);
+            NFontStrike_1st:= StrToIntDef(StrFontStrike, 0);
+
             repeat
               if not SepX.GetItemInt(X, -1) then Break;
               if not SepY.GetItemInt(Y, -1) then Break;
@@ -1254,6 +1353,14 @@ begin
               if X<0 then Break;
               if Y<0 then Break;
               if NLen=0 then Break;
+
+              SepColorFont.GetItemInt(NColorFont, NColorFont_1st);
+              SepColorBg.GetItemInt(NColorBg, NColorBg_1st);
+              SepColorBorder.GetItemInt(NColorBorder, NColorBorder_1st);
+
+              SepFontBold.GetItemInt(NFontBold, NFontBold_1st);
+              SepFontItalic.GetItemInt(NFontItalic, NFontItalic_1st);
+              SepFontStrike.GetItemInt(NFontStrike, NFontStrike_1st);
 
               Obj:= TATLinePartClass.Create;
               Obj.Data.ColorFont:= NColorFont;
@@ -1326,6 +1433,30 @@ begin
               Ed.Update;
             end;
             Result:= ReturnNone;
+          end;
+
+        MARKERS_DELETE_BY_POS:
+          begin
+            if Ed.Attribs.Count>0 then
+            begin
+              X:= StrToIntDef(StrX, MaxInt);
+              Y:= StrToIntDef(StrY, MaxInt);
+              if (X<MaxInt) and (Y<MaxInt) then
+                if Ed.Attribs.DeleteByPos(X, Y) then
+                  Ed.Update;
+            end;
+            Result:= ReturnNone;
+          end;
+
+        MARKERS_SET_DUPS:
+          begin
+            Ed.Attribs.Duplicates:= Bool(NTag);
+            Result:= ReturnNone;
+          end;
+
+        MARKERS_GET_DUPS:
+          begin
+            Result:= PyBool_FromLong(Ord(Ed.Attribs.Duplicates));
           end;
 
         else
@@ -1429,18 +1560,14 @@ end;
 function api_ed_get_sel_mode(Self, Args: PPyObject): PPyObject; cdecl;
 var
   H: Int64;
-  N: Integer;
   Ed: TATSynEdit;
+  cSelModes: array[boolean] of integer = (SEL_NORMAL, SEL_COLUMN);
 begin
   with AppPython.Engine do
     if Bool(PyArg_ParseTuple(Args, 'L:get_sel_mode', @H)) then
     begin
       Ed:= PyHelper_EditorFromHandle(H);
-      if Ed.IsSelRectEmpty then
-        N:= SEL_NORMAL
-      else
-        N:= SEL_COLUMN;
-      Result:= PyLong_FromLong(N);
+      Result:= PyLong_FromLong(cSelModes[Ed.IsSelColumn]);
     end
   else
     Result:= ReturnNone;
@@ -1609,9 +1736,12 @@ begin
 
       Strs.TextReplaceRange(X1, Y1, X2, Y2,
         UTF8Decode(StrText), Shift, PosAfter, true);
-      Ed.DoCaretsShift(0, X1, Y1, Shift.X, Shift.Y, PosAfter);
+
+      Ed.UpdateMarkersOnDeleting(X1, Y1, X2, Y2);
+      Ed.UpdateCaretsAndMarkersOnEditing(0, X1, Y1, Shift.X, Shift.Y, PosAfter);
 
       Ed.DoEventChange(Y1);
+      Ed.UpdateWrapInfo(true); //fixing #4173
       Ed.Update(true);
 
       Result:= Py_BuildValue('(ii)', PosAfter.X, PosAfter.Y);
@@ -1644,7 +1774,9 @@ begin
       try
         PyListToStrings(ListPy, Lines);
         Res:= Strs.TextReplaceLines_UTF8(Y1, Y2, Lines);
-        Ed.DoCaretsShift(0, 0, Y1, 0, Lines.Count-(Y2-Y1+1), Point(0, Y1+Lines.Count));
+
+        Ed.UpdateMarkersOnDeleting(0, Y1, 0, Y2+1);
+        Ed.UpdateCaretsAndMarkersOnEditing(0, 0, Y1, 0, Lines.Count-(Y2-Y1+1), Point(0, Y1+Lines.Count));
 
         Ed.DoEventChange(Y1);
       finally
@@ -1725,7 +1857,7 @@ begin
       //file_open for file-pair with the same file, it failed
       if IsCommandNeedTimer(NCode) then
       begin
-        Sleep(fmMain.TimerCmd.Interval+100);
+        Sleep(UiOps.PyCommandSleepInterval);
         Application.ProcessMessages;
       end;
 
@@ -1926,7 +2058,7 @@ begin
         BOOKMARK_SETUP:
           begin
             AppBookmarkSetup[NKind].ImageIndex:=
-              UpdateImagelistWithIconFromFile(AppBookmarkImagelist, StrText);
+              UpdateImagelistWithIconFromFile(AppBookmarkImagelist, StrText, 'Editor.bookmark(...BOOKMARK_SETUP...)');
             AppBookmarkSetup[NKind].Color:= NColor;
             Result:= ReturnNone;
           end;
@@ -1972,26 +2104,26 @@ begin
 end;
 
 
-function PyHelper_DecorGetItem(Item: TATGutterDecorItem): PPyObject;
+function PyHelper_DecorGetItem(Item: PATGutterDecorItem): PPyObject;
 begin
   with AppPython.Engine do
     Result:= Py_BuildValue('{sisLsssOsOsisisO}',
       'line',
-      Item.Data.LineNum,
+      Item^.Data.LineNum,
       'tag',
-      Item.Data.Tag,
+      Item^.Data.Tag,
       'text',
-      PChar(string(Item.Data.Text)),
+      PChar(string(Item^.Data.Text)),
       'bold',
-      PyBool_FromLong(Ord(Item.Data.TextBold)),
+      PyBool_FromLong(Ord(Item^.Data.TextBold)),
       'italic',
-      PyBool_FromLong(Ord(Item.Data.TextItalic)),
+      PyBool_FromLong(Ord(Item^.Data.TextItalic)),
       'color',
-      Item.Data.TextColor,
+      Item^.Data.TextColor,
       'image',
-      Item.Data.ImageIndex,
+      Item^.Data.ImageIndex,
       'auto_del',
-      PyBool_FromLong(Ord(Item.Data.DeleteOnDelLine))
+      PyBool_FromLong(Ord(Item^.Data.DeleteOnDelLine))
       );
 end;
 
@@ -2022,7 +2154,7 @@ begin
                 raise EPythonError.Create(msgPythonListError);
               for i:= 0 to NCount-1 do
                 PyList_SetItem(Result, i,
-                  PyHelper_DecorGetItem(Ed.GutterDecor[i])
+                  PyHelper_DecorGetItem(Ed.GutterDecor.ItemPtr(i))
                   );
             end;
 
@@ -2030,7 +2162,7 @@ begin
           begin
             i:= Ed.GutterDecor.Find(NLine);
             if i>=0 then
-              Result:= PyHelper_DecorGetItem(Ed.GutterDecor[i])
+              Result:= PyHelper_DecorGetItem(Ed.GutterDecor.ItemPtr(i))
             else
               Result:= ReturnNone;
           end;
@@ -2226,7 +2358,6 @@ var
   Ed: TATSynEdit;
   Caret: TATCaretItem;
   PrevCharsLeft: integer;
-  Params: TAppVariantArray;
 begin
   AContent.Clear;
   ACharsLeft:= 0;
@@ -2242,8 +2373,7 @@ begin
      (Caret.PosY=FPyCompletionProps.CaretPos.Y) then
   begin
     PrevCharsLeft:= FPyCompletionProps.CharsLeft;
-    SetLength(Params, 0);
-    DoPyEvent(Ed, cEventOnComplete, Params);
+    DoPyEvent(Ed, cEventOnComplete, []);
 
     //this check- to close listbox when no more matches after typing too much
     //MsgStatus(Format('prev %d now %d', [PrevCharsLeft, FPyComplete_CharsLeft]));
@@ -2270,7 +2400,6 @@ procedure TfmMain.PyCompletionOnResult(Sender: TObject;
 var
   Sep: TATStringSeparator;
   StrLine, StrSnippet: string;
-  Params: TAppVariantArray;
   i: integer;
 begin
   //find index-th line
@@ -2286,11 +2415,11 @@ begin
 
   //ShowMessage('id: '+ASnippetId+#10+'text:'#10+StrSnippet);
 
-  SetLength(Params, 2);
-  Params[0]:= AppVariant(ASnippetId);
-  Params[1]:= AppVariant(StrSnippet);
-
-  DoPyEvent(FPyCompletionProps.Editor, cEventOnSnippet, Params);
+  DoPyEvent(FPyCompletionProps.Editor, cEventOnSnippet,
+    [
+    AppVariant(ASnippetId),
+    AppVariant(StrSnippet)
+    ]);
   FPyCompletionProps.Clear;
 end;
 
@@ -2971,7 +3100,7 @@ begin
       'max', AInfo.NMax,
       'page', AInfo.NPage,
       'pixels', AInfo.NPixelOffset,
-      'char_size', AInfo.SmoothCharSize,
+      'char_size', AInfo.CharSizeScaled div ATEditorCharXScale,
       'smooth_pos', AInfo.SmoothPos,
       'smooth_pos_last', AInfo.SmoothPosLast,
       'smooth_max', AInfo.SmoothMax,
@@ -3016,6 +3145,8 @@ var
   Ada: TATAdapterEControl;
   Lex: TecSyntAnalyzer;
   Sep: TATStringSeparator;
+  CharSize: TATEditorCharSize;
+  bValue: boolean;
 begin
   with AppPython.Engine do
     if Bool(PyArg_ParseTuple(Args, 'Lis:get_prop', @H, @Id, @Ptr)) then
@@ -3033,16 +3164,40 @@ begin
           Result:= PyBool_FromLong(Ord(Ed.OptGutterVisible));
 
         PROP_GUTTER_STATES:
-          Result:= PyBool_FromLong(Ord(Ed.Gutter[Ed.GutterBandStates].Visible));
+          begin
+            bValue:= Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagLineStates)].Visible;
+            Result:= PyBool_FromLong(Ord(bValue));
+          end;
 
         PROP_GUTTER_NUM:
-          Result:= PyBool_FromLong(Ord(Ed.Gutter[Ed.GutterBandNumbers].Visible));
+          begin
+            bValue:= Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible;
+            Result:= PyBool_FromLong(Ord(bValue));
+          end;
 
         PROP_GUTTER_FOLD:
-          Result:= PyBool_FromLong(Ord(Ed.Gutter[Ed.GutterBandFolding].Visible));
+          begin
+            bValue:= Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible;
+            Result:= PyBool_FromLong(Ord(bValue));
+          end;
 
         PROP_GUTTER_BM:
-          Result:= PyBool_FromLong(Ord(Ed.Gutter[Ed.GutterBandBookmarks].Visible));
+          begin
+            bValue:= Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagBookmarks)].Visible;
+            Result:= PyBool_FromLong(Ord(bValue));
+          end;
+
+        PROP_GUTTER_EMPTY:
+          begin
+            bValue:= Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagEmpty)].Visible;
+            Result:= PyBool_FromLong(Ord(bValue));
+          end;
+
+        PROP_GUTTER_EMPTY_WIDTH:
+          begin
+            Num1:= Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagEmpty)].Size;
+            Result:= PyLong_FromLong(Num1);
+          end;
 
         PROP_WRAP:
           Result:= PyLong_FromLong(Ord(Ed.OptWrapMode));
@@ -3445,7 +3600,10 @@ begin
 
         PROP_CELL_SIZE:
           begin
-            Result:= Py_BuildValue('(ii)', Ed.TextCharSize.X, Ed.TextCharSize.Y);
+            CharSize:= Ed.TextCharSize;
+            Result:= Py_BuildValue('(ii)',
+                       integer(CharSize.XScaled div ATEditorCharXScale),
+                       integer(CharSize.Y));
           end;
 
         PROP_MODERN_SCROLLBAR:
@@ -3612,8 +3770,8 @@ begin
 
         PROP_CODETREE_MODIFIED_VERSION:
           begin
-            if Assigned(fmMain.FCodetreeForEditor) then
-              Result:= PyLong_FromLong(fmMain.FCodetreeForEditor.Strings.ModifiedVersion)
+            if Assigned(AppCodetreeState.Editor) then
+              Result:= PyLong_FromLong(AppCodetreeState.Editor.Strings.ModifiedVersion)
             else
               Result:= PyLong_FromLong(0);
           end;
@@ -3634,6 +3792,9 @@ begin
           Result:= PyHelper_GetFontProps(Ed.FontItalic);
         PROP_FONT_BI:
           Result:= PyHelper_GetFontProps(Ed.FontBoldItalic);
+
+        PROP_WHEEL_ZOOMS:
+          Result:= PyBool_FromLong(Ord(Ed.OptMouseWheelZooms));
 
         PROP_MASKCHAR:
           Result:= PyUnicodeFromString(Ed.OptMaskChar);
@@ -3713,6 +3874,15 @@ begin
               Result:= ReturnNone;
           end;
 
+        PROP_V_ENC:
+          begin
+            if not Assigned(F) then exit(ReturnNone);
+            if F.FrameKind=efkBinaryViewer then
+              Result:= PyUnicodeFromString(cEncConvNames[F.Binary.TextEncoding])
+            else
+              Result:= ReturnNone;
+          end
+
         else
           Result:= ReturnNone;
       end;
@@ -3737,7 +3907,6 @@ var
   Pages, PagesTo: TATPages;
   NLocalGroup, NGlobalGroup, NTab, NIndexNew, N1, N2: integer;
   LineEnd: TATLineEnds;
-  Params: TAppVariantArray;
 begin
   with AppPython.Engine do
     if Bool(PyArg_ParseTuple(Args, 'Lis:set_prop', @H, @Id, @Ptr)) then
@@ -3756,16 +3925,25 @@ begin
           Ed.OptGutterVisible:= ValueBool;
 
         PROP_GUTTER_STATES:
-          Ed.Gutter[Ed.GutterBandStates].Visible:= ValueBool;
+          Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagLineStates)].Visible:= ValueBool;
 
         PROP_GUTTER_NUM:
-          Ed.Gutter[Ed.GutterBandNumbers].Visible:= ValueBool;
+          Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible:= ValueBool;
 
         PROP_GUTTER_FOLD:
-          Ed.Gutter[Ed.GutterBandFolding].Visible:= ValueBool;
+          Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible:= ValueBool;
 
         PROP_GUTTER_BM:
-          Ed.Gutter[Ed.GutterBandBookmarks].Visible:= ValueBool;
+          Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagBookmarks)].Visible:= ValueBool;
+
+        PROP_GUTTER_EMPTY:
+          Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagEmpty)].Visible:= ValueBool;
+
+        PROP_GUTTER_EMPTY_WIDTH:
+          begin
+            Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagEmpty)].Size:= ValueInt;
+            Ed.Gutter.Update;
+          end;
 
         PROP_WRAP:
           Ed.OptWrapMode:= TATEditorWrapMode(ValueInt);
@@ -4010,8 +4188,7 @@ begin
               if NTab>=0 then
               begin
                 Pages.Tabs.MoveTab(NTab, NIndexNew, true);
-                SetLength(Params, 0);
-                fmMain.DoPyEvent(Ed, cEventOnTabMove, Params);
+                fmMain.DoPyEvent(Ed, cEventOnTabMove, []);
               end;
             end;
           end;
@@ -4235,6 +4412,9 @@ begin
         PROP_FONT_BI:
           EditorSetFont(Ed.FontBoldItalic, Str);
 
+        PROP_WHEEL_ZOOMS:
+          Ed.OptMouseWheelZooms:= ValueBool;
+
         PROP_MASKCHAR:
           begin
             if Str<>'' then
@@ -4262,7 +4442,7 @@ begin
               begin
                 Str:= F.FileName;
                 F.DoFileClose;
-                F.DoFileOpen(Str, '', false, true, true, true, cOpenModeEditor);
+                F.DoFileOpen(Str, '', false, false, true, true, true, cOpenModeEditor);
               end;
             end
             else
@@ -4336,6 +4516,17 @@ begin
             begin
               F.Binary.TextWidthUHex:= ValueInt;
               F.Binary.Redraw();
+            end;
+          end;
+
+        PROP_V_ENC:
+          begin
+            if not Assigned(F) then exit(ReturnNone);
+            if F.FrameKind=efkBinaryViewer then
+            begin
+              F.Binary.TextEncoding:= EncConvFindEncoding(Str);
+              F.Binary.Redraw();
+              fmMain.UpdateStatusbar;
             end;
           end;
       end;
@@ -4568,12 +4759,14 @@ var
   StrCaption, StrId, StrFilename, StrCmd, StrIndex: string;
   SplitVert, SplitVisible, ok: boolean;
   SplitPos, SplitTotal: integer;
+  ClipExData: TATEditorClipboardExData;
+  Params: TAppVariantArray;
   ParamBool: boolean;
   ParamRect: TRect;
-  Params: TAppVariantArray;
   Num64: Int64;
   Pnt: TPoint;
   Sep: TATStringSeparator;
+  SList: TStringList;
 begin
   with AppPython.Engine do
     if Bool(PyArg_ParseTuple(Args, 'is:app_proc', @Id, @Ptr)) then
@@ -4598,6 +4791,33 @@ begin
             Result:= ReturnNone;
           end;
 
+        APP_PROC_GET_CLIP_EX:
+          begin
+            ATEditorGetClipboardExData(ClipExData);
+            //we get more info than ATEditorGetClipboardExData gives,
+            //so always return Dict, even if clipboard is empty
+            Result:= Py_BuildValue('{sOsOsisisisssLsLsL}',
+              'is_column',
+              PyBool_FromLong(Ord(Clipboard.HasFormat(ATEditorOptions.ClipboardColumnFormat))),
+              'caret_pos',
+              PyHelper_Rect(ClipExData.CaretPos),
+              'caret_count',
+              ClipExData.CaretCount,
+              'indent_chars',
+              ClipExData.FirstLineIndentChars,
+              'indent_columns',
+              ClipExData.FirstLineIndentColumns,
+              'file_name',
+              PChar(string(ClipExData.FileName)),
+              'version',
+              ClipExData.ModifiedVersion,
+              'tick_on_copy',
+              ClipExData.TickOnCopy,
+              'tick_current',
+              GetTickCount64
+              );
+          end;
+
         APP_PROC_CLIP_ENUM:
           begin
             Result:= PyUnicodeFromString(DoClipboardFormatsAsString);
@@ -4617,9 +4837,36 @@ begin
             Result:= PyHelper_CommandList;
           end;
 
+        APP_PROC_GET_COMPILER_INFO:
+          begin
+            Result:= Py_BuildValue('{ssssssss}',
+              'os',
+              PChar(LowerCase({$I %FPCTARGETOS%})),
+              'cpu',
+              PChar({$I %FPCTARGETCPU%}),
+              'widgetset',
+              PChar(GetLCLWidgetTypeName),
+              'fpc',
+              PChar({$I %FPCVersion%})
+              );
+          end;
+
         APP_PROC_SAVE_SESSION:
           begin
-            ParamBool:= fmMain.DoOps_SaveSession(Str, true);
+            Sep.Init(Str, ';');
+            Sep.GetItemStr(StrFilename);
+            Sep.GetItemStr(StrCmd);
+
+            //do session backups, when Auto Save plugin saves _default_ session
+            if IsDefaultSession(StrFilename) then
+              fmMain.DoOps_SaveSessionsBackups(StrFilename);
+
+            ParamBool:= fmMain.DoOps_SaveSession(
+              StrFilename,
+              Pos('n', StrCmd)=0, //ASaveModifiedFiles
+              Pos('u', StrCmd)=0, //ASaveUntitlesTabs
+              Pos('t', StrCmd)>0 //AByTimer
+              );
             Result:= PyBool_FromLong(Ord(ParamBool));
           end;
 
@@ -4698,12 +4945,9 @@ begin
             Sep.GetItemStr(Str2);
             Sep.GetItemStr(Str3);
             if Str3<>'' then
-            begin
-              SetLength(Params, 1);
-              Params[0]:= AppVariant(Str3);
-            end
+              Params:= [AppVariant(Str3)]
             else
-              SetLength(Params, 0);
+              Params:= [];
 
             fmMain.DoPyCommand(Str1, Str2, Params, cInvokeAppAPI);
             Result:= ReturnNone;
@@ -4825,12 +5069,14 @@ begin
             Sep.GetItemStr(StrIndex); //handle
             Sep.GetItemStr(StrFilename); //icon filename
 
+            fmMain.DisableAutoSizing; //fix horizontal twitch of main Groups
             ok:= AppPanels[cPaneSide].Add(
               StrCaption,
               fmMain.DoSidebar_FilenameToImageIndex(StrCaption, StrFilename),
               StrToInt64Def(StrIndex, 0),
               nil
               );
+            fmMain.EnableAutoSizing;
 
             Result:= PyBool_FromLong(Ord(ok));
           end;
@@ -4910,12 +5156,14 @@ begin
             Sep.GetItemStr(StrIndex); //handle
             Sep.GetItemStr(StrFilename); //icon filename
 
+            fmMain.DisableAutoSizing; //fix horizontal twitch of main Groups
             ok:= AppPanels[cPaneOut].Add(
               StrCaption,
               fmMain.DoSidebar_FilenameToImageIndex(StrCaption, StrFilename),
               StrToInt64Def(StrIndex, 0),
               nil
               );
+            fmMain.EnableAutoSizing;
 
             Result:= PyBool_FromLong(Ord(ok));
           end;
@@ -5189,6 +5437,18 @@ begin
         APP_PROC_ENUM_FONTS:
           Result:= StringsToPyList(Screen.Fonts);
 
+        APP_PROC_ENUM_ENCODINGS:
+          begin
+            SList:= TStringList.Create;
+            try
+              SList.TextLineBreakStyle:= tlbsLF;
+              SList.Text:= AppEncodingListAsString;
+              Result:= StringsToPyList(SList);
+            finally
+              FreeAndNil(SList);
+            end;
+          end;
+
         APP_PROC_SEND_MESSAGE:
           Result:= PyLong_FromLong(PyHelper_SendMessageFromString(Str));
 
@@ -5251,14 +5511,16 @@ begin
 
         APP_PROC_CONFIG_SCALE_GET:
           begin
-            Result:= Py_BuildValue('(ii)', UiOps.Scale, UiOps.ScaleFont);
+            Result:= Py_BuildValue('(ii)',
+                       ATEditorScalePercents,
+                       ATEditorScaleFontPercents);
           end;
 
         APP_PROC_CONFIG_SCALE_SET:
           begin
             Sep.Init(Str);
-            Sep.GetItemInt(UiOps.Scale, 100, 80, 500);
-            Sep.GetItemInt(UiOps.ScaleFont, 100, 80, 500);
+            Sep.GetItemInt(ATEditorScalePercents, 100, 80, 500);
+            Sep.GetItemInt(ATEditorScaleFontPercents, 100, 80, 500);
             fmMain.DoApplyUiOps;
             Result:= ReturnNone;
           end;
@@ -5450,7 +5712,7 @@ begin
           'tkind',
           PChar(cPyTokenKind[TATTokenKind(Fmt.TokenKind)]),
           'styles',
-          PChar(FontStylesToString(Fmt.Font.Style))
+          PChar(Lexer_FontStylesToString(Fmt.Font.Style))
           ));
     end;
   end;
@@ -5511,15 +5773,21 @@ begin
 
         LEXER_DETECT:
           begin
-            if Assigned(fmMain.LexersDetected) then
-              fmMain.LexersDetected.Clear
+            if Assigned(AppLexersLastDetected) then
+              AppLexersLastDetected.Clear
             else
-              fmMain.LexersDetected:= TStringList.Create;
+              AppLexersLastDetected:= TStringList.Create;
 
-            DoLexerDetect(StrValue, Lexer, LexerLite, SName, @fmMain.DoPyLexerDetection);
+            Lexer_DetectByFilename(
+              StrValue,
+              Lexer,
+              LexerLite,
+              SName,
+              ok,
+              @fmMain.DoPyLexerDetection);
 
-            if fmMain.LexersDetected.Count>0 then
-              Result:= StringsToPyTuple(fmMain.LexersDetected)
+            if AppLexersLastDetected.Count>0 then
+              Result:= StringsToPyTuple(AppLexersLastDetected)
             else
             if SName<>'' then
               Result:= PyUnicodeFromString(SName)
@@ -5530,9 +5798,10 @@ begin
         LEXER_GET_LEXERS:
           begin
             List:= TStringList.Create;
+            List.UseLocale:= false;
             List.Sorted:= true;
             try
-              DoLexerEnum(List, AppStrToBool(StrValue));
+              Lexer_EnumAll(List, AppStrToBool(StrValue));
               Result:= StringsToPyList(List);
             finally
               FreeAndNil(List);
@@ -6730,7 +6999,7 @@ begin
 
         IMAGELIST_ADD:
           begin
-            NX:= UpdateImagelistWithIconFromFile(List, StrValue);
+            NX:= UpdateImagelistWithIconFromFile(List, StrValue, 'imagelist_proc(...IMAGELIST_ADD...)');
             if NX>=0 then
               Result:= PyLong_FromLong(NX)
             else
@@ -6780,7 +7049,7 @@ var
   Sep: TATStringSeparator;
   Obj: TObject;
   ObjData: TATRangeInCodeTree;
-  NPosX, NPosY: integer;
+  NPosX, NPosY, NCount: integer;
   i: integer;
 begin
   with AppPython.Engine do
@@ -7089,6 +7358,14 @@ begin
             Result:= ReturnNone;
           end;
 
+        TREE_GET_SELECTIONS:
+          begin
+            NCount:= TreeContainer.Tree.SelectionCount;
+            Result:= PyList_New(NCount);
+            for i:= 0 to NCount-1 do
+              PyList_SetItem(Result, i, PyHelper_ObjectHandle(TreeContainer.Tree.Selections[i]));
+          end;
+
         TREE_FIND_FOR_TEXT_POS:
           begin
             Sep.Init(StrText, ',');
@@ -7130,6 +7407,27 @@ begin
             TreeContainer.Tree.Items.EndUpdate;
             TTreeviewAccess(TreeContainer.Tree).DoSelectionChanged; //force update new scrollbars
             Result:= ReturnNone;
+          end;
+
+        TREE_GET_MULSELECT:
+          begin
+            if TreeContainer.Tree.MultiSelect then
+              StrText:= MultiSelectStyleToString(TreeContainer.Tree.MultiSelectStyle)
+            else
+              StrText:= '-';
+            Result:= PyUnicodeFromString(StrText);
+          end;
+
+        TREE_SET_MULSELECT:
+          begin
+            if StrText='-' then
+              TreeContainer.Tree.MultiSelect:= false
+            else
+            begin
+              TreeContainer.Tree.MultiSelect:= true;
+              TreeContainer.Tree.MultiSelectStyle:= StringToMultiSelectStyle(StrText);
+            end;
+            Result:= ReturnFalse;
           end;
 
         TREE_PROP_SHOW_ROOT:
@@ -7966,7 +8264,16 @@ begin
       case IdAction of
         EDACTION_UPDATE:
           begin
-            Ed.Update(AppStrToBool(StrText1));
+            Ed.Update(
+              AppStrToBool(StrText1)
+              );
+
+            // fix https://github.com/CudaText-addons/cuda_testing_attr/issues/1
+            // not sure we can call Ed.Repaint on Qt5/macOS
+            {$if defined(windows)}
+            Ed.Repaint;
+            {$endif}
+
             Result:= ReturnNone;
           end;
 
@@ -8028,7 +8335,7 @@ begin
             Sep.GetItemInt(N2, 0);
             if (NX>=0) and Ed.Strings.IsIndexValid(NY) then
             begin
-              ok:= Ed.DoShowPos(Point(NX, NY), N1, N2, true, true);
+              ok:= Ed.DoShowPos(Point(NX, NY), N1, N2, true, true, true);
               Result:= PyBool_FromLong(Ord(ok));
             end
             else
@@ -8053,7 +8360,7 @@ begin
             begin
               fmMain.InitImageListCodetree;
               if not fmMain.RunTreeHelper(Frame, TreeContainer.Tree) then
-                TATAdapterEControl(Ed.AdapterForHilite).TreeFill(TreeContainer.Tree);
+                TATAdapterEControl(Ed.AdapterForHilite).TreeFill(TreeContainer.Tree, UiOps.TreeFillMaxTimeForAPI);
               Result:= ReturnTrue;
             end
             else
@@ -8336,16 +8643,21 @@ begin
       StrCallback:= string(PtrCallback);
       StrTag:= string(PtrTag);
 
+      if Application.Terminated then
+        exit(ReturnNone);
+      if AppListTimers=nil then
+        exit(ReturnNone);
+
       //find timer by StrCallback
       Timer:= nil;
-      for N:= 0 to fmMain.FListTimers.Count-1 do
+      for N:= 0 to AppListTimers.Count-1 do
       begin
-        SSplitByChar(fmMain.FListTimers[N], '|', SItem, SAll);
+        SSplitByChar(AppListTimers[N], '|', SItem, SAll);
         if SItem=StrCallback then
         begin
-          Timer:= TTimer(fmMain.FListTimers.Objects[N]);
+          Timer:= TTimer(AppListTimers.Objects[N]);
           //timer already exists? update its tag to new value StrTag
-          fmMain.FListTimers[N]:= StrCallback+'|'+StrTag;
+          AppListTimers[N]:= StrCallback+'|'+StrTag;
           Break
         end;
       end;
@@ -8361,7 +8673,7 @@ begin
             begin
               Timer:= TTimer.Create(fmMain);
               Timer.OnTimer:= @fmMain.DoPyTimerTick;
-              fmMain.FListTimers.AddObject(StrCallback+'|'+StrTag, Timer);
+              AppListTimers.AddObject(StrCallback+'|'+StrTag, Timer);
             end;
 
             if NIdAction=TIMER_START_ONE then
@@ -8385,13 +8697,13 @@ begin
             if NIdAction=TIMER_DELETE then
             begin
               Timer.Free;
-              N:= fmMain.FListTimers.IndexOfObject(Timer);
+              N:= AppListTimers.IndexOfObject(Timer);
               if N>=0 then
               begin
-                Obj:= fmMain.FListTimers.Objects[N];
+                Obj:= AppListTimers.Objects[N];
                 if Assigned(Obj) then
                   Obj.Free;
-                fmMain.FListTimers.Delete(N);
+                AppListTimers.Delete(N);
               end;
             end;
 
@@ -9589,7 +9901,7 @@ begin
 
               if bSetCaret then
               begin
-                Finder.Editor.DoShowPos(Pnt1, Finder.IndentHorz, Finder.IndentVert, true, false);
+                Finder.Editor.DoShowPos(Pnt1, Finder.IndentHorz, Finder.IndentVert, true, false, true);
                 Finder.Editor.Update;
               end;
 
@@ -9616,7 +9928,7 @@ begin
                 PntAfter:= Point(-1, -1);
 
               if bSetCaret then
-                Finder.Editor.DoShowPos(Pnt1, Finder.IndentHorz, Finder.IndentVert, true, false);
+                Finder.Editor.DoShowPos(Pnt1, Finder.IndentHorz, Finder.IndentVert, true, false, true);
 
               if bSetCaret or bChanged then
                 Finder.Editor.Update(bChanged);
@@ -9853,7 +10165,7 @@ begin
   Result:= -1;
   if not AppPython.Inited then exit;
 
-  with TIniFile.Create(GetAppLangFilename) do
+  with TIniFile.Create(AppFile_Language) do
   try
     SCaption:= ReadString('d_about', '_clr', 'Colors');
   finally

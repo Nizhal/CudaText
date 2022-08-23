@@ -35,9 +35,10 @@ def dialog_config(op):
     RES_PREVIEW = 10
     RES_D_CLICK = 11
     RES_CHECK_GIT = 12
-    RES_ICONS = 14
-    RES_ICONS_TB = 16
-    RES_OK = 19
+    RES_CLOSE_EXT = 13
+    RES_ICONS = 15
+    RES_ICONS_TB = 17
+    RES_OK = 20
 
     themes = get_themes_filetype()
     try:
@@ -68,7 +69,7 @@ def dialog_config(op):
         +[c1.join(['type=memo', 'pos=6,104,500,180',
             'val='+'\t'.join(op.get('recent_projects', [])) ])]
         +[c1.join(['type=check', 'pos=6,186,400,0', 'cap='+_('&Load on app start, reopen last project (*)'),
-            'val='+bool_to_str(op.get('on_start', False)) ])]
+            'val=0', 'en=0' ])]
         +[c1.join(['type=check', 'pos=6,210,400,0', 'cap='+_('&Show toolbar'),
             'val='+bool_to_str(op.get('toolbar', True)) ])]
         +[c1.join(['type=check', 'pos=6,236,400,0', 'cap='+_('Open file after "&Go to file" command'),
@@ -79,26 +80,28 @@ def dialog_config(op):
             'val='+bool_to_str(op.get('d_click', False)) ])]
         +[c1.join(['type=check', 'pos=6,314,400,0', 'cap='+_('On opening file in Git/SVN repo, create project from repo (*)'),
             'val='+bool_to_str(op.get('check_git', True)) ])]
+        +[c1.join(['type=check', 'pos=6,340,400,0', 'cap='+_('Suggest to close tabs not belonging to project'),
+            'val='+bool_to_str(op.get('close_ext', True)) ])]
 
-        +[c1.join(['type=label', 'pos=6,360,130,0', 'cap='+_('File type icons:')])]
-        +[c1.join(['type=combo_ro', 'pos=160,355,400,0',
+        +[c1.join(['type=label', 'pos=6,390,130,0', 'cap='+_('File type icons:')])]
+        +[c1.join(['type=combo_ro', 'pos=160,385,400,0',
             'items='+'\t'.join(themes),
             'val='+str(theme_index)
             ])]
 
-        +[c1.join(['type=label', 'pos=6,390,130,0', 'cap='+_('Toolbar icons:')])]
-        +[c1.join(['type=combo_ro', 'pos=160,385,400,0',
+        +[c1.join(['type=label', 'pos=6,420,130,0', 'cap='+_('Toolbar icons:')])]
+        +[c1.join(['type=combo_ro', 'pos=160,415,400,0',
             'items='+'\t'.join(themes_tb),
             'val='+str(theme_index_tb)
             ])]
 
-        +[c1.join(['type=label', 'pos=6,416,600,0', 'cap='+_('For more icons, get add-ons of kind "filetypeicons", "projtoolbaricons"')])]
-        +[c1.join(['type=label', 'pos=6,440,600,0', 'cap='+_('(*) - requires CudaText restart')])]
-        +[c1.join(['type=button', 'pos=300,470,400,0', 'cap='+_('&OK'), 'ex0=1'])]
-        +[c1.join(['type=button', 'pos=406,470,502,0', 'cap='+_('Cancel')])]
+        +[c1.join(['type=label', 'pos=6,446,600,0', 'cap='+_('For more icons, get add-ons of kind "filetypeicons", "projtoolbaricons"')])]
+        +[c1.join(['type=label', 'pos=6,470,600,0', 'cap='+_('(*) - requires CudaText restart')])]
+        +[c1.join(['type=button', 'pos=300,500,400,0', 'cap='+_('&OK'), 'ex0=1'])]
+        +[c1.join(['type=button', 'pos=406,500,502,0', 'cap='+_('Cancel')])]
     )
 
-    res = dlg_custom(_('Project Manager options'), 508, 504, text, get_dict=True)
+    res = dlg_custom(_('Project Manager options'), 508, 534, text, get_dict=True)
     if res is None:
         return
 
@@ -112,12 +115,13 @@ def dialog_config(op):
     s = res[RES_RECENTS].split('\t')
     op['recent_projects'] = s
 
-    op['on_start'] = str_to_bool(res[RES_ON_START])
+    #op['on_start'] = str_to_bool(res[RES_ON_START])
     op['toolbar'] = str_to_bool(res[RES_TOOLBAR])
     op['goto_open'] = str_to_bool(res[RES_GOTO_OPEN])
     op['preview'] = str_to_bool(res[RES_PREVIEW])
     op['d_click'] = str_to_bool(res[RES_D_CLICK])
     op['check_git'] = str_to_bool(res[RES_CHECK_GIT])
+    op['close_ext'] = str_to_bool(res[RES_CLOSE_EXT])
 
     index = int(res[RES_ICONS])
     if index>=0:

@@ -15,14 +15,15 @@ uses
   Classes, SysUtils, FileUtil, Forms, Controls, Graphics, Types,
   StdCtrls, ExtCtrls, Dialogs, IniFiles,
   ATSynEdit,
-  ATSynEdit_Commands,
+  ATSynEdit_Globals,
   ATSynEdit_Edits,
   ATSynEdit_Keymap,
   ATStringProc,
   ATListbox,
+  ATButtons,
   LclProc,
   LclType,
-  LclIntf,
+  LclIntf, Buttons,
   proc_globdata,
   proc_msg,
   proc_cmd,
@@ -36,9 +37,11 @@ type
   { TfmCommands }
 
   TfmCommands = class(TForm)
+    ButtonCancel: TATButton;
     edit: TATEdit;
     list: TATListbox;
     PanelCaption: TPanel;
+    procedure ButtonCancelClick(Sender: TObject);
     procedure editChange(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
@@ -50,7 +53,9 @@ type
   private
     { private declarations }
     keymapList: TFPList;
-    FOnMsg: TStrEvent;
+    keymapList_Simple: TFPList;
+    keymapList_Fuzzy: TFPList;
+    FOnMsg: TAppStringEvent;
     FColorBg: TColor;
     FColorBgSel: TColor;
     FColorFont: TColor;
@@ -63,7 +68,7 @@ type
     procedure DoResetKey(K: TATKeymapItem);
     function GetListCaption: string;
     function GetResultCmd: integer;
-    function IsFiltered(Item: TATKeymapItem): boolean;
+    function IsFiltered(Item: TATKeymapItem; out AWordMatch: boolean): boolean;
     procedure DoMsgStatus(const S: string);
     procedure Localize;
     procedure SetListCaption(const AValue: string);
@@ -82,7 +87,7 @@ type
     OptAllowConfig: boolean;
     OptAllowConfigForLexer: boolean;
     OptFocusedCommand: integer;
-    property OnMsg: TStrEvent read FOnMsg write FOnMsg;
+    property OnMsg: TAppStringEvent read FOnMsg write FOnMsg;
     property ListCaption: string read GetListCaption write SetListCaption;
   end;
 
@@ -118,7 +123,7 @@ var
 begin
   Localize;
 
-  edit.Height:= AppScale(UiOps.InputHeight);
+  edit.Height:= ATEditorScale(UiOps.InputHeight);
   edit.Font.Name:= EditorOps.OpFontName;
   edit.Font.Size:= EditorOps.OpFontSize;
   edit.Font.Quality:= EditorOps.OpFontQuality;
@@ -127,7 +132,9 @@ begin
   edit.OptCaretBlinkTime:= EditorOps.OpCaretBlinkTime;
 
   PanelCaption.Font.Name:= UiOps.VarFontName;
-  PanelCaption.Font.Size:= AppScaleFont(UiOps.VarFontSize);
+  PanelCaption.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
+
+  ButtonCancel.Width:= ButtonCancel.Height;
 
   self.Color:= FColorBg;
   edit.Colors.TextFont:= GetAppColor(apclEdTextFont);
@@ -143,7 +150,12 @@ begin
   FixFormPositionToDesktop(Self);
 
   edit.Text:= CurrentFilterText;
-  edit.DoSelect_All;
+  if edit.Text<>'' then
+  begin
+    edit.DoSelect_All;
+    if Assigned(edit.OnChange) then
+      edit.OnChange(nil);
+  end;
 
   DoFilter;
 
@@ -152,9 +164,12 @@ begin
       if TATKeymapItem(keymapList.Items[i]).Command = OptFocusedCommand then
       begin
         list.ItemIndex:= i;
-        list.ItemTop:= Max(0, i-4);
+        list.ItemTop:= Max(0, i-UiOps.ListboxTopItemIndent);
         Break
       end;
+
+  if OptAllowConfig then
+    edit.OptTextHint:= msgCmdPaletteTextHint;
 end;
 
 procedure TfmCommands.listClick(Sender: TObject);
@@ -189,24 +204,26 @@ begin
   edit.DoubleBuffered:= UiOps.DoubleBuffered;
   list.DoubleBuffered:= UiOps.DoubleBuffered;
 
+  edit.Keymap:= AppKeymapMain;
+
   ResultCommand:= 0;
   ResultHotkeysChanged:= false;
 
   keymapList:= TFPList.Create;
+  keymapList_Simple:= TFPList.Create;
+  keymapList_Fuzzy:= TFPList.Create;
 
   PanelInfo:= TStaticText.Create(Self);
   PanelInfo.Hide;
   PanelInfo.Parent:= Self;
   PanelInfo.Align:= alClient;
   PanelInfo.Font.Name:= UiOps.VarFontName;
-  PanelInfo.Font.Size:= AppScaleFont(UiOps.VarFontSize);
+  PanelInfo.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
   PanelInfo.BorderSpacing.Around:= 20;
   PanelInfo.Caption:= msgCmdPalettePrefixHelp;
 
-  Width:= AppScale(UiOps.ListboxSizeX);
-  Height:= AppScale(UiOps.ListboxSizeY);
-
-  edit.OptTextHint:= 'F9: set hotkey; input "@hotkey": search';
+  Width:= ATEditorScale(UiOps.ListboxSizeX);
+  Height:= ATEditorScale(UiOps.ListboxSizeY);
 end;
 
 procedure TfmCommands.editChange(Sender: TObject);
@@ -221,8 +238,15 @@ begin
     DoFilter;
 end;
 
+procedure TfmCommands.ButtonCancelClick(Sender: TObject);
+begin
+  ModalResult:= mrCancel;
+end;
+
 procedure TfmCommands.FormDestroy(Sender: TObject);
 begin
+  FreeAndNil(keymapList_Fuzzy);
+  FreeAndNil(keymapList_Simple);
   FreeAndNil(keymapList);
 end;
 
@@ -363,16 +387,19 @@ end;
 procedure TfmCommands.listDrawItem(Sender: TObject; C: TCanvas;
   AIndex: integer; const ARect: TRect);
 var
-  cl: TColor;
-  n, nPrevSize, i: integer;
+  WordResults: TAppSearchWordsResults;
+  FuzzyResults: TATIntArray;
   strname, strkey, strfind: string;
-  ar: TATIntArray;
   pnt: TPoint;
-  r1: TRect;
+  RectClip: TRect;
   buf: string;
   TextSize: TSize;
+  bFound: boolean;
+  cl: TColor;
+  n, nPrevSize, i: integer;
 begin
-  if AIndex<0 then exit;
+  if (AIndex<0) or (AIndex>=keymapList.Count) then exit;
+
   if AIndex=list.ItemIndex then
   begin
     cl:= FColorBgSel;
@@ -406,42 +433,63 @@ begin
 
   c.Font.Color:= FColorFontHilite;
 
-  if UiOps.ListboxFuzzySearch then
+  bFound:= STextListsFuzzyInput(
+    strname,
+    strfind,
+    WordResults,
+    FuzzyResults,
+    UiOps.ListboxFuzzySearch);
+
+  if bFound then
   begin
-    ar:= SFindFuzzyPositions(strname, strfind);
-    for i:= Low(ar) to High(ar) do
+    if Length(FuzzyResults)>0 then
     begin
-      buf:= strname[ar[i]];
-      n:= c.TextWidth(Copy(strname, 1, ar[i]-1));
-      r1:= Rect(pnt.x+n, pnt.y, pnt.x+n+c.TextWidth(buf), ARect.Bottom);
-      ExtTextOut(c.Handle,
-        r1.Left, r1.Top,
-        ETO_CLIPPED+ETO_OPAQUE,
-        @r1,
-        PChar(buf),
-        Length(buf),
-        nil);
+      for i:= Low(FuzzyResults) to High(FuzzyResults) do
+      begin
+        buf:= strname[FuzzyResults[i]];
+        n:= c.TextWidth(Copy(strname, 1, FuzzyResults[i]-1));
+        RectClip:= Rect(
+          pnt.x+n,
+          pnt.y,
+          pnt.x+n+c.TextWidth(buf),
+          ARect.Bottom
+          );
+        ExtTextOut(c.Handle,
+          RectClip.Left,
+          RectClip.Top,
+          ETO_CLIPPED+ETO_OPAQUE,
+          @RectClip,
+          PChar(buf),
+          Length(buf),
+          nil
+          );
+      end;
+    end
+    else
+    if WordResults.MatchesCount>0 then
+    begin
+      for i:= 0 to WordResults.MatchesCount-1 do
+      begin
+        buf:= Copy(strname, WordResults.MatchesArray[i].WordPos, WordResults.MatchesArray[i].WordLen);
+        n:= c.TextWidth(Copy(strname, 1, WordResults.MatchesArray[i].WordPos-1));
+        RectClip:= Rect(
+          pnt.x+n,
+          pnt.y,
+          pnt.x+n+c.TextWidth(buf),
+          ARect.Bottom
+          );
+        ExtTextOut(c.Handle,
+          RectClip.Left,
+          RectClip.Top,
+          ETO_CLIPPED+ETO_OPAQUE,
+          @RectClip,
+          PChar(buf),
+          Length(buf),
+          nil
+          );
+      end;
     end;
   end;
-  {//no support to hilite n words
-  else
-  begin
-    n:= Pos(Lowercase(strfind), Lowercase(strname));
-    if n>0 then
-    begin
-      buf:= Copy(strname, n, Length(strfind));
-      n:= c.TextWidth(Copy(strname, 1, n-1));
-      r1:= Rect(pnt.x+n, pnt.y, pnt.x+n+c.TextWidth(buf), ARect.Bottom);
-      ExtTextOut(c.Handle,
-        r1.Left, r1.Top,
-        ETO_CLIPPED+ETO_OPAQUE,
-        @r1,
-        PChar(buf),
-        Length(buf),
-        nil);
-    end;
-  end;
-  }
 
   if strkey<>'' then
   begin
@@ -510,17 +558,29 @@ end;
 procedure TfmCommands.DoFilter;
 var
   Item: TATKeymapItem;
+  bSimple: boolean;
   i: integer;
 begin
   keymapList.Clear;
+  keymapList_Simple.Clear;
+  keymapList_Fuzzy.Clear;
+
   for i:= 0 to keymap.Count-1 do
   begin
     Item:= keymap.Items[i];
     if IsIgnoredCommand(Item.Command) then
       Continue;
-    if IsFiltered(Item) then
-      keymapList.Add(Item);
+    if IsFiltered(Item, bSimple) then
+    begin
+      if bSimple then
+        keymapList_Simple.Add(Item)
+      else
+        keymapList_Fuzzy.Add(Item)
+    end;
   end;
+
+  keymapList.AddList(keymapList_Simple);
+  keymapList.AddList(keymapList_Fuzzy);
 
   list.ItemIndex:= 0;
   list.ItemTop:= 0;
@@ -528,14 +588,17 @@ begin
   list.Invalidate;
 end;
 
-function TfmCommands.IsFiltered(Item: TATKeymapItem): boolean;
+function TfmCommands.IsFiltered(Item: TATKeymapItem; out AWordMatch: boolean): boolean;
 var
+  WordResults: TAppSearchWordsResults;
+  FuzzyResults: TATIntArray;
   NCmd: integer;
   StrFind: string;
   Category: TAppCommandCategory;
   bPrefixLexer, bPrefixPlugin, bPrefixFile, bPrefixRecent: boolean;
 begin
   Result:= false;
+  AWordMatch:= false;
 
   NCmd:= Item.Command;
   Category:= TPluginHelper.CommandCategory(NCmd);
@@ -572,11 +635,16 @@ begin
       (Pos(LowerCase(StrFind), LowerCase(Item.Keys2.ToString))>0);
   end
   else
-  //normal search in name
-  if UiOps.ListboxFuzzySearch then
-    Result:= STextListsFuzzyInput(Item.Name, StrFind)
-  else
-    Result:= STextListsAllWords(Item.Name, StrFind);
+  //search in name
+  begin
+    Result:= STextListsFuzzyInput(
+               Item.Name,
+               StrFind,
+               WordResults,
+               FuzzyResults,
+               UiOps.ListboxFuzzySearch);
+    AWordMatch:= WordResults.MatchesCount>0;
+  end;
 end;
 
 procedure TfmCommands.DoMsgStatus(const S: string);
@@ -606,12 +674,12 @@ var
   fn: string;
   ini: TIniFile;
 begin
-  fn:= GetAppLangFilename;
+  fn:= AppFile_Language;
   if FileExists(fn) then
   begin
     ini:= TIniFile.Create(fn);
     try
-      edit.OptTextHint:= ini.ReadString(section, 'cmd_tip', edit.OptTextHint);
+      msgCmdPaletteTextHint:= ini.ReadString(section, 'cmd_tip', msgCmdPaletteTextHint);
     finally
       FreeAndNil(ini);
     end;
@@ -619,4 +687,3 @@ begin
 end;
 
 end.
-

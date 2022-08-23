@@ -9,25 +9,34 @@ Copyright (c) Alexey Torgashin
 
 procedure TfmMain.TimerCmdTimer(Sender: TObject);
 var
-  Cmd: integer;
-  CmdInvoke: TATEditorCommandInvoke;
-  Frame: TEditorFrame;
   Ed: TATSynEdit;
+  CmdCode: integer;
+  CmdInvoke: TATEditorCommandInvoke;
+begin
+  TimerCmd.Enabled:= false;
+
+  repeat
+    case AppCommandGet(Ed, CmdCode, CmdInvoke) of
+      acgNoCommands:
+        Break;
+      acgBadCommand:
+        Continue;
+    end;
+
+    HandleTimerCommand(Ed, CmdCode, CmdInvoke);
+  until false;
+
+  UpdateStatusbar;
+end;
+
+
+procedure TfmMain.HandleTimerCommand(Ed: TATSynEdit; CmdCode: integer; CmdInvoke: TATEditorCommandInvoke);
+var
+  Frame: TEditorFrame;
   EdGrp: TATGroups;
   NIndex: integer;
   NColor: TColor;
-  Params: TAppVariantArray;
 begin
- TimerCmd.Enabled:= false;
-
- repeat
-  case AppCommandGet(Ed, Cmd, CmdInvoke) of
-    acgNoCommands:
-      Break;
-    acgBadCommand:
-      Continue;
-  end;
-
   Frame:= TGroupsHelper.GetEditorFrame(Ed);
 
   //support floating groups
@@ -36,23 +45,32 @@ begin
   else
     EdGrp:= Groups;
 
-  case Cmd of
+  case CmdCode of
 
     cmd_FileClose:
       begin
         EdGrp.CloseTabs(tabCloseCurrent, false);
         Frame:= CurrentFrame;
         if Assigned(Frame) then
-          Frame.SetFocus;
+          Frame.SetFocus
+        else
+        if FrameCount>0 then
+          TGroupsHelper.ForceFrameVisible(Frames[0])
+        else
+          raise Exception.Create('No frames left after "Close tab"');
       end;
 
     cmd_FileCloseAll:
       begin
-        //EdGrp.CloseTabs(tabCloseAll, false);
         DoCloseAllTabs;
         Frame:= CurrentFrame;
         if Assigned(Frame) then
-          Frame.SetFocus;
+          Frame.SetFocus
+        else
+        if FrameCount>0 then
+          TGroupsHelper.ForceFrameVisible(Frames[0])
+        else
+          raise Exception.Create('No frames left after "Close all tabs"');
       end;
 
     cmd_FileCloseOtherThis:
@@ -115,6 +133,9 @@ begin
           DoFileExportHtml(Frame);
       end;
 
+    cmd_FileReopenRecent:
+      DoFileReopenRecent;
+
     cmd_OpenContainingFolder:
       begin
         if Ed.FileName<>'' then
@@ -124,7 +145,7 @@ begin
     cmd_OpenFileInDefaultApp:
       begin
         if Ed.FileName<>'' then
-          OpenURL(Ed.FileName);
+          OpenDocument(Ed.FileName);
       end;
 
     cmd_ToggleFocusSplitEditors:
@@ -243,9 +264,11 @@ begin
       end;
 
     cmd_ToggleFindDialog:
-      DoToggleFindReplaceDialog(false);
+      DoDialogFind_Toggle(false, false);
+    cmd_ToggleFindDialog_AndFocus:
+      DoDialogFind_Toggle(false, true);
     cmd_ToggleReplaceDialog:
-      DoToggleFindReplaceDialog(true);
+      DoDialogFind_Toggle(true, false);
 
     cmd_ToggleSidebar:
       begin
@@ -379,9 +402,14 @@ begin
       DoFindCurrentWordOrSel(Ed, false, false);
 
     cmd_SelectExpandToWord:
-      EditorExpandSelectionToWord(Ed, @FinderShowResultSimple, true);
+      EditorExpandSelectionToWord(Ed, @FinderShowResultSimple, true, true);
+    cmd_SelectExpandToText:
+      EditorExpandSelectionToWord(Ed, @FinderShowResultSimple, true, false);
+
     cmd_SelectExpandToWord_Skip:
-      EditorExpandSelectionToWord(Ed, @FinderShowResultSimple, false);
+      EditorExpandSelectionToWord(Ed, @FinderShowResultSimple, false, true);
+    cmd_SelectExpandToText_Skip:
+      EditorExpandSelectionToWord(Ed, @FinderShowResultSimple, false, false);
 
     cmd_OpsClearRecent:
       DoOps_ClearConfigHistory([acheRecentFiles]);
@@ -578,24 +606,6 @@ begin
         end;
       end;
 
-    cmd_MacroStop: //deprecated at 2021.10
-      begin
-        if Assigned(Frame) then
-        begin
-          Frame.DoMacroStop(false);
-          MsgStatus('');
-        end;
-      end;
-
-    cmd_MacroCancel: //deprecated at 2021.10
-      begin
-        if Assigned(Frame) then
-        begin
-          Frame.DoMacroStop(true);
-          MsgStatus('');
-        end;
-      end;
-
     cmd_TreeGotoNext:
       DoTreeviewJump(CodeTree.Tree, treeGoNext);
     cmd_TreeGotoPrev:
@@ -659,38 +669,18 @@ begin
           Frame.BracketSelectInside(Ed);
       end;
 
-    cmd_HelpAbout:
-      DoHelpAbout;
-    cmd_HelpForum:
-      DoHelpForum;
-    cmd_HelpWiki:
-      DoHelpWiki;
-    cmd_HelpIssues:
-      DoHelpIssues;
-    cmd_HelpHotkeys:
-      DoHelpHotkeys;
-
-    cmd_HelpCheckUpdates:
-      begin
-        if UiOps.AllowProgramUpdates then
-        begin
-          SetLength(Params, 0);
-          DoPyCommand('cuda_addonman', 'check_cudatext_updates', Params, CmdInvoke);
-        end;
-      end;
-
     cmdFirstLexerCommand..
     cmdLastLexerCommand:
-      SetFrameLexerByIndex(Ed, Cmd-cmdFirstLexerCommand);
+      SetFrameLexerByIndex(Ed, CmdCode-cmdFirstLexerCommand);
 
     cmdFirstPluginCommand..
     cmdLastPluginCommand:
-      DoPyCommand_ByPluginIndex(Cmd-cmdFirstPluginCommand, CmdInvoke);
+      DoPyCommand_ByPluginIndex(CmdCode-cmdFirstPluginCommand, CmdInvoke);
 
     cmdFirstFileCommand..
     cmdLastFileCommand:
       begin
-        NIndex:= Cmd-cmdFirstFileCommand;
+        NIndex:= CmdCode-cmdFirstFileCommand;
         if NIndex<AppFrameList1.Count then
         begin
           Frame:= TEditorFrame(AppFrameList1[NIndex]);
@@ -702,14 +692,26 @@ begin
     cmdFirstRecentCommand..
     cmdLastRecentCommand:
       begin
-        NIndex:= Cmd-cmdFirstRecentCommand;
+        NIndex:= CmdCode-cmdFirstRecentCommand;
         if NIndex<AppListRecents.Count then
           DoFileOpen(AppListRecents[NIndex], '');
       end;
-  end;
- until false;
 
- UpdateStatusbar;
+    cmd_HelpAbout:
+      DoHelpAbout;
+    cmd_HelpForum:
+      DoHelpForum;
+    cmd_HelpWiki:
+      DoHelpWiki;
+    cmd_HelpIssues:
+      DoHelpIssues;
+
+    cmd_HelpCheckUpdates:
+      begin
+        if UiOps.AllowProgramUpdates then
+          DoPyCommand('cuda_addonman', 'check_cudatext_updates', [], CmdInvoke);
+      end;
+  end;
 end;
 
 procedure TfmMain.FrameOnEditorCommand(Sender: TObject; ACommand: integer;
@@ -717,7 +719,6 @@ procedure TfmMain.FrameOnEditorCommand(Sender: TObject; ACommand: integer;
 var
   Ed: TATSynEdit;
   Frame: TEditorFrame;
-  Params: TAppVariantArray;
   Str: string;
 begin
   AHandled:= true;
@@ -739,9 +740,7 @@ begin
   if (ACommand=cCommand_TextInsert) and
     (AText<>'') then
   begin
-    SetLength(Params, 1);
-    Params[0]:= AppVariant(AText);
-    if DoPyEvent(Ed, cEventOnInsert, Params).Val = evrFalse then
+    if DoPyEvent(Ed, cEventOnInsert, [AppVariant(AText)]).Val = evrFalse then
     begin
       AHandled:= true;
       exit
@@ -769,17 +768,31 @@ begin
 
     cmd_RepaintEditor:
       begin
-        Ed.Update;
+        //params 2nd/3rd are to fix repainting with cuda_sync_scroll with "renderer_anti_flicker":20;
+        Ed.Update(false, true, false);
         AHandled:= true;
         exit
       end;
 
+    cmd_TabUsesSpaces_On:
+      begin
+        Ed.OptTabSpaces:= true;
+        AHandled:= true;
+        exit
+      end;
+    cmd_TabUsesSpaces_Off:
+      begin
+        Ed.OptTabSpaces:= false;
+        AHandled:= true;
+        exit
+      end;
     cmd_ToggleTabUsesSpaces:
       begin
         Ed.OptTabSpaces:= not Ed.OptTabSpaces;
         AHandled:= true;
         exit
       end;
+
     cmd_ConvertTabsToSpaces:
       begin
         Ed.DoConvertTabsToSpaces;
@@ -965,17 +978,48 @@ begin
         exit
       end;
 
+    cmd_LineEndWin_Caret:
+      begin
+        UpdateEditorCaretLineEnds(Frame, Ed, cEndWin);
+        AHandled:= true;
+        exit
+      end;
+    cmd_LineEndUnix_Caret:
+      begin
+        UpdateEditorCaretLineEnds(Frame, Ed, cEndUnix);
+        AHandled:= true;
+        exit
+      end;
+    cmd_LineEndMac_Caret:
+      begin
+        UpdateEditorCaretLineEnds(Frame, Ed, cEndMac);
+        AHandled:= true;
+        exit
+      end;
+    cmd_LineEndDefault_Caret:
+      begin
+        UpdateEditorCaretLineEnds(Frame, Ed, Ed.Strings.Endings);
+        AHandled:= true;
+        exit
+      end;
+
     cmd_SplitTabToggle:
       begin
         if Assigned(Frame) then
+        begin
           Frame.Splitted:= not Frame.Splitted;
+          UpdateMenuChecks_FrameSplit(Frame);
+        end;
         AHandled:= true;
         exit
       end;
     cmd_SplitTabHorzVert:
       begin
         if Assigned(Frame) then
+        begin
           Frame.SplitHorz:= not Frame.SplitHorz;
+          UpdateMenuChecks_FrameSplit(Frame);
+        end;
         AHandled:= true;
         exit
       end;
@@ -986,6 +1030,7 @@ begin
         begin
           Frame.SplitHorz:= true;
           Frame.Splitted:= true;
+          UpdateMenuChecks_FrameSplit(Frame);
         end;
         AHandled:= true;
         exit
@@ -996,6 +1041,7 @@ begin
         begin
           Frame.SplitHorz:= false;
           Frame.Splitted:= true;
+          UpdateMenuChecks_FrameSplit(Frame);
         end;
         AHandled:= true;
         exit
@@ -1003,7 +1049,10 @@ begin
     cmd_SplitTabNo:
       begin
         if Assigned(Frame) then
+        begin
           Frame.Splitted:= false;
+          UpdateMenuChecks_FrameSplit(Frame);
+        end;
         AHandled:= true;
         exit
       end;
@@ -1092,6 +1141,25 @@ begin
         exit
       end;
 
+    cmd_TabSize_Set2:
+      begin
+        Ed.OptTabSize:= 2;
+        AHandled:= true;
+        exit
+      end;
+    cmd_TabSize_Set4:
+      begin
+        Ed.OptTabSize:= 4;
+        AHandled:= true;
+        exit
+      end;
+    cmd_TabSize_Set8:
+      begin
+        Ed.OptTabSize:= 8;
+        AHandled:= true;
+        exit
+      end;
+
     cmd_Encoding_utf8bom_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf8_WithBom, false); AHandled:= true; exit end;
     cmd_Encoding_utf8nobom_NoReload: begin SetFrameEncoding(Ed, cEncNameUtf8_NoBom, false); AHandled:= true; exit end;
     cmd_Encoding_utf16le_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf16LE_WithBom, false); AHandled:= true; exit end;
@@ -1110,7 +1178,16 @@ begin
     cmd_Encoding_mac_NoReload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCPMac], false); AHandled:= true; exit end;
     cmd_Encoding_iso1_NoReload:      begin SetFrameEncoding(Ed, cEncConvNames[eidISO1], false); AHandled:= true; exit end;
     cmd_Encoding_iso2_NoReload:      begin SetFrameEncoding(Ed, cEncConvNames[eidISO2], false); AHandled:= true; exit end;
+    cmd_Encoding_iso3_NoReload:      begin SetFrameEncoding(Ed, cEncConvNames[eidISO3], false); AHandled:= true; exit end;
+    cmd_Encoding_iso4_NoReload:      begin SetFrameEncoding(Ed, cEncConvNames[eidISO4], false); AHandled:= true; exit end;
+    cmd_Encoding_iso5_NoReload:      begin SetFrameEncoding(Ed, cEncConvNames[eidISO5], false); AHandled:= true; exit end;
+    cmd_Encoding_iso7_NoReload:      begin SetFrameEncoding(Ed, cEncConvNames[eidISO7], false); AHandled:= true; exit end;
+    cmd_Encoding_iso9_NoReload:      begin SetFrameEncoding(Ed, cEncConvNames[eidISO9], false); AHandled:= true; exit end;
+    cmd_Encoding_iso10_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidISO10], false); AHandled:= true; exit end;
+    cmd_Encoding_iso13_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidISO13], false); AHandled:= true; exit end;
+    cmd_Encoding_iso14_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidISO14], false); AHandled:= true; exit end;
     cmd_Encoding_iso15_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidISO15], false); AHandled:= true; exit end;
+    cmd_Encoding_iso16_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidISO16], false); AHandled:= true; exit end;
     cmd_Encoding_cp437_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP437], false); AHandled:= true; exit end;
     cmd_Encoding_cp850_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP850], false); AHandled:= true; exit end;
     cmd_Encoding_cp852_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP852], false); AHandled:= true; exit end;
@@ -1139,7 +1216,16 @@ begin
     cmd_Encoding_mac_Reload:         begin SetFrameEncoding(Ed, cEncConvNames[eidCPMac], true); AHandled:= true; exit end;
     cmd_Encoding_iso1_Reload:        begin SetFrameEncoding(Ed, cEncConvNames[eidISO1], true); AHandled:= true; exit end;
     cmd_Encoding_iso2_Reload:        begin SetFrameEncoding(Ed, cEncConvNames[eidISO2], true); AHandled:= true; exit end;
+    cmd_Encoding_iso3_Reload:        begin SetFrameEncoding(Ed, cEncConvNames[eidISO3], true); AHandled:= true; exit end;
+    cmd_Encoding_iso4_Reload:        begin SetFrameEncoding(Ed, cEncConvNames[eidISO4], true); AHandled:= true; exit end;
+    cmd_Encoding_iso5_Reload:        begin SetFrameEncoding(Ed, cEncConvNames[eidISO5], true); AHandled:= true; exit end;
+    cmd_Encoding_iso7_Reload:        begin SetFrameEncoding(Ed, cEncConvNames[eidISO7], true); AHandled:= true; exit end;
+    cmd_Encoding_iso9_Reload:        begin SetFrameEncoding(Ed, cEncConvNames[eidISO9], true); AHandled:= true; exit end;
+    cmd_Encoding_iso10_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidISO10], true); AHandled:= true; exit end;
+    cmd_Encoding_iso13_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidISO13], true); AHandled:= true; exit end;
+    cmd_Encoding_iso14_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidISO14], true); AHandled:= true; exit end;
     cmd_Encoding_iso15_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidISO15], true); AHandled:= true; exit end;
+    cmd_Encoding_iso16_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidISO16], true); AHandled:= true; exit end;
     cmd_Encoding_cp437_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP437], true); AHandled:= true; exit end;
     cmd_Encoding_cp850_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP850], true); AHandled:= true; exit end;
     cmd_Encoding_cp852_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP852], true); AHandled:= true; exit end;
@@ -1155,6 +1241,8 @@ begin
   if (ACommand>=cmdFirstAppCommand) and
      (ACommand<=cmdLastAppCommand) then
   begin
+    if ACommand=cmd_DialogCommands then
+      UiOps.CmdPaletteFilterText_Forced:= AText;
     AppCommandPut(Ed, ACommand, AInvoke, false);
     exit;
   end;

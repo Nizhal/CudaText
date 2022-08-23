@@ -14,10 +14,12 @@ interface
 uses
   Classes, SysUtils, FileUtil, Forms, Controls, Graphics, Dialogs,
   LclType, LclProc, StrUtils,
-  ExtCtrls,
+  ExtCtrls, Buttons,
   ATStringProc,
   ATSynEdit,
+  ATSynEdit_Globals,
   ATListbox,
+  ATButtons,
   proc_globdata,
   proc_colors;
 
@@ -28,8 +30,10 @@ type
   { TfmMenuList }
 
   TfmMenuList = class(TForm)
+    ButtonCancel: TATButton;
     List: TATListbox;
     plCaption: TPanel;
+    procedure ButtonCancelClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -73,6 +77,7 @@ begin
   UpdateFormOnTop(Self);
   List.VirtualItemCount:= Items.Count;
   List.ItemIndex:= InitialItemIndex;
+  ButtonCancel.Width:= ButtonCancel.Height;
 end;
 
 procedure TfmMenuList.ListDrawItem(Sender: TObject; C: TCanvas; AIndex: integer;
@@ -82,6 +87,7 @@ var
   str1, str2: string;
   NColorFont, NColorBack: TColor;
 begin
+  if (AIndex<0) or (AIndex>=Items.Count) then exit;
   SSplitByChar(Items[AIndex], #9, str1, str2);
 
   if AIndex=List.ItemIndex then
@@ -134,18 +140,23 @@ begin
 
   UpdateColors;
 
-  plCaption.Height:= AppScale(26);
+  plCaption.Height:= ATEditorScale(26);
   plCaption.Font.Name:= UiOps.VarFontName;
-  plCaption.Font.Size:= AppScaleFont(UiOps.VarFontSize);
+  plCaption.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
   plCaption.Font.Color:= GetAppColor(apclListFont);
 
-  self.Width:= AppScale(UiOps.ListboxSizeX);
-  self.Height:= AppScale(UiOps.ListboxSizeY);
+  self.Width:= ATEditorScale(UiOps.ListboxSizeX);
+  self.Height:= ATEditorScale(UiOps.ListboxSizeY);
 
   List.OnChangedSel:= @DoListChangedSel;
 
   Items:= nil;
   ResultIndex:= -1;
+end;
+
+procedure TfmMenuList.ButtonCancelClick(Sender: TObject);
+begin
+  ModalResult:= mrCancel;
 end;
 
 procedure TfmMenuList.FormDestroy(Sender: TObject);
@@ -237,4 +248,3 @@ begin
 end;
 
 end.
-
