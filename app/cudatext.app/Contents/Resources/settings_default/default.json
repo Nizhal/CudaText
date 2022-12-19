@@ -110,7 +110,6 @@
   //Value 0: feature is disabled.
   //Value 1...999: it's timer delay in milliseconds. 15...40 seems OK for slow systems.
   //Value 1000: use special anti-flickering code, works better on some systems.
-  //Note: this option is global, not per-lexer.
   "renderer_anti_flicker": 0,
   "renderer_anti_flicker__linux": 0,
   "renderer_anti_flicker__mac": 0,
@@ -332,6 +331,14 @@
   //paste block at the line start, ignoring caret column.
   "paste_multiline_at_line_start": false,
 
+  //Enables auto-copying of selected text to clipboard after selection change.
+  //Option works for all editor fields, not only for UI-tabs editors.
+  //  if 'c' in value: Copy to usual clipboard (the only possibility on Windows).
+  //  if 'p' in value: Copy to Unix 'primary selection'.
+  //  if 'm' with a following number in value: Set limit of selection length (in bytes). Default is 500k.
+  //Note: this option is global, not per-lexer.
+  "auto_copy_clp": "",
+
   //[File/Saving]
   //On saving file: delete spaces at lines ends.
   "saving_trim_spaces": false,
@@ -363,13 +370,24 @@
   "tab_spaces": false,
 
   //Maximal X position, before which tab-characters visually expand to N spaces.
-  //(After this X position, tab-chars expand to 1 space.)
+  //After this X position, tab-chars expand to 1 space.
+  //Note: this option is global, not per-lexer.
   "tab_max_pos_expanded": 500,
 
   //[Text]
   //Maximal line length, for which char-width calculations are slow+correct.
   //This has effect for lines with CJK or another "wide" characters.
+  //Max value is currently 1024.
+  //Note: this option is global, not per-lexer.
   "max_line_len_for_accurate_width": 500,
+
+  //Maximal line length, when editing of a line will not reset current lexer to 'none'
+  //for a few seconds. For example, for CPU Intel Core i3, good value is 1900
+  //(for longer lines, developer sees caret rendering glitches).
+  //The delay is controlled by option "py_change_slow".
+  //Value 0 (or too huge): feature is disabled.
+  //Note: this option is global, not per-lexer.
+  "max_line_len_for_editing_keeping_lexer": 2000,
 
   //[Lexers]
   //Maximal line length parsed, ie:
@@ -392,8 +410,14 @@
   //  1: triangles
   "gutter_fold_icons": 0,
 
+  //Gutter: Size of plus/minus/triangle folding icons.
+  "gutter_icon_size": 4,
+
   //Gutter: Show gutter's bookmarks column.
   "gutter_bookmarks": true,
+
+  //Gutter: Show gutter's "line states" column.
+  "gutter_line_states": true,
 
   //Bookmarks: Automatically delete bookmarks when their lines are deleted,
   //otherwise only shift bookmarks upper.
@@ -437,11 +461,13 @@
   //Style of arrows in editor's themed scrollbars.
   //Value is 2 numbers ","-separated, for horizontal/vertical bars.
   //Numbers: 0: normal position of arrows; 1: both below; 2: both above; 3: hide arrows.
+  //Note: this option is global, not per-lexer.
   "scrollbar_arrows": "0,0",
 
   //Allows to perform direct jump to the clicked position, when clicking scrollbar's
   //"page up"/"page down" areas. If option is off, clicking on those areas does
   //"page up"/"page down" scrolling.
+  //Note: this option is global, not per-lexer.
   "scrollbar_click_jump": false,
 
   //[Text/Look]
@@ -561,16 +587,18 @@
   "unprinted_content": "se",
 
   //Unprinted symbols: Replace control ASCII characters (codes 0..31) with replacement-char.
-  //Otherwuse, show them as "xNN" hex codes.
+  //Otherwise, show them as "xNN" hex codes.
+  //Note: this option is global, not per-lexer.
   "unprinted_replace_spec": false,
 
-  //Unprinted symbols: ASCII characters 0...31 will be rendered
-  //as a "replacement character" with specified hex code.
-  //(e.g. value "A4" means character U+00A4.)
+  //Unprinted symbols: ASCII characters 0...31 will be rendered as a "replacement character"
+  //with specified hex code. For ex, value "A4" means character U+00A4.
+  //Note: this option is global, not per-lexer.
   "unprinted_replace_to_code": "A4",
 
   //Unprinted symbols: Length of arrow rendered for tab-char.
   //Value=1 means minimal length, 0 means full size.
+  //Note: this option is global, not per-lexer.
   "unprinted_tab_len": 1,
 
   //Unprinted symbols: Scale of different symbols, in % of character height.
@@ -579,6 +607,7 @@
   //- Scale of end-of-line "dots"
   //- Scale of end-of-line text marks "LF", "CRLF", "CR", "EOF"
   //- Scale of tab-char arrow pointer
+  //Note: this option is global, not per-lexer.
   "unprinted_symbols_scale": "15,30,80,22,",
 
   //[Text/Wrap]
@@ -920,8 +949,18 @@
   //Close the Console panel by Esc key.
   "ui_esc_close_console": true,
 
-  //Initial folder of Open/Save-as dialogs, for untitled tabs.
+  //Sub-option of "ui_open_dir".
   "ui_initial_dir": "",
+
+  //Initial folder of Open/Save-as dialog.
+  //Has character(s), each character is a step to detect the folder.
+  //  'p': If project is opened: selected folder in the Project Manager.
+  //  'q': If project is opened: folder of the "projectname.cuda-proj" file.
+  //  'f': Folder of focused ui-tab, if it's named.
+  //  'l': Last user-chosen folder in the Open/Save-as dialog.
+  //  'i': Value of option "ui_initial_dir", if not empty.
+  //  'h': OS home folder.
+  "ui_open_dir": "pflih",
 
   //[UI/Tree]
   //Sync code-tree selection to caret position. Ie after caret moves,
@@ -1055,7 +1094,7 @@
   //How to call "Go to definition" command, by click with what modifier key(s).
   //  "": disabled
   //  "a": by Alt+click; note: it may not work on Linux
-  //  "c": by Ctrl+click; if active, use Ctrl+[wheel click] to add caret
+  //  "c": by Ctrl+click; if active, use Ctrl+[wheel click] to add caret; disables all other means of multi-selection
   //  "ca": by Ctrl+Alt+click
   //  "sa": by Shift+Alt+click
   //  "sca": by Shift+Ctrl+Alt+click
@@ -1205,7 +1244,7 @@
   //Allow to restore last session even if some file/folder was passed in command line.
   //Note, this gives bad behaviour: N program instances will reopen the same last
   //session + passed command-line file.
-  "ui_reopen_session_cmdline": false,
+  "ui_reopen_session_cmdline": true,
 
   //Option value>0: if "ui_reopen_session":true, save the current session, by timer
   //with specified interval (in seconds).
@@ -1224,7 +1263,7 @@
 
   //If value N>0, app creates N backups of session files on closing: 'history session.X.cuda-session'.
   //You can open these backups by plugin Session Manager, or rename them to a normal name.
-  "ui_backup_sessions": 0,
+  "ui_backup_sessions": 2,
 
   //[Lexers]
   //Allow to apply color-theme to lexer's styles.
@@ -1292,6 +1331,9 @@
   "pylib__mac": "/Library/Frameworks/Python.framework/Versions/3.9/lib/libpython3.9.dylib",
   "pylib__freebsd": "libpython3.6m.so",
   "pylib__haiku": "/boot/system/develop/lib/libpython3.6m.so",
+
+  //API delay for event "on_caret_slow", in milliseconds.
+  "py_caret_slow": 600,
 
   //API delay for event "on_change_slow", in milliseconds.
   //For example, it's used in CudaLint.
@@ -1376,6 +1418,7 @@
   //Auto-pairing doesn't work if after caret is a word char.
   "auto_close_brackets": "([{",
 
+  //[Text/Folding]
   //If value>1, option allows N consecutive commented lines to automatically create the folding range.
   //Note: this option is global, not per-lexer.
   "auto_fold_comments": 0,

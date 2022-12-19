@@ -27,7 +27,6 @@ begin
   F.OnInitAdapter:= @FrameOnInitAdapter;
   F.OnLexerChange:= @FrameLexerChange;
   F.OnAppClickLink:= @FrameConfirmLink;
-  F.OnCallAutoCompletion:= @DoAutoComplete_Delayed;
   F.LexerChooseFunc:= @DoDialogMenuLexerChoose;
   F.OnGetSaveDialog:= @DoGetSaveDialog;
   F.Splitter.OnPaint:= @SplitterOnPaintDummy;
@@ -89,7 +88,8 @@ begin
     Data.Free;
   end;
 
-  APages.Tabs.MakeVisible(NToIndex);
+  if AndActivate then
+    APages.Tabs.MakeVisible(NToIndex);
 
   AppFrameList1.Add(F);
 
@@ -147,6 +147,9 @@ begin
       if F.Editor<>AppCodetreeState.Editor then
         DoCodetree_Clear;
   end;
+
+  //update toolbar pressed-states
+  UpdateToolbarButtons(F);
 
   //if we fire 'on_tab_change' during session loading, Auto Save plugin may activate
   //and overwrite the session (it saves the session)
@@ -268,11 +271,18 @@ begin
     Exit
   end;
 
+  while Frame.IsParsingBusy do
+  begin
+    Sleep(50);
+    Application.ProcessMessages;
+  end;
+  {
   if Frame.IsParsingBusy then
   begin
     ACanClose:= false;
     Exit
   end;
+  }
 
   if Frame.IsEmpty then
     if FrameCount=1 then
@@ -320,7 +330,10 @@ begin
     //need to activate tab, before msgbox
     (Sender as TATTabs).TabIndex:= ATabIndex;
 
-    if ACanContinue then Btn:= MB_YESNOCANCEL else Btn:= MB_OKCANCEL;
+    if ACanContinue then
+      Btn:= MB_YESNOCANCEL
+    else
+      Btn:= MB_YESNO;
     Msg:= Format(msgConfirmSaveModifiedTab, [D.TabCaptionFull]);
     Res:= MsgBox(Msg, Btn or MB_ICONQUESTION);
     if (Res=ID_OK) or (Res=ID_YES) then
@@ -368,42 +381,65 @@ begin
 end;
 
 procedure TfmMain.DoOnTabPopup(Sender: TObject; APages: TATPages; ATabIndex: integer);
+var
+  Data: TATTabData;
+  Frame: TEditorFrame;
 begin
   if Assigned(APages) and (ATabIndex>=0) then
   begin
     InitPopupTab;
+
+    Data:= APages.Tabs.GetTabData(ATabIndex);
+    if Assigned(Data) and Assigned(Data.TabObject) then
+    begin
+      Frame:= Data.TabObject as TEditorFrame;
+      if DoPyEvent(Frame.Ed1, cEventOnTabMenu, []).Val=evrFalse then
+        exit;
+    end;
+
     PopupTab.Popup;
   end;
 end;
 
 procedure TfmMain.mnuTabCloseAllAllClick(Sender: TObject);
 begin
-  GroupsCtx.CloseTabs(tabCloseAll, false);
+  //GroupsCtx.CloseTabs(tabCloseAll, false); //old way in CudaText 1.178
+  DoCloseAllTabs(false);
 end;
 
 procedure TfmMain.mnuTabCloseAllSameClick(Sender: TObject);
 begin
-  GroupsCtx.CloseTabs(tabCloseAllThisPage, true);
+  AppClosingTabs:= true;
+  GroupsCtx.CloseTabs(tabCloseAllThisPage, true, false);
+  AppClosingTabs:= false;
 end;
 
 procedure TfmMain.mnuTabCloseLeftClick(Sender: TObject);
 begin
-  GroupsCtx.CloseTabs(tabCloseLefterThisPage, true);
+  AppClosingTabs:= true;
+  GroupsCtx.CloseTabs(tabCloseLefterThisPage, true, false);
+  AppClosingTabs:= false;
 end;
 
 procedure TfmMain.mnuTabCloseOtherAllClick(Sender: TObject);
 begin
-  GroupsCtx.CloseTabs(tabCloseOthersAllPages, true);
+  AppClosingTabs:= true;
+  GroupsCtx.CloseTabs(tabCloseOthersAllPages, true, false);
+  AppClosingTabs:= false;
 end;
 
 procedure TfmMain.mnuTabCloseOtherSameClick(Sender: TObject);
 begin
-  GroupsCtx.CloseTabs(tabCloseOthersThisPage, true);
+  AppClosingTabs:= true;
+  GroupsCtx.CloseTabs(tabCloseOthersThisPage, true, false);
+  AppClosingTabs:= false;
 end;
 
 procedure TfmMain.mnuTabCloseRightClick(Sender: TObject);
 begin
-  GroupsCtx.CloseTabs(tabCloseRighterThisPage, true);
+  AppClosingTabs:= true;
+  GroupsCtx.CloseTabs(tabCloseRighterThisPage, true, false);
+  AppClosingTabs:= false;
 end;
 
 procedure TfmMain.mnuTabCloseThisClick(Sender: TObject);
@@ -676,5 +712,13 @@ begin
 
   for i:= 0 to PagesCount-1 do
     PagesArray[i].Invalidate;
+
+  //do MakeVisible for tabs, because appending folder suffixes make titles wider
+  //(and current righter tab may shift away).
+  // https://github.com/Alexey-T/CudaText/issues/4653#issuecomment-1344280566
+  Application.ProcessMessages;
+  for i:= 0 to High(Groups.Pages) do
+    if Groups.Pages[i].Tabs.TabCount>0 then
+      Groups.Pages[i].Tabs.MakeVisible(Groups.Pages[i].Tabs.TabIndex);
 end;
 

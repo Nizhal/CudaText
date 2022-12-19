@@ -537,6 +537,7 @@ begin
     DoLocString(msgCannotHandleZip               , ini, 'se', 'HandleZip');
     DoLocString(msgCannotInstallAddonApi         , ini, 'se', 'AddonApi');
     DoLocString(msgCannotAutocompleteMultiCarets , ini, 'se', 'AutocompleteCarets');
+    DoLocString(msgCannotSetWrap                 , ini, 'se', 'SetWrap');
 
     DoLocString(msgCmdPaletteCaption             , ini, 'si', 'CmdPalette');
     DoLocString(msgStatusChangedLinesCount       , ini, 'si', 'ChangedLineCount');
@@ -620,10 +621,21 @@ begin
   if Assigned(fmCharmaps) then
     fmCharmaps.Localize;
 
-  //hack to localize already opened tab title
-  if FrameCount>0 then
-    with Frames[0] do
-      if TabCaption='Untitled1' then
-        TabCaption:= msgUntitledTab+'1';
+  DoLocalizeTabTitles;
+end;
+
+procedure TfmMain.DoLocalizeTabTitles;
+var
+  Frame: TEditorFrame;
+  i: integer;
+begin
+  if UiOps.LangName='' then exit;
+  for i:= 0 to FrameCount-1 do
+  begin
+    Frame:= Frames[i];
+    if Frame.FileName='' then
+      if SBeginsWith(Frame.TabCaption, msgUntitledEnglish) then
+        Frame.TabCaption:= msgTranslatedUntitledTab(Frame.TabCaption);
+  end;
 end;
 

@@ -3,6 +3,194 @@
   - fixed
   * changed
 
+1.180.0 (2022/12)
+
++ add: option "ui_open_dir"
++ add: encodings 'cp861' (DOS Icelandic), 'cp865' (DOS Nordic)
++ add: reworked how micromap is painted in word-wrapped mode (both on vert scrollbar and not); now it paints all WrapInfo items, so e.g. long wrapped line gives several cells on micromap
++ add: Find dialog: after 'Select all', scroll to the first caret (thanks @Vivalzar)
++ add: Find dialog, Console dialog: handle global app hotkeys (thanks @Vivalzar)
++ add: dialog "Lexer style mapping" renders styles in the 2nd listbox (thanks @Vivalzar)
++ add: lexer CSS: add missing spec function/property names
+* change: removed default assignment of Ctrl+Shift+R to 'toggle read-only' (thanks @Vivalzar)
+- fix: Project Manager: changed current folder was not always passed to app
+- fix: on macOS, External Tools plugin shown 'Edit' dialog for the wrong list item (thanks @veksha)
+- fix: regression: if opened >20 tabs, just closed tabs are not added to 'recents' (thanks @mix-7)
+- fix: regression: on loading session, 'pinned' tabs were not closed (thanks @MiroslavMatas)
+- fix: usage of 'pkexec' must be disabled on macOS and enabled on Solaris
+
+1.179.0 (2022/12)
+
++ add: forward keys Up/Down/Enter from codetree-filter-input to codetree
+* change: on dropping n>1 files onto app, focus last opened ui-tab (thanks @Vivalzar)
+- fix: crashes on fast/heavy using of file commands: drag-drop 20 files / close all / reopen recent file (thanks @veksha)
+- fix: crash on Windows when opening file in distraction-free mode (thanks @faulknermano)
+
+1.178.5 (2022/12)
+
+* change: "Extract RegEx matches" action now doesn't sort matches (thanks @mast)
+* change: tab context menu "Close / All (all groups)" now closes tabs in all windows including floating-groups
++ add: avoid cropping of 'italic' id before a space (thanks @veksha)
+- fix: improved for drag-n-drop 700 files onto app: a) don't start parser for passive tabs, b) 'close all' works _much_ faster (thanks @veksha)
+- fix: for 'big' files, minimap was turning off on file open (thanks @veksha)
+- fix: Project Manager: ui issue on deleting files/dirs
+- fix: wrong message "File was changed outside" when you save file from 'splitted' view
+- fix: possible crash of API: Editor(1).get_filename()
+- fix: macOS: "Open with / CudaText" did not work from Finder
+
+1.178.0 (2022/11)
+
++ add: allow Differ plugin to fill ui-tab context menu 'on demand' and not 'on file opening' which was much slower (thanks @veksha)
++ add: opening lot of files via command line (and Windows Shell Extension) must not activate each file on loading (thanks @iahung)
++ add: dialog "Themes" has improved UI (thanks @veksha)
++ add: option "find_suggest_in_selection" also detects the columnar selection (thanks @tmsg)
++ add: lexer PHP: support inclusion of JSON blocks
+- fix: sometimes, program doesn't apply dark _syntax_ theme on startup (thanks @iahung)
+- fix: sometimes, "Extract RegEx matches" doesn't repaint the resulting editor
+- fix: regression: files always open 'activated' even when it's needed 'in background ui-tab'
+- fix: bug in lexer JSON^ with [["aa","aa"],{"aa":"bb"}]
+
+1.177.0 (2022/11)
+
++ add: show indicator form when app loads big file (>10Mb) on startup (thanks @Vivalzar)
++ add: properly zoom gutter's: a) folding column width, b) folding plus/minus icons, c) width of folding lines
++ add: auto-deletion of pair brackets: https://wiki.freepascal.org/CudaText#Auto-deletion_of_pair_brackets (thanks @lwo)
++ add: support hotkeys for "find current word next/previous" even in Find dialog (thanks @veksha)
++ add: set scale for 'pilcrow marks' from "unprinted_symbols_scale" (thanks @Vivalzar)
++ add: dialog "Go to" must have X icon even on Windows (thanks @Vivalzar)
++ add: increase limit of highlighted URL length to 1200
+* change: Esc-key should first close the (docked) Find dialog, like Sublime/VSCode (thanks @Vivalzar)
+* change: dialog "Char Map" should have icon in taskbar (thanks @Vivalzar)
+- fix: "fold_style":4 gave problem with restoring folding after file closing/reopening (thanks @veksha)
+- fix: regression: "ui_esc_close_console":true did not work (thanks @Vivalzar)
+- fix: some minor visual glitches on painting (thanks @veksha)
+- fix: "File / Close all" shown confirmation with OK/Cancel, must be Yes/No
+- fix: closing all tabs did not reset 'untitled counter' to 1
+- fix: change of grouping mode crashed sometimes
+
+1.176.0 (2022/11)
+
++ add: Windows: avoid annoying white line under themed menubar (thanks @veksha)
++ add: option to turn off 'line states': "gutter_line_states" (thanks @iconv)
++ add: Project Manager: don't sort 'by extension': a) folders, b) non-Latin extensions (thanks @iconv)
++ add: apply options "caret_view*" also to plugins' input fields
+* change: Find dialog: make all buttons not focusable (thanks @Vivalzar)
+* change: option "unprinted_content" sub-option "x": a) must hide marks when there is no selection, b) must affect line-break marks too (thanks @Vivalzar)
+* change: make jump in the "delete word" commands similar to Sublime/Firefox (thanks @iconv)
+- fix: when Project Manager opens 'preview' tab, it must be activated (thanks @iconv)
+- fix: bad rendering of 'pilcrow' unprinted mark on Unix'es
+
+1.175.0 (2022/11)
+
+* change: changed rendering of "Unicode combined characters" (accent chars), now they have separate char-cell like letters; this was needed to solve several issues with accent chars (thanks @iconv)
+* change: don't activate ui-tab by right/middle click (thanks @iconv)
+* change: Find dialog: close the dialog after 'Select all'/'Mark all' (thanks @Vivalzar, @veksha)
+* change: Find dialog: now Up-arrow goes to next dropdown item (before Down-arrow did that), like in Sublime Text (thanks @Vivalzar)
+* change: API event on_change_slow becomes more lazy, ie it fires only in the applicaion idle state (no keyboard/mouse input for 1-2secs)
++ add: dialog About: add button 'Copy to clipboard'
+- fix: with "undo_persistent" on, lines with tab-chars were loaded wrong from undo-file (thanks @veksha)
+- fix: options "caret_view*" did not affect: find-dialog, console, code-tree filter, menu dialogs (thanks @iconv)
+- fix: command "insert empty line below" inserted 2 lines at the file end (thanks @iconv)
+- fix: command "delete line" was not deleting the last line (thanks @iconv)
+- fix: wrong Undo after Alt+Up / Alt+Down (thanks @iconv)
+- fix: regression in 1.173: code-tree was not updated good for lite lexers (thanks @mix-7)
+- fix: regression in 1.171: with 3 selections '_[dd][dd][dd]_' typing 'a' produced '_a_' instead of '_aaa_'
+- fix: regression in 1.166.x: _empty_ session was reopened wrong (thanks @TomBraider42)
+
+1.174.0 (2022/10)
+
+* change: simplified app icon
++ add: ui-tabs render colored circle also for externally modified/deleted files (thanks @bogen85)
++ add: Windows: normalize case of filenames on opening (thanks @veksha, @KodeZwerg)
++ add: if "ui_esc_close":true, and Esc is pressed to 'cancel selection', don't quit but perform the command (thanks @GenuZ)
++ add: "underline_color_files" must support 'rgb(10 20 30 / 50%)' (thanks @eltonfabricio10)
++ add: file-flag "plugin_disabled" in plugin's folder - disables loading of plugin
++ add: toolbar 'pressed' states react fast to: buttons pressing, ui-tab switching
++ add: support Python 3.11
+- fix: regression in 1.173 - tree-helpers don't work for lite lexers (thanks @mix-7)
+- fix: bug in calculating text-pos from mouse-pos for proportional fonts (thanks @cg00001)
+- fix: "autocomplete_autoshow_chars":2 - a) must not fire event if ui-tab is quickly switched; b) value 2 didn't work with 3 typed characters (thanks @veksha)
+- fix: bad plugin's editor scrollbar with "micromap_on_scrollbar":true (thanks @veksha)
+
+1.173.2 (2022/10)
+
+- fix: minor issues with formatting in auto-completion listbox (thanks @veksha)
+- fix: wrong filter-char highlighting in menu dialog when item is collapsed with "..." (thanks @veksha)
+- fix: LSP plugin tooltip could appear in Alt+Tab list on Windows (thanks @veksha)
+- fix: lexer PHP: wrong folding of 'default:' blocks (thanks @veksha)
+- fix: Breadcrumbs plugin: code-tree cells may appear without icons, when code-tree is hidden
+- fix: regression in 1.117 or older: in GTK2 version clipboard is cleared on exit
+
+1.173.0 (2022/10)
+
++ add: API for LSP plugin to render colored auto-completion listbox (thanks @veksha)
++ add: option "gutter_icon_size"
+* add/change: for modified ui-tabs, render separate circle-mark instead of '*' char in the title text; ui-tabs with plugin-set custom title now also show modified circle-mark
++ add: toolbar shows 'pressed' state for additonal user-added buttons: 'word wrap', 'read-only', 'insert/overwrite mode', 'show micromap', 'show ruler' (thanks @hexaae)
+- fix: lexer Markdown: fixed rules for backtick-codeblocks, to not fail on empty line in block (thanks @etn0)
+- fix: Project Manager: fixed errors on ancient Python 3.5
+- fix: Ctrl+BackSpace in auto-completion (thanks @actforjason)
+
+1.172.5 (2022/10)
+
++ add: lexer reStructuredText: support headers with Unicode (thanks @lookoutside)
++ add: updated file-type icons (140 unused icons removed, 40 added)
++ add: commands "dialog: find: toggle" and "dialog: replace: toggle" now consider options "find_suggest_*" (thanks @Vivalzar)
+- fix: command "dialog: find: toggle" could move Find dialog out of the main window
+- fix: Tabs List plugin: wrong columns if file-pair is opened (thanks @veksha)
+- fix: error if Ctrl+D is pressed in Console/Find/Replace input (thanks @mix-7)
+- fix: regression in 1.165.2: Alt+Down stopped working in Console/Find/Replace comboboxes
+- fix: regression in 1.165.2: Ctrl+Enter stopped working in Find/Replace input fields
+- fix: regression in 1.167: carets outside of screen are removed on arrow moving (thanks @cser)
+
+1.172.0 (2022/10)
+
++ add: option "auto_copy_clp", which now replaces plugin Auto Copy To Clipboard (plugin is now ignored); unlike the old plugin, option works in all editor-fields in the app (including Find/Replace/Console/etc)
++ add: option "mouse_middle_click":2 (paste on middle click) works also for one-line inputs: Find/Replace, Console, Code-tree filter
++ add: 'single instance' code works faster on Unix: user doesn't see flashing main dialog now (thanks @DUOLabs333)
++ add: API supports HTML formatting in auto-completion listbox; it will be used in LSP
++ add: handle command-line keys -h / -v / -el before creating GUI
++ add: Options Editor supports old Python 3.4 (thanks @spyrosmas)
+* change: change default of "ui_backup_sessions" to 2 (thanks @Flashwalker)
+* change: change default of "ui_reopen_session_cmdline" to true (thanks @Flashwalker)
+* change: remove '-' from "nonword_chars" in "settings_default/lexer Bash script.json"
+- fix: after Shift+Right, Shift+Left, simple Right makes the buggy selection (thanks @veksha)
+ 
+1.171.0 (2022/09)
+
++ add: when editing too long lines (2000+ chars), editor turns lexer off for a few seconds. That is to prevent caret rendering glitches on such lines. Option is added for this: "max_line_len_for_editing_keeping_lexer".
++ add: few APIs for LSP Client
++ add: better calculate wrap positions for CJK text (thanks @lookoutside)
++ add: Addon Manager: add option "Verify HTTPS certificates" (thanks @veksha, @ViCrack)
++ add: option "renderer_anti_flicker" is now per-lexer (before it was global)
+- fix: option "renderer_anti_flicker":20 gave regression in FindInFiles4 plugin's UI
+- fix: default value of "key_left_right_wrap_with_carets" was not like default.json tells (thanks @cser)
+- fix: in some cases, Delete/typing command with multi-carets places multi-carets wrong (thanks @cser)
+- fix: regression in 1.169.2: Emmet engine broken
+- fix: regression in 1.167: Down-arrow from long wrapped line, to the last short line
+- fix: after mouse wheel zoomimg, scrollbar position becomes very incorrect (thanks @veksha)
+- fix: "mouse_wheel_zoom":false -> Ctrl+wheel jumps to file beginning
+- fix: too wide combobox-arrow if UI scale is big (thanks @kuannng)
+
+1.170.0 (2022/09)
+
++ add: when file is deleted outside, show tab title in reddish color (theme color "tabs, special marks")
++ add: option "underline_color_files" must support modern variants of rgba() and hsla(); support color-angles in units deg/rad/grad/turn (thanks @eltonfabricio10)
++ add: option "py_caret_slow" (thanks @veksha)
++ add: lexer HTML: highlight background of <svg> blocks
+* change: bracket highlight is now performed near "on_caret_slow", ie after a pause
+* change: lexer CSS: don't highlight entire color-function calls as single token: rgba(...), hsla(...) etc
+- fix: fold-ranges from command "fold selected lines" often worked wrong
+- fix: incorrect width of group of some 'Latin extended' chars (thanks @dbgrgl)
+- fix: Addon Manager "Install from Git" ignored Git branch name on 'clone' action
+- fix: option "autocomplete_autoshow_chars" small bug
+
+1.169.2 (2022/08)
+
++ add: auto-completion in plugins: avoid listbox hiding/showing, when user presses Left/Right key in auto-completion
++ add: API allows LSP Client to show tooltips for gutter-icons when option "lint_type" is set to "d" (thanks @veksha)
+* change: Emmet now doesn't auto-pair 'unknown' tags (thanks Rickard)
+
 1.169.0 (2022/08)
 
 + add: handle the situation 'file was deleted outside' more detailed: show additional non-modal confirmation to close the tab (thanks @lookoutside, @JairoMartinezA)

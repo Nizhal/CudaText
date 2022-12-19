@@ -111,6 +111,7 @@ type
     IsDlgModalEmulated: boolean;
     IsDlgCounterIgnored: boolean;
     IdClicked: integer;
+    ShowInTaskbar_Pending: TShowInTaskbar;
     FEventOnClose: string;
     FEventOnCloseQuery: string;
     FEventOnKeyDown: string;
@@ -200,7 +201,7 @@ end;
 
 function AppVariant_KeyData(AKey: word; AShift: TShiftState): TAppVariant;
 begin
-  FillChar(Result{%H-}, SizeOf(Result), 0);
+  Result:= Default(TAppVariant);
   Result.Typ:= avrTuple;
   SetLength(Result.Items, 2);
 
@@ -214,7 +215,7 @@ end;
 
 function AppVariant_MouseData(AButton: TMouseButton; AShift: TShiftState; AX, AY: Integer): TAppVariant;
 begin
-  FillChar(Result{%H-}, SizeOf(Result), 0);
+  Result:= Default(TAppVariant);
   Result.Typ:= avrDict;
   SetLength(Result.Items, 4);
 
@@ -311,7 +312,7 @@ begin
   Position:= poMainFormCenter;
   ShowHint:= true;
   Scaled:= false;
-  ShowInTaskBar:= cTaskbarModes[UiOps.PluginDialogsShowInTaskbar];
+  ShowInTaskbar_Pending:= cTaskbarModes[UiOps.PluginDialogsShowInTaskbar];
 
   IsDlgCustom:= false;
   IsFormShownAlready:= false;
@@ -427,7 +428,7 @@ begin
   IdControl:= FindControlIndexByOurObject(Sender);
   P:= (Sender as TControl).ScreenToClient(Mouse.CursorPos);
 
-  FillChar(Data, SizeOf(Data), 0);
+  Data:= Default(TAppVariant);
   Data.Typ:= avrTuple;
   SetLength(Data.Items, 2);
 
@@ -810,9 +811,12 @@ begin
       SCallback:= Props.FEventOnMouseDown;
     cControlEventMouseUp:
       SCallback:= Props.FEventOnMouseUp;
+    else
+      SCallback:= '';
   end;
 
-  DoEvent(IdControl, SCallback, AData);
+  if SCallback<>'' then
+    DoEvent(IdControl, SCallback, AData);
 end;
 
 procedure TFormDummy.DoOnListboxDrawItem(Sender: TObject; ACanvas: TCanvas;
@@ -823,12 +827,15 @@ var
   Data: TAppVariant;
   Callback: string;
 begin
+  if Sender is TATListbox then
+    if not TATListbox(Sender).IsIndexValid(AIndex) then exit;
+
   Props:= TAppControlProps((Sender as TControl).Tag);
   Callback:= Props.FEventOnListboxDrawItem;
   if Callback='' then exit;
   IdControl:= FindControlIndexByOurObject(Sender);
 
-  FillChar(Data, SizeOf(Data), 0);
+  Data:= Default(TAppVariant);
   Data.Typ:= avrDict;
   SetLength(Data.Items, 3);
 
@@ -879,7 +886,7 @@ begin
   if Callback='' then exit;
   IdControl:= FindControlIndexByOurObject(Sender);
 
-  FillChar(Data, SizeOf(Data), 0);
+  Data:= Default(TAppVariant);
   Data.Typ:= avrTuple;
   SetLength(Data.Items, 2);
 
@@ -1174,7 +1181,7 @@ begin
   if Callback='' then exit;
   IdControl:= FindControlIndexByOurObject(Sender);
 
-  FillChar(Data, SizeOf(Data), 0);
+  Data:= Default(TAppVariant);
   Data.Typ:= avrDict;
   SetLength(Data.Items, 3);
 
@@ -1207,7 +1214,7 @@ begin
   if Callback='' then exit;
   IdControl:= FindControlIndexByOurObject(Sender);
 
-  FillChar(Data, SizeOf(Data), 0);
+  Data:= Default(TAppVariant);
   Data.Typ:= avrDict;
   SetLength(Data.Items, 7);
 
@@ -1265,7 +1272,7 @@ begin
   if Callback='' then exit;
   IdControl:= FindControlIndexByOurObject(Sender);
 
-  FillChar(Data, SizeOf(Data), 0);
+  Data:= Default(TAppVariant);
   Data.Typ:= avrStr;
   Data.Str:= ALink;
 
@@ -1294,7 +1301,7 @@ begin
   if Callback='' then exit;
   IdControl:= FindControlIndexByOurObject(Sender);
 
-  FillChar(Data, SizeOf(Data), 0);
+  Data:= Default(TAppVariant);
   Data.Typ:= avrDict;
   SetLength(Data.Items, 2);
 

@@ -26,6 +26,34 @@ Screenshot on Windows:
 
 [[File:cudatext.png]]
 
+=UI elements=
+
+[[File:cudatext-ui-elements.png]]
+
+On the above picture you see UI elements:
+
+;ed: Main editor field.
+
+;gut: Gutter, contains several columns for the active editor: bookmark icons, line numbers, folding icons, line-state marks. 
+
+;tabs: UI-tabs, to switch between different documents.
+
+;map: Mini-map (left side), which is shown here together with micro-map (thin bar on the right side).
+
+;tree: Code-tree, shows 'symbols' from the active document (functions, classes, structs etc) in the tree view.
+
+;filt: Filtering input field for the code-tree. Leaves only those items which contain entered text.
+
+;tb: Toolbar: buttons for some commands. Hidden by default. Configurable via plugin Config Toolbar.
+
+;sb: Sidebar. Has upper and bottom parts, bottom part has buttons to control bottom panels. Plugins can add buttons here, e.g. bottom black button is ExTerminal plugin.
+
+;cons: Console. One of the bottom panels. You can activate others (Output and Validate panels) via sidebar.
+
+;stat: Statusbar. Has several cells to show some current states.
+
+;bre: Breadcrumb bar. It is a plugin which needs to be installed in Addons Manager.
+
 = Additional wiki pages =
 
 See also additional wiki pages:
@@ -158,6 +186,7 @@ Supported keys:
 * -nn - Don't suggest to create new file if command-line filename is not found.
 * -s=folder - Specify full path of the "settings" folder, which contains all configuration files.
 * -i - Read the contents of stdin to a new document. Unix only. It can be used in Unix shell like: "ls -l | cudatext -i".
+* -verbose - Copy Python messages from Console panel to stdout. Unix only.
 * -id=name - Set "group" for single-instance mode, so that program with one "group" will not interfere and find instances with another "group". Unix only. Default value is "cudatext.0".
 * -w=left,top,width,height - Set position/size of the main window. Up to 4 numbers should be specified, any number can be skipped to keep previous value.
 * -c=cuda_module,method_name - Run the specified command plugin on startup. It runs the command plugin for the currently active editor tab, so make sure you don't pass multiple filenames in the command line, and current session doesn't have multiple files. So, it is good to use together with "-n" and/or "-ns" params. How to know the "cuda_module"? It is the name of subfolder under "py" folder. How to know "method_name"? It is the value of "method=" key in the "py/cuda_module/install.inf" file.
@@ -200,7 +229,7 @@ Clicks:
 
 * wheel click - Configurable by option "mouse_middle_click", choices are:
 ** Start "browser scrolling" mode: circle mark appears and mouse moving around this mark auto-scrolls text in 4 directions; speed of scrolling depends on distance of cursor from circle mark (any click to turn off).
-** Paste from clipboard. This mimics Linux apps behaviour. With this choice, it's good to install plugin "Auto-Copy to Clipboard".
+** Paste from clipboard. This mimics Linux apps behaviour.
 ** Call "Go to definition" command.
 ** Nothing.
 
@@ -302,6 +331,7 @@ Most of them are located in the Addons Manager "Install" list.
 * ActionScript
 * Acu Cobol
 * Ada
+* Adept
 * Adobe Flash
 * Amazon Ion
 * AMPL
@@ -352,6 +382,7 @@ Most of them are located in the Addons Manager "Install" list.
 * C#
 * C++
 * Caffe Prototxt
+* Carbon
 * Clarion
 * Clavier
 * Clipper
@@ -372,6 +403,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Dart
 * Delphi resources
 * Dhall
+* Dictu
 * Diff
 * Dockerfile
 * DOORS DXL
@@ -412,6 +444,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Hare
 * Haskell
 * Haxe
+* HCL (HashiCorp configuration language)
 * HJSON
 * HLSL
 * HTML
@@ -474,6 +507,7 @@ Most of them are located in the Addons Manager "Install" list.
 * MSVS Solution
 * MusicBrainz Picard Tagger Script
 * MySQL
+* Nelua
 * Nemerle
 * Nginx
 * Nim
@@ -481,9 +515,11 @@ Most of them are located in the Addons Manager "Install" list.
 * nnCron
 * NSIS
 * NSL Assembler
-* Oberon
+* Oberon (and Component Pascal)
+* Objeck
 * Objective-C
 * OCaml
+* Odin
 * OpenCL
 * OpenEdge
 * OpenSCAD
@@ -562,6 +598,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Tree
 * Twig
 * TypeScript
+* Umka
 * V
 * Vala
 * VBScript
@@ -576,6 +613,7 @@ Most of them are located in the Addons Manager "Install" list.
 * WinBuilder script
 * Windows Resource Script
 * Wolfram
+* Wren
 * WSH script
 * XML
 * XSLT
@@ -677,7 +715,6 @@ Find the lexer file, .lcf file in the folder data/lexlib. This file has the endi
 Insert it near the end of file, like here:
 
    FullRefreshSize = 5000
-   LineComment = '#'
    Charset = DEFAULT_CHARSET
  end
 
@@ -798,6 +835,8 @@ Possible encoding names for command-line usage:
 * cp437
 * cp850
 * cp852
+* cp861
+* cp865
 * cp866
 * cp874
 * cp932
@@ -1290,10 +1329,12 @@ Micromap has several thin columns (from column 1 to column 3, but this can be ch
 
 Plugins can place marks on micromap, e.g. plugin "Highlight Occurrences" places marks for highlighted fragments, plugin "Spell Checker" places marks for misspelled words.
 
-In the CudaText version 1.144 or newer, micromap can be rendered directly on the vertical scrollbar. To use that, you need 2 options:
+Micromap can be rendered directly on the vertical scrollbar. To use that, you need 2 options:
 
 * "scrollbar_themed": true
 * "micromap_on_scrollbar": true
+
+Micromap visible state is not restored from history for files, which have line count bigger than value of option "wrap_enabled_max_lines" (default 60K).
 
 [[File:cudatext-micromap-on-scrollbar.png]]
 
@@ -1301,12 +1342,9 @@ In the CudaText version 1.144 or newer, micromap can be rendered directly on the
 
 To paste like in Linux, with middle-click, you need:
 
-* set option "mouse_middle_click" to value 2 (in the user.json, of course)
-* install plugin "Auto-Copy to Clipboard"
-
-Plugin "Auto-Copy to Clipboard" activates auto-copying of selection to clipboard, to mimic usual Linux behaviour.
-
-Note: all this works only in the "editor in file-tabs", and doesn't work in Console read-only editor, nor in single-line inputs.
+* Step 1. Set option "mouse_middle_click" to value 2 (in the user.json).
+* Step 2 before CudaText 1.171.5. Install plugin "Auto-Copy to Clipboard".
+* Step 2 after CudaText 1.171.5. Set option "auto_copy_clp". Option replaces old plugin and supports one-line input fields (Find/Replace, Console, Code-Tree filter).
 
 =Full-screen mode=
 
@@ -1322,31 +1360,37 @@ Notes:
 
 =Python integration=
 ==Python on Windows==
-On Windows, Python engine (currently 3.6) is preinstalled. CudaText finds files "python3*.dll" in its folder, and uses file with the latest version number. No options are used to configure this.
+On Windows, Python engine (2022/10: currently it is 3.8) is preinstalled. CudaText finds files "python3*.dll" in its folder, and uses file with the latest version number. No options exist to change this.
 
-You can use not only version 3.6. From CudaText's Addon Manager, install appropriate package, e.g. "Windows_Python37_64bit", and restart the program.
+You can use different Python version. From CudaText's Addon Manager, install appropriate package, e.g. "Windows_Python37_64bit", and restart the program.
 
 Python engine requires Visual C++ Redistributable for Visual Studio 2015 (32-bit or 64-bit, same as CudaText). Download it from Microsoft site.
 
-So, files needed for Python 3.6 are:
+So, files needed for Python 3.8 are:
 
-* "python36.zip"
-* "python36.dll"
-* "python36dlls" - folder with about 18 *.pyd files
-* "vcruntime140.dll" - Microsoft runtime
+* "python38.zip"
+* "python3.dll"
+* "python38.dll"
+* "python38dlls" - folder with about 18 *.pyd files
+* "vcruntime140*.dll" - Microsoft runtime
 
-And file "python3.dll" without exact version (e.g. "36") - this file is not preinstalled, but sometimes it's needed for Python plugins to work property. For example, file is needed for plugin FTP with SFTP support (plugin crashes and shows errors in the Console if "python3.dll" is absent). You can take this file from the Addons Manager - almost each package "Windows_Python3x_xxxx" contains it.
+File "python3.dll" without exact version: this file is sometimes needed for Python plugins to work property. For example, file is needed for plugin FTP with SFTP support (plugin crashes and shows errors in the Console if "python3.dll" is absent). Almost each package "Windows_Python3x_xxxx" contains this file.
 
 Note for Windows 7. You also need the Update for Universal C Runtime in Windows (KB2999226). Download it from the Microsoft site.
 
 ==Python on Windows XP==
-You need CudaText 1.122.0 or newer, and you must install (from Addons Manager) the package named "Windows Python34 32bit". Menu item "Plugins / Addons Manager / Install" must list this package.
+Install the package "Windows Python34 32bit". Download it from [https://sourceforge.net/projects/cudatext/files/addons/packages/ SourceForce folder addons/packages], and unzip to CudaText folder.
 
 No options are needed to configure this older Python, but you need to delete all newer Pythons from CudaText folder:
 
 * python*.dll: must be deleted
 * python*.zip: can be left as is
 * files *.pyd: can be left as is
+
+Proper old version of "requests" is now included in the "Windows Python34 32bit". But if you miss it somehow, do additional steps:
+
+* New versions of "requests" lib don't work, ie Addons Manager crashes. So you need to downgrade the "requests" lib. Get old version 2.5.x from https://pypi.org/project/requests/#history and update the folder "py/sys/requests".
+* After you downgrade the "requests", you may get Addons Manager errors about HTTPS certificate. To fix that, replace outdated file "py\sys\requests\cacert.pem" with the new one from "py\sys\certifi\cacert.pem".
 
 ==Python on Linux, BSD, Solaris==
 Linux/*BSD/Solaris version uses Python library from OS. Install Python 3.x (usually already installed). Instruction, if Python library was not automatically used:
@@ -1452,30 +1496,30 @@ Plugin also gives command "Hide standard buttons" which allows to hide default C
 
 Statusbar is fully configurable: you can change order/visibility of cells, width and alignment of cells. Option "ui_statusbar_panels" configures set of cells. Predefined cells are:
 
-* Caret(s) info. Click on it shows Go To dialog.
-* Encoding name. Click on it shows menu to change encoding of document.
-* Line-ends characters. Click on it shows menu to change line-ends in entire document.
-* Lexer name. Click on it shows lexers menu.
-* Tab-char size. Shows "Tab: 4" if Tabulation-key inserts tab-char, or "Spaces: 4" if Tabulation-key inserts spaces. Click on it shows menu:
+* '''Carets info'''. Click on it shows Go To dialog.
+* '''Encoding name'''. Click on it shows menu to change encoding of document.
+* '''Line-ends characters'''. Click on it shows menu to change line-ends in entire document.
+* '''Lexer name'''. Click on it shows lexers menu.
+* '''Tab-char size'''. Shows "Tab: 4" if Tabulation-key inserts tab-char, or "Spaces: 4" if Tabulation-key inserts spaces. Click on it shows menu:
 ** To change tabulation size (for the active document).
 ** To change mode "Tabulation-key inserts spaces".
 ** 2 items for actions "Convert indentation to spaces", "Convert indentation to tabs" like in Sublime Text.
-* Text insert/overwrite mode, toggled by Ins-key. Shows "Ins" or "Ovr".
-* Mouse selection mode: "-" for normal mode, "||" for column mode (mouse dragging makes column selection even without Alt+ key).
-* Message from program or plugins (usually it's last auto-sized cell).
-* Word-wrapping mode. Cell is hidden by default.
+* '''Text insert/overwrite mode''', toggled by Ins-key. Shows "Ins" or "Ovr".
+* '''Mouse selection mode''': "-" for normal mode, "||" for column mode (mouse dragging makes column selection even without Alt+ key).
+* '''Message''' from program or plugins (usually it's last auto-sized cell).
+* '''Word-wrapping mode'''. Cell is hidden by default.
 ** No wrapping.
 ** Wrapping at window edge.
 ** Wrapping at fixed margin.
-* Font zoom value in percents. Cell is hidden by default.
+* '''Font zoom value''' in percents. Cell is hidden by default.
 
 The cell "carets info" shows value of one of options:
 
-* "ui_statusbar_no_sel": Used when there is no selection
-* "ui_statusbar_small_sel": Used when there is single-line selection
-* "ui_statusbar_str_sel": Used when selection is multi-line
-* "ui_statusbar_col_sel": Used for column-selection mode
-* "ui_statusbar_carets": Used when 2 or more carets are placed
+* '''"ui_statusbar_no_sel"''': Used when there is no selection
+* '''"ui_statusbar_small_sel"''': Used when there is single-line selection
+* '''"ui_statusbar_str_sel"''': Used when selection is multi-line
+* '''"ui_statusbar_col_sel"''': Used for column-selection mode
+* '''"ui_statusbar_carets"''': Used when 2 or more carets are placed
 
 In the above "ui_statusbar_" options, macros are supported:
 
@@ -1578,6 +1622,25 @@ Option supports auto-pairing of brackets and some other chars (quotes, tilde etc
 CudaText first looks at contexts of all carets. If at least one caret has "not suitable" context, app does not do the pairing, for all carets. So pairing is performed for all or nothing.
 
 For caret with selection, context is considered as OK. And typed char will enclose the selection for that caret.
+
+==Auto-deletion of pair brackets==
+In CudaText 1.176.5+, BackSpace key supports deletion of both brackets at once. Only for bracket chars listed in the "bracket_symbols" option. It is supported when all carets have the 'good situation', ie this (caret is shown by "|"):
+
+<pre>
+ (|)
+ [|]
+ {|}
+</pre>
+
+or this, with additional spaces:
+
+<pre>
+ (|    )
+ [|     ]
+ {|      }
+</pre>
+
+When all carets have this 'good situation', BackSpace deletes both brackets at once. When at least one caret does not have the 'good situation', BackSpace performs usual deletion of single character on the left.
 
 =Word jump commands=
 CudaText provides several word-jump commands, see them in the Command Palette by entering "go to word":
@@ -1823,7 +1886,13 @@ You can also set colors of menu elements directly; dialog "Options / Settings - 
 
 [[File:cudatext-menu-colorsetup.png]]
 
-By default, elements "top menu, ...." in the dialog have the "none" color (crossed rectangles), it means that custom colors are taken from other UI-theme elements.
+By default, elements "top menu, ...." in the dialog have the "none" color (crossed rectangles), it means that actual colors are taken from other UI-theme elements:
+
+* "top menu, font" - falls back to element "tabs, font" 
+* "top menu, font, hotkey" - falls back to element "top menu, font" and then to element "tabs, font, modified tab"
+* "top menu, font, disabled state" - falls back to element "tabs, passive tab border"
+* "top menu, BG" - falls back to element "tabs, active tab BG"
+* "top menu, BG, selected" - falls back to element "tabs, mouse-over tab BG"
 
 =Margins=
 
@@ -1838,6 +1907,9 @@ The plugin "Column Marks" adds more features:
 * Commands to move the caret though all margin columns (normal + additional), to the left/right. 
 
 =Add-ons=
+
+==How to disable plugins==
+Since CudaText 1.174.0: if file "plugin_disabled" (with any contents) exists in the plugin's folder (near install.inf), then plugin will be ignored.
 
 ==Entire plugins list==
 See the [https://github.com/halfbrained/cudatext_plugins_list GitHub repository]
@@ -2081,8 +2153,6 @@ CudaText has the following optimizations for big files and huge lines:
 
 * If file is loaded in "normal" lexer, but count of lines is big, program disables finding of fold-ranges. Syntax coloring works, but folding doesn't work. See the option "lexer_folding_max_lines":10000.
 
-* If file is loaded in "normal" lexer, huge lines are ignored by lexer parser. See the option "max_line_len_parsed":4000.
-
 * If file is loaded in "normal" lexer, dynamic highlightings are disabled in big files. See the option "lexer_dynamic_hilite_max_lines":2000.
 
 * For any files, when too many multi-carets are placed, program disables/clears the Undo-information for editing. See the option "undo_max_carets":5000.
@@ -2125,6 +2195,18 @@ Old way for app sources.
 ** "AT Controls" tab: TATButton, TATButtonsToolbar, TATListbox, TATScroll, TATSynEdit, TATLabelLink, TATGauge
 ** "Python" tab: several items
 * in Lazarus, open "cudatext.lpi" project, compile it
+
+'''GTK2 error on ATSynEdit compiling regarding IME.'''
+
+To fix this error, edit the file atsynedit/atsynedit_package.lpk and remove this block there:
+<syntaxhighlight lang="xml">
+      <Other>
+        <CustomOptions Value="-dGTK2_IME_CODE"/>
+        <OtherDefines Count="1">
+          <Define0 Value="GTK2_IME_CODE"/>
+        </OtherDefines>
+      </Other>
+</syntaxhighlight>
 
 ==How to install plugins from GitHub==
 
@@ -2304,12 +2386,6 @@ This issue appeared to me when I tried to use CudaText.
 
 A: Start the application with "-disableaccurateframe" parameter.
 
-==Linux: How to use middle-click paste==
-
-* Set option "mouse_mid_click_paste" to true (in user.json).
-* Consider to install plugin "Auto-Copy to Clipboard", which emulates Linux editors behaviour: copying to clipboard by simple text selection (no need to use hotkey Ctrl+C).
-** This plugin has options to copy selection to a) usual clipboard, b) GTK primary selection (CudaText GTK builds only)
-
 ==Linux: Installation==
 '''.deb package.''' To support .deb package installation, program performs copying of its files, from .deb installation folder to the settings folder. Ie, when binary "cudatext" (it can be in any folder, e.g. in /usr/bin) starts, it checks, if "data/lexlib" exists near the binary, and if not, it copies folders "py", "data", "settings_default" from .deb installation folder to "~/.config/cudatext" (default location of settings, it can be changed by command line option). Program does this not always, it reads the "settings/packages.ini", and checks there [app] "ver" value. If value not equals to the binary's hardcoded version, program does that copying. So copying occurs once, after .deb package was upgraded.
 
@@ -2332,10 +2408,13 @@ The GTK2 and Qt5 binaries can also be installed via the AUR if you are on an Arc
 * https://aur.archlinux.org/packages/cudatext-gtk2-bin/
 * https://aur.archlinux.org/packages/cudatext-qt5-bin/
 
-==Linux: Qt5 build==
-For CudaText Qt5 version, library libQt5Pas is required, version 1.2.8 or newer.
+==Linux: Qt5 and Qt6 builds==
+'''Qt5'''
 
-You need the latest libQt5Pas [https://github.com/davidbannon/libqt5pas/releases from these packages].
+For Linux Qt5 version, library libQt5Pas is required, release 1.2.8 or newer.
+Get it from [https://github.com/davidbannon/libqt5pas/releases releases on this page].
+
+Some package managers have Qt5Pas package.
 
 On Ubuntu:
 
@@ -2344,6 +2423,11 @@ On Ubuntu:
 On Manjaro:
 
  $ pamac install qt5pas
+
+'''Qt6'''
+
+For Linux Qt6 version, library libQt6Pas is required, release 6.2.2 or newer.
+Get it from [https://github.com/davidbannon/libqt6pas/releases releases on this page].
 
 ==FreeBSD: App cannot run==
 
@@ -2362,6 +2446,9 @@ The following command clears the extended attributes from the bundle, and it can
 
 Also note, that our application bundle is not digitally signed.
 So to run it (the first time you do it), you should right-click the application bundle, and choose "Open" menu item, and confirm that you trust the vendor.
+
+==Can app save files to system directories?==
+Under Linux / *BSD / Solaris systems, CudaText can save files even to system write-protected folders. It runs "pkexec" program for this purpose, and "pkexec" shows GUI confirmation to get admin rights. "Pkexec" runs "/bin/cp" to copy file from temp folder to the write-protected folder.
 
 ==How to select extra symbols by double-click==
 

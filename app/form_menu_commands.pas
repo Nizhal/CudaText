@@ -30,6 +30,7 @@ uses
   proc_colors,
   proc_str,
   proc_keysdialog,
+  proc_editor,
   at__jsonconf,
   math;
 
@@ -55,6 +56,7 @@ type
     keymapList: TFPList;
     keymapList_Simple: TFPList;
     keymapList_Fuzzy: TFPList;
+    FTimerShow: TTimer;
     FOnMsg: TAppStringEvent;
     FColorBg: TColor;
     FColorBgSel: TColor;
@@ -72,6 +74,7 @@ type
     procedure DoMsgStatus(const S: string);
     procedure Localize;
     procedure SetListCaption(const AValue: string);
+    procedure TimerShowTick(Sender: TObject);
   public
     { public declarations }
     Keymap: TATKeymap;
@@ -131,8 +134,13 @@ begin
   edit.OptCaretBlinkEnabled:= EditorOps.OpCaretBlinkEn;
   edit.OptCaretBlinkTime:= EditorOps.OpCaretBlinkTime;
 
+  EditorCaretShapeFromString(edit.CaretShapeNormal, EditorOps.OpCaretViewNormal);
+  EditorCaretShapeFromString(edit.CaretShapeOverwrite, EditorOps.OpCaretViewOverwrite);
+
+  PanelCaption.Height:= ATEditorScale(26);
   PanelCaption.Font.Name:= UiOps.VarFontName;
   PanelCaption.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
+  PanelCaption.Font.Color:= FColorFont;
 
   ButtonCancel.Width:= ButtonCancel.Height;
 
@@ -143,7 +151,6 @@ begin
   edit.Colors.TextSelBG:= GetAppColor(apclEdSelBg);
   edit.Colors.BorderLine:= GetAppColor(apclEdBorder);
   list.Color:= FColorBg;
-  PanelCaption.Font.Color:= FColorFont;
   PanelInfo.Font.Color:= FColorFont;
 
   UpdateFormOnTop(Self);
@@ -170,6 +177,8 @@ begin
 
   if OptAllowConfig then
     edit.OptTextHint:= msgCmdPaletteTextHint;
+
+  FTimerShow.Enabled:= true;
 end;
 
 procedure TfmCommands.listClick(Sender: TObject);
@@ -224,6 +233,11 @@ begin
 
   Width:= ATEditorScale(UiOps.ListboxSizeX);
   Height:= ATEditorScale(UiOps.ListboxSizeY);
+
+  FTimerShow:= TTimer.Create(Self);
+  FTimerShow.Enabled:= false;
+  FTimerShow.Interval:= 100;
+  FTimerShow.OnTimer:= @TimerShowTick;
 end;
 
 procedure TfmCommands.editChange(Sender: TObject);
@@ -332,8 +346,14 @@ begin
 end;
 
 function TfmCommands.GetResultCmd: integer;
+var
+  N: integer;
 begin
-  Result:= TATKeymapItem(keymapList.Items[list.ItemIndex]).Command;
+  N:= list.ItemIndex;
+  if (N>=0) and (N<keymapList.Count) then
+    Result:= TATKeymapItem(keymapList.Items[N]).Command
+  else
+    Result:= 0;
 end;
 
 procedure TfmCommands.DoConfigKey(Cmd: integer);
@@ -665,6 +685,13 @@ begin
     PanelCaption.Caption:= AValue;
     PanelCaption.Visible:= AValue<>'';
   end;
+end;
+
+procedure TfmCommands.TimerShowTick(Sender: TObject);
+begin
+  FTimerShow.Enabled:= false;
+  //fix caret in the middle of input, #4670
+  edit.Update;
 end;
 
 procedure TfmCommands.Localize;

@@ -620,6 +620,7 @@ class DialogMK2:
         # listbox ##########
         n = dlg_proc(h, DLG_CTL_ADD, 'listbox_ex')
         dlg_proc(h, DLG_CTL_PROP_SET, index=n, prop={
+                'name': 'options_list',
                 'p': 'panel_right',
                 'align': ALIGN_CLIENT,
                 'sp_t': PAD,
@@ -1116,6 +1117,12 @@ class DialogMK2:
         new_scope_name = self._scope_captions[new_scope]
         with ignore_edit(self.h, self.scope_ed):
             self.scope_ed.set_text_all(new_scope_name)
+
+        # set focus to options_list (keeps focus from jumping around and selecting treeview)
+        # fixes the bug when filter field is cleared with no reason.
+        if not self._filter_ed.get_prop(PROP_FOCUSED):
+            dlg_proc(self.h, DLG_CTL_FOCUS, name='options_list')
+
         self.val_eds.set_type(self.h,  self._cur_opt, scoped_val=active_scoped_val)
 
         # rgb stuff
@@ -1539,7 +1546,7 @@ class ValueEds:
                 self.val_combo.set_text_all(value)
 
         elif newtype == 'hotk':
-            self.val_edit.set_text_all(value)
+            self.val_edit.set_text_all(str(value))
             self.val_edit.set_prop(PROP_RO, True)
 
             self.layout_ed_btn(h, n, '...')
@@ -1551,13 +1558,16 @@ class ValueEds:
         elif newtype == 'int2s':
             #ed_val = map_option_value(opt, caption=value)
             with ignore_edit(h, self.val_combo):
-                self.val_combo.set_text_all(value)
+                if isinstance(value, str):
+                    self.val_combo.set_text_all(value)
+                elif isinstance(value, int):
+                    self.val_combo.set_text_all(opt['jdc'][value])
             self.val_combo.set_prop(PROP_COMBO_ITEMS, '\n'.join(opt['jdc']))
 
         elif newtype == 'str2s':
             #ed_val = map_option_value(opt, caption=value)
             with ignore_edit(h, self.val_combo):
-                self.val_combo.set_text_all(value)
+                self.val_combo.set_text_all(str(value))
             self.val_combo.set_prop(PROP_COMBO_ITEMS, '\n'.join(opt['jdc']))
 
         elif newtype == 'strs':
@@ -1661,9 +1671,9 @@ class ValueEds:
                 self.val_edit = Editor(h_ed)
 
             # resetting to defaults
-            _props = {**default_props,
-                    'on_key_down': self._val_change_callback,
-                    'texthint': '',}
+            _props = dict(default_props)
+            _props['on_key_down'] = self._val_change_callback
+            _props['texthint'] = ''
             dlg_proc(h, DLG_CTL_PROP_SET, index=n, prop=_props)
 
             ValueEds.reset_edt(self.val_edit)
@@ -1673,7 +1683,8 @@ class ValueEds:
             if n == -1:     # add if not already
                 n = dlg_proc(h, DLG_CTL_ADD, 'editor_combo')
 
-                _props = {**default_props,   'on_change': self._val_change_callback,}
+                _props = dict(default_props)
+                _props['on_change'] = self._val_change_callback
                 dlg_proc(h, DLG_CTL_PROP_SET, index=n, prop=_props)
 
                 h_ed = dlg_proc(h, DLG_CTL_HANDLE, index=n)
@@ -1685,13 +1696,12 @@ class ValueEds:
             n = dlg_proc(h, DLG_CTL_FIND, prop=name)
             if n == -1:     # add if not already
                 n = dlg_proc(h, DLG_CTL_ADD, 'button_ex')
-                dlg_proc(h, DLG_CTL_PROP_SET, index=n, prop={
-                        **default_props,
-                        'cap': _('Enable'),
-                        'act': True,
-                        'on_change': self._on_cb_click_proxy,
-                        'font_color': COL_FONT,
-                        })
+                _props = dict(default_props)
+                _props['cap'] = _('Enable')
+                _props['act'] = True
+                _props['on_change'] = self._on_cb_click_proxy
+                _props['font_color'] = COL_FONT
+                dlg_proc(h, DLG_CTL_PROP_SET, index=n, prop=_props)
                 self._h_cbx = dlg_proc(h, DLG_CTL_HANDLE, index=n)
                 self._ctl_names[n] = name
 
@@ -1707,11 +1717,10 @@ class ValueEds:
             n = dlg_proc(h, DLG_CTL_FIND, prop=name)
             if n == -1:     # add if not already
                 n = dlg_proc(h, DLG_CTL_ADD, 'button_ex')
-                dlg_proc(h, DLG_CTL_PROP_SET, index=n, prop={
-                        **default_props,
-                        'cap': '...',
-                        'on_change': self._val_change_callback,
-                        })
+                _props = dict(default_props)
+                _props['cap'] = '...'
+                _props['on_change'] = self._val_change_callback
+                dlg_proc(h, DLG_CTL_PROP_SET, index=n, prop=_props)
                 self._ctl_names[n] = name
         #end if
 

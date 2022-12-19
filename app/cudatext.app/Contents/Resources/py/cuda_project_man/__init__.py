@@ -37,6 +37,17 @@ def _file_open(fn, options=''):
     #print('Opening file in group %d'%gr)
     file_open(fn, group=gr, options=options)
 
+# don't allow spaces and punctuation in file extension
+EXT_CH = string.ascii_letters + string.digits + '.-_'
+
+def _file_ext(fn):
+    _, s = os.path.splitext(fn)
+    for ch in s:
+        if not ch in EXT_CH:
+            return ''
+    return s
+
+
 # https://stackoverflow.com/questions/377017/test-if-executable-exists-in-python
 def which(program):
     def is_exe(fpath):
@@ -161,6 +172,7 @@ def _toolbar_add_btn(h_bar, hint, icon=-1, command=''):
 
 class Command:
     goto_history = []
+    cur_dir = ''
 
     title ="Project"    # No _() here, the translation is offered in "translation template.ini".
     menuitems = (
@@ -394,8 +406,12 @@ class Command:
     @staticmethod
     def node_ordering_direntry(path):
         # node_ordering() for DirEntry
-        _, suffix = os.path.splitext(path.name)
-        return path.is_file(), suffix.upper(), path.name.upper()
+        isfile = path.is_file()
+        if isfile:
+            ext = _file_ext(path.name).upper()
+        else:
+            ext = ''
+        return isfile, ext, path.name.upper()
 
     def add_node(self, path):
         if path:
@@ -423,6 +439,7 @@ class Command:
         self.project_file_path = None
         self.update_global_data()
         self.goto_history = []
+        self.cur_dir = ''
 
         app_proc(PROC_SET_FOLDER, '')
         app_proc(PROC_SET_PROJECT, '')
@@ -521,7 +538,7 @@ class Command:
             return
 
         location.replace(new_location)
-        if location in self.top_nodes.values():
+        if self.is_path_in_root(location):
             self.action_remove_node()
             self.add_node(str(new_location))
 
@@ -535,11 +552,12 @@ class Command:
             return
 
         location.unlink()
-        if location in self.top_nodes.values():
+        if self.is_path_in_root(location):
             self.action_remove_node()
         else:
-            self.action_refresh()
-            self.jump_to_filename(str(location.parent))
+            h_parent = tree_proc(self.tree, TREE_ITEM_GET_PROPS, self.selected)['parent']
+            tree_proc(self.tree, TREE_ITEM_SELECT, h_parent)
+            self.action_refresh(h_parent)
         msg_status(_("Deleted file: ") + str(location.name))
 
     def do_delete_dir(self, location):
@@ -556,11 +574,17 @@ class Command:
             return
 
         self.do_delete_dir(location)
-        if location in self.top_nodes.values():
+        if self.is_path_in_root(location):
             self.action_remove_node()
         else:
-            self.action_refresh()
-            self.jump_to_filename(str(location.parent))
+            h_parent = tree_proc(self.tree, TREE_ITEM_GET_PROPS, self.selected)['parent']
+            tree_proc(self.tree, TREE_ITEM_SELECT, h_parent)
+            self.action_refresh(h_parent)
+
+            path = self.get_location_by_index(self.selected)
+            app_proc(PROC_SET_FOLDER, path)
+            self.cur_dir = path
+
         msg_status(_("Deleted dir: ") + str(location.name))
 
     def action_new_directory(self):
@@ -651,7 +675,6 @@ class Command:
             tree_proc(self.tree, TREE_ITEM_SELECT, items_root[0][0])
 
             nodes = map(Path, self.project["nodes"])
-            self.top_nodes = {}
         else:
             fn = str(self.get_location_by_index(parent)) # str() is required for old Python 3.5 for os.scandir()
             if not fn: return
@@ -704,8 +727,6 @@ class Command:
                 imageindex,
                 data=spath
                 )
-            if nodes is self.project["nodes"]:
-                self.top_nodes[index] = Path(spath)
 
             # dummy nested node for folders
             if imageindex == self.ICON_DIR:
@@ -765,6 +786,7 @@ class Command:
                 for fn in self.project["nodes"]:
                     if os.path.isdir(fn):
                         app_proc(PROC_SET_FOLDER, fn)
+                        self.cur_dir = fn
                         break
 
                 app_proc(PROC_SET_PROJECT, path)
@@ -802,9 +824,9 @@ class Command:
         tree_proc(self.tree, TREE_ITEM_DELETE, index)
         if str(path) in self.project["nodes"]:
             self.project["nodes"].remove(str(path))
-
-        if index in self.top_nodes:
-            self.top_nodes.pop(index)
+            if (self.cur_dir+os.sep).startswith(str(path)+os.sep):
+                app_proc(PROC_SET_FOLDER, '')
+                self.cur_dir = ''
 
         if self.project_file_path:
             self.action_save_project_as(self.project_file_path)
@@ -838,7 +860,7 @@ class Command:
             path = dlg_file(False, "", project_path, PROJECT_DIALOG_FILTER)
 
         if path:
-            proj_dir = os.path.dirname(path)
+            proj_dir = os.path.dirname(str(path))
             def collapse_macros(s):
                 fn = s
                 if (fn+os.sep).startswith(proj_dir+os.sep):
@@ -982,6 +1004,10 @@ class Command:
             return
         tree_proc(self.tree, TREE_ITEM_UNFOLD, items[0][0])
         tree_proc(self.tree, TREE_ITEM_SELECT, items[0][0])
+
+        path = self.get_location_by_index(self.selected)
+        app_proc(PROC_SET_FOLDER, path)
+        self.cur_dir = path
 
     def new_project_open_dir(self):
 
@@ -1375,8 +1401,10 @@ class Command:
         if s and not s.startswith('.'): # skip parasitic '.' for project root node
             if os.path.isdir(s):
                 app_proc(PROC_SET_FOLDER, s)
+                self.cur_dir = s
             elif os.path.isfile(s):
                 app_proc(PROC_SET_FOLDER, os.path.dirname(s))
+                self.cur_dir = os.path.dirname(s)
 
         if self.options.get('d_click', False):
             return
@@ -1568,7 +1596,7 @@ class Command:
     def session_get_names(self):
 
         res = []
-        fn = self.project_file_path
+        fn = str(self.project_file_path)
         if fn and os.path.isfile(fn):
             with open(fn, 'r', encoding='utf8') as f:
                 data = json.load(f)
@@ -1813,3 +1841,7 @@ class Command:
             app_proc(PROC_SAVE_SESSION, sess)
             if and_forget:
                 app_proc(PROC_SET_SESSION, '')
+
+    def is_path_in_root(self, path):
+
+        return str(path) in self.project['nodes']

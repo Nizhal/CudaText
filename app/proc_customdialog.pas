@@ -634,10 +634,11 @@ begin
   N:= StrToIntDef(S, 0);
   if (N>=0) and (N<C.Items.Count) then
   begin
+    C.ItemIndex:= N;
     C.ItemFocused:= C.Items[N];
-    C.Selected:= C.ItemFocused;
-    if Assigned(C.ItemFocused) then
-      C.ItemFocused.MakeVisible(false);
+    C.Selected:= C.Items[N];
+    if Assigned(C.Selected) then
+      C.Selected.MakeVisible(false);
   end;
 
   //check0,check1,..
@@ -675,9 +676,7 @@ function DoControl_GetState_Listview(C: TListView): string;
 var
   i: integer;
 begin
-  Result:= '';
-  if Assigned(C.ItemFocused) then
-    Result:= IntToStr(C.ItemFocused.Index);
+  Result:= IntToStr(C.ItemIndex);
 
   if C.Checkboxes then
   begin
@@ -690,6 +689,8 @@ end;
 procedure DoControl_ApplyEditorProps(Ed: TATSynEdit; AForm: TFormDummy;
   AApplyUnprintedAndWrap, AApplyTabSize, AApplyCentering, AOneLiner: boolean);
 begin
+  Ed.Keymap:= AppKeymapMain;
+
   Ed.Font.Name:= EditorOps.OpFontName;
   Ed.Font.Size:= EditorOps.OpFontSize;
 
@@ -708,6 +709,10 @@ begin
   Ed.OptBorderFocusedActive:= EditorOps.OpActiveBorderInEditor;
   Ed.OptBorderWidthFocused:= ATEditorScale(EditorOps.OpActiveBorderWidth);
 
+  //for Terminal-like plugins which create lot of attribs
+  Ed.OptUndoForMarkers:= false;
+  Ed.OptUndoForAttribs:= false;
+
   Ed.OptThemed:= true;
   EditorApplyTheme(Ed);
 
@@ -718,6 +723,20 @@ begin
     Ed.OptCaretBlinkTime:= EditorOps.OpCaretBlinkTime;
     Ed.OptCaretBlinkEnabled:= EditorOps.OpCaretBlinkEn;
   end;
+
+  //after EditorApplyOps
+  Ed.OptMinimapVisible:= false;
+  if not Ed.ModeOneLine then
+    Ed.OptMicromapVisible:= false;
+  Ed.OptRulerVisible:= false;
+
+  Ed.OptFlickerReducingPause:= 0; //fix issue #4372
+  Ed.OptDimUnfocusedBack:= 0; //fix issue #4346
+  Ed.OptMicromapOnScrollbar:= false; //API editors don't have micromap at all
+
+  EditorCaretShapeFromString(Ed.CaretShapeNormal, EditorOps.OpCaretViewNormal);
+  EditorCaretShapeFromString(Ed.CaretShapeOverwrite, EditorOps.OpCaretViewOverwrite);
+  EditorCaretShapeFromString(Ed.CaretShapeReadonly, EditorOps.OpCaretViewReadonly);
 end;
 
 procedure DoControl_InitPropsObject(Ctl: TControl; AForm: TFormDummy; const ATypeName: string);
@@ -797,7 +816,6 @@ begin
   if S='editor' then
   begin
     Ctl:= TATSynEdit.Create(AForm);
-    TATSynEdit(Ctl).Keymap:= AppKeymapMain;
     DoControl_ApplyEditorProps(TATSynEdit(Ctl), AForm, true, true, false, false);
 
     Adapter:= TATAdapterEControl.Create(Ctl);
@@ -812,7 +830,6 @@ begin
   if S='editor_edit' then
   begin
     Ctl:= TATEdit.Create(AForm);
-    TATSynEdit(Ctl).Keymap:= AppKeymapMain;
     DoControl_ApplyEditorProps(TATSynEdit(Ctl), AForm, false, false, false, true);
     exit;
   end;
@@ -820,7 +837,6 @@ begin
   if S='editor_combo' then
   begin
     Ctl:= TATComboEdit.Create(AForm);
-    TATSynEdit(Ctl).Keymap:= AppKeymapMain;
     DoControl_ApplyEditorProps(TATSynEdit(Ctl), AForm, false, false, false, true);
     exit;
   end;
@@ -2342,6 +2358,11 @@ begin
       F.FormStyle:= fsStayOnTop
     else
       F.FormStyle:= fsNormal;
+  end
+  else
+  if AName='taskbar' then
+  begin
+    F.ShowInTaskbar_Pending:= TShowInTaskbar(StrToIntDef(AValue, 0));
   end
   else
   if AName='on_resize' then

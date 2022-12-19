@@ -1,7 +1,7 @@
 object fmAbout: TfmAbout
-  Left = 483
+  Left = 482
   Height = 270
-  Top = 445
+  Top = 443
   Width = 465
   ActiveControl = ButtonPanel1
   BorderIcons = [biSystemMenu]
@@ -48,8 +48,8 @@ object fmAbout: TfmAbout
   end
   object ButtonPanel1: TButtonPanel
     Left = 6
-    Height = 29
-    Top = 235
+    Height = 33
+    Top = 231
     Width = 453
     OKButton.Name = 'OKButton'
     OKButton.DefaultCaption = True
@@ -64,5 +64,17 @@ object fmAbout: TfmAbout
     ShowButtons = [pbOK, pbHelp]
     ShowGlyphs = []
     ShowBevel = False
+  end
+  object btnCopyToClp: TSpeedButton
+    AnchorSideTop.Control = labelVersion
+    AnchorSideRight.Control = Owner
+    AnchorSideRight.Side = asrBottom
+    Left = 419
+    Height = 40
+    Top = 93
+    Width = 40
+    Anchors = [akTop, akRight]
+    BorderSpacing.Right = 6
+    OnClick = btnCopyToClpClick
   end
 end

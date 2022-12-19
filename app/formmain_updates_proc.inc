@@ -30,9 +30,10 @@ begin
     if F.EditorsLinked then
     begin
       if F.FileName<>'' then
-        SName:= msgModified[F.Ed1.Modified]+ AppCollapseHomeDirInFilename(F.FileName)
+        SName:= AppCollapseHomeDirInFilename(F.FileName)
       else
         SName:= F.TabCaption;
+      SName:= msgModified[F.Modified]+SName;
     end
     else
     begin
@@ -46,7 +47,10 @@ begin
     end;
   end
   else
+  begin
     SName:= F.TabCaption;
+    SName:= msgModified[F.Modified]+SName;
+  end;
 
   SSplitByChar(AppSessionName, '|', SSession, SSessionRootPath);
   SSession:= ChangeFileExt(ExtractFileName(SSession), '');
@@ -67,9 +71,9 @@ begin
       SName:= msgUntitledTab;
   end;
 
-  Caption:= SName + SSession + ' - ' + msgTitle;
+  Caption:= SName + SSession + (' - ' + msgTitle);
 
-  Application.Title:= F.TabCaption + ' - ' + msgTitle;
+  Application.Title:= F.TabCaption + (' - ' + msgTitle);
 end;
 
 
@@ -107,31 +111,60 @@ end;
 procedure TfmMain.UpdateToolbarButtons(F: TEditorFrame);
 var
   Ed: TATSynEdit;
-  bEditable: boolean;
+  bEditor, bEditable, bBinViewer: boolean;
   bShowNonPrinted: boolean;
 begin
   if F=nil then exit;
   Ed:= F.Editor;
-  bEditable:= not Ed.ModeReadOnly;
 
   case F.FrameKind of
     efkEditor:
-      bShowNonPrinted:= Ed.OptUnprintedVisible;
+      begin
+        bEditor:= true;
+        bEditable:= not Ed.ModeReadOnly;
+        bBinViewer:= false;
+        bShowNonPrinted:= Ed.OptUnprintedVisible;
+      end;
     efkBinaryViewer:
-      bShowNonPrinted:= F.Binary.TextNonPrintable;
+      begin
+        bEditor:= false;
+        bEditable:= false;
+        bBinViewer:= true;
+        bShowNonPrinted:= F.Binary.TextNonPrintable;
+      end;
+    efkImageViewer:
+      begin
+        bEditor:= false;
+        bEditable:= false;
+        bBinViewer:= false;
+        bShowNonPrinted:= false;
+      end
     else
-      bShowNonPrinted:= false;
+      raise Exception.Create('Unknown FrameKind');
   end;
 
-  UpdateToolbarButton(ToolbarMain, cCommand_ToggleMinimap, Ed.OptMinimapVisible, true);
-  UpdateToolbarButton(ToolbarMain, cCommand_ToggleUnprinted, bShowNonPrinted, true);
-
+  UpdateToolbarButton(ToolbarMain, cmd_FileSave, false, bEditor);
+  UpdateToolbarButton(ToolbarMain, cCommand_ClipboardCopy, false, bEditor or bBinViewer);
   UpdateToolbarButton(ToolbarMain, cCommand_ClipboardCut, false, bEditable);
   UpdateToolbarButton(ToolbarMain, cCommand_ClipboardPaste, false, bEditable);
   UpdateToolbarButton(ToolbarMain, cCommand_Undo, false, bEditable and not Ed.Strings.UndoEmpty);
   UpdateToolbarButton(ToolbarMain, cCommand_Redo, false, bEditable and not Ed.Strings.RedoEmpty);
   UpdateToolbarButton(ToolbarMain, cCommand_TextIndent, false, bEditable);
   UpdateToolbarButton(ToolbarMain, cCommand_TextUnindent, false, bEditable);
+
+  UpdateToolbarButton(ToolbarMain, cCommand_ToggleOverwrite, Ed.ModeOverwrite, bEditor);
+  UpdateToolbarButton(ToolbarMain, cCommand_ToggleReadOnly, Ed.ModeReadOnly, bEditor);
+  UpdateToolbarButton(ToolbarMain, cCommand_ToggleWordWrap, Ed.OptWrapMode<>cWrapOff, bEditor);
+  UpdateToolbarButton(ToolbarMain, cCommand_ToggleMinimap, Ed.OptMinimapVisible, bEditor);
+  UpdateToolbarButton(ToolbarMain, cCommand_ToggleMicromap, Ed.OptMicromapVisible, bEditor);
+  UpdateToolbarButton(ToolbarMain, cCommand_ToggleRuler, Ed.OptRulerVisible, bEditor);
+  UpdateToolbarButton(ToolbarMain, cCommand_ToggleUnprinted, bShowNonPrinted, bEditor or bBinViewer);
+
+  {
+  //not needed yet
+  UpdateToolbarButton(ToolbarMain, cCommand_ToggleLineNums, Ed.Gutter.Items[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible, bEditor);
+  UpdateToolbarButton(ToolbarMain, cCommand_ToggleFolding, Ed.Gutter.Items[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible, bEditor);
+  }
 
   UpdateToolbarButton(ToolbarMain, cmd_ToggleFileNotifications, UiOps.NotificationEnabled, true);
 end;
@@ -636,6 +669,22 @@ begin
       DoOps_LoadOptionsLexerSpecific(F, F.Ed2);
   end;
 
+  if Assigned(fmFind) then
+  begin
+    fmFind.edFind.OptMouseMiddleClickAction:= TATEditorMiddleClickAction(EditorOps.OpMouseMiddleClickAction);
+    fmFind.edRep.OptMouseMiddleClickAction:= TATEditorMiddleClickAction(EditorOps.OpMouseMiddleClickAction);
+  end;
+
+  if Assigned(fmConsole) then
+  begin
+    fmConsole.EdInput.OptMouseMiddleClickAction:= TATEditorMiddleClickAction(EditorOps.OpMouseMiddleClickAction);
+  end;
+
+  if Assigned(CodeTreeFilterInput) then
+  begin
+    CodeTreeFilterInput.OptMouseMiddleClickAction:= TATEditorMiddleClickAction(EditorOps.OpMouseMiddleClickAction);
+  end;
+
   UpdateStatusbar;
 end;
 
@@ -1037,9 +1086,6 @@ var
   bLiteLexer: boolean;
   Tick: QWord;
 begin
-  if AConsiderTreeVisible then
-    if not AppPanels[cPaneSide].Visible then exit;
-
   Frame:= CurrentFrame;
   if Frame=nil then exit;
   CodeTree.Tree.SortType:= Frame.CodetreeSortType;
@@ -1048,16 +1094,23 @@ begin
   bLiteLexer:= Ed.AdapterForHilite is TATLiteLexer;
 
   if bLiteLexer then
-    Ada:= nil
+  begin
+    Ada:= nil;
+    //don't clear tree, don't exit - we can run tree-helper for lite lexer
+  end
   else
   begin
     Ada:= Frame.Adapter[Ed];
     if (Ada=nil) or (Ada.AnClient=nil) then
     begin
       DoCodetree_Clear;
-      exit
+      exit;
     end;
   end;
+
+  if AConsiderTreeVisible then
+    if not AppPanels[cPaneSide].Visible then
+      exit;
 
   if not Frame.EnabledCodeTree[Ed] then
   begin
@@ -1065,15 +1118,6 @@ begin
     UpdateTreeSelection(Ed); //needed even for disabled CodeTree (for plugins)
     exit;
   end;
-
-  {
-  NRanges:= Ada.AnClient.RangeCount;
-  if (NRanges>UiOps.MaxRangesForCodeTree) then
-  begin
-    DoCodetree_Clear;
-    exit;
-  end;
-  }
 
   if Assigned(Ada) then
     while Ada.TreeBusy do

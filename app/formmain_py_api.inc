@@ -15,8 +15,8 @@ const
 
 var
   PyEscapeFlag: boolean = false; //Esc key was pressed in application
-  PyEditorMaybeDeleted: boolean = false; //command plugin maybe deleted the editor e.g. by 'close file' command
-  PyCurrentFolder: string = ''; //initial folder of API Open/SaveAs dialogs
+  PyEditorMaybeDeleted: boolean = false; //command plugin maybe deleted the editor, e.g. 'close file' command does it
+  PyCurrentFolder: string = ''; //currently opened folder in Project Manager
 
 var
   AppEmmet: TEmmet = nil;
@@ -66,7 +66,7 @@ end;
 function PyHelper_EditorFromHandle(Handle: Int64): TATSynEdit;
 var
   Obj: TObject;
-  nTab: Integer;
+  nTab, nGroup: Integer;
   Frame: TEditorFrame;
 begin
   Result:= nil;
@@ -99,6 +99,15 @@ begin
           else
             MsgLogConsole('ERROR: API "ed" is Nil, and no frames; report to author what you are doing');
         end;
+      end;
+
+    1:
+      begin
+        Frame:= fmMain.FrameOfPopup;
+        if Assigned(Frame) then
+          Result:= Frame.Ed1
+        else
+          Result:= fmMain.CurrentEditor;
       end;
 
     cPyEditorHandleMin..cPyEditorHandleMax:
@@ -220,7 +229,7 @@ end;
 
 function AppEmmetOptions(const ASyntax: string): TExpandOptions;
 begin
-  FillChar(Result, SizeOf(Result), 0);
+  Result:= Default(TExpandOptions);
   Result.AlwaysAddNewLine:= ASyntax = 'xml';
   Result.AddSlashToEmptyTags:= UiOps.Emmet_AddSlashToEmptyTags;
   Result.CommentTags:= UiOps.Emmet_CommentTags;
@@ -260,6 +269,8 @@ begin
       if not FileExists(filenameSnips) then exit(ReturnNone);
       if not FileExists(filenameLorem) then exit(ReturnNone);
       AppEmmet:= TEmmet.Create(filenameSnips, filenameLorem);
+      InitHtmlTags;
+      AppEmmet.AddHTMLTagListForValidation(HtmlTags);
     end;
 
     case Id of
@@ -1087,7 +1098,14 @@ begin
 
         MARKERS_ADD:
           begin
-            Ed.Markers.Add(X, Y, NTag, NLenX, NLenY, nil, 0, mmmShowInTextOnly, NLineLen);
+            Ed.Markers.Add(
+              Point(X, Y),
+              Point(NLenX, NLenY),
+              TATMarkerTags.Init(NTag, 0),
+              nil,
+              mmmShowInTextOnly,
+              NLineLen
+              );
             Ed.Update;
             Result:= PyLong_FromLong(Ed.Markers.Count);
           end;
@@ -1164,6 +1182,7 @@ var
   H: Int64;
   Ed: TATSynEdit;
   Mark: TATMarkerItem;
+  LinePart: TATLinePart;
   PtrX, PtrY, PtrLen: PChar;
   PtrColorFont, PtrColorBg, PtrColorBorder, PtrFontBold, PtrFontItalic, PtrFontStrike: PChar;
   StrX, StrY, StrLen: string;
@@ -1175,7 +1194,6 @@ var
   NFontBold, NFontItalic, NFontStrike: integer;
   NFontBold_1st, NFontItalic_1st, NFontStrike_1st: integer;
   NColumn, NMicromapMode: integer;
-  Obj: TATLinePartClass;
   SepX, SepY, SepLen: TATStringSeparator;
   SepColorFont, SepColorBg, SepColorBorder, SepFontBold, SepFontItalic, SepFontStrike: TATStringSeparator;
   NStyles: byte;
@@ -1210,24 +1228,23 @@ begin
             for i:= 0 to NLen-1 do
             begin
               Mark:= Ed.Attribs[i];
-              Obj:= TATLinePartClass(Mark.Ptr);
               PyList_SetItem(Result, i,
-                Py_BuildValue('(Liiiiiiiiiiiiiii)',
+                Py_BuildValue('(LiiiiiiiiiiiiiLi)',
                   Mark.Tag,
                   Mark.PosX,
                   Mark.PosY,
                   Mark.SelX,
-                  Obj.Data.ColorFont,
-                  Obj.Data.ColorBG,
-                  Obj.Data.ColorBorder,
-                  Ord((Obj.Data.FontStyles and afsFontBold)<>0),
-                  Ord((Obj.Data.FontStyles and afsFontItalic)<>0),
-                  Ord((Obj.Data.FontStyles and afsFontCrossed)<>0),
-                  Ord(Obj.Data.BorderLeft),
-                  Ord(Obj.Data.BorderRight),
-                  Ord(Obj.Data.BorderDown),
-                  Ord(Obj.Data.BorderUp),
-                  Ord(Obj.ColumnTag),
+                  Mark.LinePart.ColorFont,
+                  Mark.LinePart.ColorBG,
+                  Mark.LinePart.ColorBorder,
+                  Ord((Mark.LinePart.FontStyles and afsFontBold)<>0),
+                  Ord((Mark.LinePart.FontStyles and afsFontItalic)<>0),
+                  Ord((Mark.LinePart.FontStyles and afsFontCrossed)<>0),
+                  Ord(Mark.LinePart.BorderLeft),
+                  Ord(Mark.LinePart.BorderRight),
+                  Ord(Mark.LinePart.BorderDown),
+                  Ord(Mark.LinePart.BorderUp),
+                  Mark.TagEx,
                   Ord(Mark.MicromapMode)
                   ));
             end;
@@ -1242,9 +1259,8 @@ begin
             for i:= 0 to NLen-1 do
             begin
               Mark:= Ed.Attribs[i];
-              Obj:= TATLinePartClass(Mark.Ptr);
               PyList_SetItem(Result, i,
-                Py_BuildValue('{sLsisisisisisisOsOsOsisisisisisi}',
+                Py_BuildValue('{sLsisisisisisisOsOsOsisisisisLsi}',
                   'tag',
                   Mark.Tag,
                   PChar(string('x')),
@@ -1254,27 +1270,27 @@ begin
                   'len',
                   Mark.SelX,
                   'color_font',
-                  Obj.Data.ColorFont,
+                  Mark.LinePart.ColorFont,
                   'color_bg',
-                  Obj.Data.ColorBG,
+                  Mark.LinePart.ColorBG,
                   'color_border',
-                  Obj.Data.ColorBorder,
+                  Mark.LinePart.ColorBorder,
                   'font_bold',
-                  PyBool_FromLong(Ord((Obj.Data.FontStyles and afsFontBold)<>0)),
+                  PyBool_FromLong(Ord((Mark.LinePart.FontStyles and afsFontBold)<>0)),
                   'font_italic',
-                  PyBool_FromLong(Ord((Obj.Data.FontStyles and afsFontItalic)<>0)),
+                  PyBool_FromLong(Ord((Mark.LinePart.FontStyles and afsFontItalic)<>0)),
                   'font_strikeout',
-                  PyBool_FromLong(Ord((Obj.Data.FontStyles and afsFontCrossed)<>0)),
+                  PyBool_FromLong(Ord((Mark.LinePart.FontStyles and afsFontCrossed)<>0)),
                   'border_left',
-                  Ord(Obj.Data.BorderLeft),
+                  Ord(Mark.LinePart.BorderLeft),
                   'border_right',
-                  Ord(Obj.Data.BorderRight),
+                  Ord(Mark.LinePart.BorderRight),
                   'border_down',
-                  Ord(Obj.Data.BorderDown),
+                  Ord(Mark.LinePart.BorderDown),
                   'border_up',
-                  Ord(Obj.Data.BorderUp),
+                  Ord(Mark.LinePart.BorderUp),
                   'show_on_map',
-                  Ord(Obj.ColumnTag),
+                  Mark.TagEx,
                   'map_only',
                   Ord(Mark.MicromapMode)
                   ));
@@ -1290,13 +1306,13 @@ begin
             NFontItalic:= StrToIntDef(StrFontItalic, 0);
             NFontStrike:= StrToIntDef(StrFontStrike, 0);
 
-            Obj:= TATLinePartClass.Create;
-            Obj.Data.ColorFont:= NColorFont;
-            Obj.Data.ColorBG:= NColorBg;
+            InitLinePart(LinePart);
+            LinePart.ColorFont:= NColorFont;
+            LinePart.ColorBG:= NColorBg;
             if NColorBorder<>clNone then
-              Obj.Data.ColorBorder:= NColorBorder
+              LinePart.ColorBorder:= NColorBorder
             else
-              Obj.Data.ColorBorder:= Ed.Colors.TextFont;
+              LinePart.ColorBorder:= Ed.Colors.TextFont;
 
             NStyles:= 0;
             if Bool(NFontBold) then
@@ -1305,20 +1321,25 @@ begin
               NStyles:= NStyles or afsFontItalic;
             if Bool(NFontStrike) then
               NStyles:= NStyles or afsFontCrossed;
-            Obj.Data.FontStyles:= NStyles;
+            LinePart.FontStyles:= NStyles;
 
-            Obj.Data.BorderLeft:= TATLineStyle(NBorderL);
-            Obj.Data.BorderRight:= TATLineStyle(NBorderR);
-            Obj.Data.BorderDown:= TATLineStyle(NBorderD);
-            Obj.Data.BorderUp:= TATLineStyle(NBorderU);
-            Obj.ColumnTag:= NColumn;
+            LinePart.BorderLeft:= TATLineStyle(NBorderL);
+            LinePart.BorderRight:= TATLineStyle(NBorderR);
+            LinePart.BorderDown:= TATLineStyle(NBorderD);
+            LinePart.BorderUp:= TATLineStyle(NBorderU);
 
             X:= StrToIntDef(StrX, MaxInt);
             Y:= StrToIntDef(StrY, MaxInt);
             NLen:= StrToIntDef(StrLen, 1);
             if (X<MaxInt) and (Y<MaxInt) then
             begin
-              Ed.Attribs.Add(X, Y, NTag, NLen, 0, Obj, 0, TATMarkerMicromapMode(NMicromapMode));
+              Ed.Attribs.Add(
+                Point(X, Y),
+                Point(NLen, 0),
+                TATMarkerTags.Init(NTag, NColumn),
+                @LinePart,
+                TATMarkerMicromapMode(NMicromapMode)
+                );
               Ed.Update;
             end;
             Result:= PyLong_FromLong(Ed.Attribs.Count);
@@ -1329,6 +1350,7 @@ begin
             SepX.Init(StrX);
             SepY.Init(StrY);
             SepLen.Init(StrLen);
+            InitLinePart(LinePart);
 
             SepColorFont.Init(StrColorFont);
             SepColorBg.Init(StrColorBg);
@@ -1362,13 +1384,12 @@ begin
               SepFontItalic.GetItemInt(NFontItalic, NFontItalic_1st);
               SepFontStrike.GetItemInt(NFontStrike, NFontStrike_1st);
 
-              Obj:= TATLinePartClass.Create;
-              Obj.Data.ColorFont:= NColorFont;
-              Obj.Data.ColorBG:= NColorBg;
+              LinePart.ColorFont:= NColorFont;
+              LinePart.ColorBG:= NColorBg;
               if NColorBorder<>clNone then
-                Obj.Data.ColorBorder:= NColorBorder
+                LinePart.ColorBorder:= NColorBorder
               else
-                Obj.Data.ColorBorder:= Ed.Colors.TextFont;
+                LinePart.ColorBorder:= Ed.Colors.TextFont;
 
               NStyles:= 0;
               if Bool(NFontBold) then
@@ -1377,15 +1398,20 @@ begin
                 NStyles:= NStyles or afsFontItalic;
               if Bool(NFontStrike) then
                 NStyles:= NStyles or afsFontCrossed;
-              Obj.Data.FontStyles:= NStyles;
+              LinePart.FontStyles:= NStyles;
 
-              Obj.Data.BorderLeft:= TATLineStyle(NBorderL);
-              Obj.Data.BorderRight:= TATLineStyle(NBorderR);
-              Obj.Data.BorderDown:= TATLineStyle(NBorderD);
-              Obj.Data.BorderUp:= TATLineStyle(NBorderU);
-              Obj.ColumnTag:= NColumn;
+              LinePart.BorderLeft:= TATLineStyle(NBorderL);
+              LinePart.BorderRight:= TATLineStyle(NBorderR);
+              LinePart.BorderDown:= TATLineStyle(NBorderD);
+              LinePart.BorderUp:= TATLineStyle(NBorderU);
 
-              Ed.Attribs.Add(X, Y, NTag, NLen, 0, Obj, 0, TATMarkerMicromapMode(NMicromapMode));
+              Ed.Attribs.Add(
+                Point(X, Y),
+                Point(NLen, 0),
+                TATMarkerTags.Init(NTag, NColumn),
+                @LinePart,
+                TATMarkerMicromapMode(NMicromapMode)
+                );
             until false;
 
             Ed.Update;
@@ -1738,7 +1764,11 @@ begin
         UTF8Decode(StrText), Shift, PosAfter, true);
 
       Ed.UpdateMarkersOnDeleting(X1, Y1, X2, Y2);
-      Ed.UpdateCaretsAndMarkersOnEditing(0, X1, Y1, Shift.X, Shift.Y, PosAfter);
+      Ed.UpdateCaretsAndMarkersOnEditing(0,
+        Point(X1, Y1),
+        Point(X2, Y2),
+        Shift,
+        PosAfter);
 
       Ed.DoEventChange(Y1);
       Ed.UpdateWrapInfo(true); //fixing #4173
@@ -1776,7 +1806,11 @@ begin
         Res:= Strs.TextReplaceLines_UTF8(Y1, Y2, Lines);
 
         Ed.UpdateMarkersOnDeleting(0, Y1, 0, Y2+1);
-        Ed.UpdateCaretsAndMarkersOnEditing(0, 0, Y1, 0, Lines.Count-(Y2-Y1+1), Point(0, Y1+Lines.Count));
+        Ed.UpdateCaretsAndMarkersOnEditing(0,
+          Point(0, Y1),
+          Point(0, Y2+1),
+          Point(0, Lines.Count-(Y2-Y1+1)),
+          Point(0, Y1+Lines.Count));
 
         Ed.DoEventChange(Y1);
       finally
@@ -2113,7 +2147,7 @@ begin
       'tag',
       Item^.Data.Tag,
       'text',
-      PChar(string(Item^.Data.Text)),
+      PChar(string(Item^.Data.TextAll)),
       'bold',
       PyBool_FromLong(Ord(Item^.Data.TextBold)),
       'italic',
@@ -2177,7 +2211,7 @@ begin
             Data.Tag:= NTag;
             Data.DeleteOnDelLine:= Bool(NAutoDelete);
             Data.ImageIndex:= NImageIndex;
-            Data.Text:= string(PtrText);
+            Data.TextAll:= string(PtrText);
             Data.TextBold:= Bool(NFontBold);
             Data.TextItalic:= Bool(NFontItalic);
             data.TextColor:= NColor;
@@ -2373,6 +2407,8 @@ begin
      (Caret.PosY=FPyCompletionProps.CaretPos.Y) then
   begin
     PrevCharsLeft:= FPyCompletionProps.CharsLeft;
+
+    AppAutocompleteInvoke:= 'r';
     DoPyEvent(Ed, cEventOnComplete, []);
 
     //this check- to close listbox when no more matches after typing too much
@@ -2402,6 +2438,9 @@ var
   StrLine, StrSnippet: string;
   i: integer;
 begin
+  if FPyCompletionProps.Text='' then //fix #4475
+    exit;
+
   //find index-th line
   StrLine:= '';
   Sep.Init(FPyCompletionProps.Text, #10);
@@ -3319,10 +3358,18 @@ begin
               Result:= ReturnNone;
           end;
 
+        PROP_TAB_COLOR_FONT:
+          begin
+            if Assigned(F) then
+              Result:= PyLong_FromLong(F.TabFontColor)
+            else
+              Result:= ReturnNone;
+          end;
+
         PROP_TAB_TITLE:
           begin
             if Assigned(F) then
-              Result:= PyUnicodeFromString(F.TabCaption)
+              Result:= PyUnicodeFromString(TrimLeftSet(F.TabCaption, ['*']))
             else
               Result:= ReturnNone;
           end;
@@ -3472,6 +3519,15 @@ begin
 
         PROP_MINIMAP:
           Result:= PyBool_FromLong(Ord(Ed.OptMinimapVisible));
+
+        PROP_MINIMAP_CHAR_WIDTH:
+          Result:= PyLong_FromLong(Ed.OptMinimapCharWidth);
+
+        PROP_MINIMAP_AT_LEFT:
+          Result:= PyBool_FromLong(Ord(Ed.OptMinimapAtLeft));
+
+        PROP_MINIMAP_SCALE:
+          Result:= PyLong_FromLong(Ed.OptMinimapCustomScale);
 
         PROP_MICROMAP:
           Result:= PyBool_FromLong(Ord(Ed.OptMicromapVisible));
@@ -3811,6 +3867,12 @@ begin
         PROP_COMMAND_LOG_LIMIT:
           Result:= PyLong_FromLong(Ed.CommandLog.MaxCount);
 
+        PROP_DIM_UNFOCUSED:
+          Result:= PyLong_FromLong(Ed.OptDimUnfocusedBack);
+
+        PROP_CARET_MULTI:
+          Result:= PyBool_FromLong(Ord(Ed.OptCaretManyAllowed));
+
         PROP_V_MODE:
           begin
             if Assigned(F) and (F.FrameKind=efkBinaryViewer) then
@@ -4052,12 +4114,26 @@ begin
               F.TabColor:= ValueInt;
           end;
 
+        PROP_TAB_COLOR_FONT:
+          begin
+            if Assigned(F) then
+              F.TabFontColor:= ValueInt;
+          end;
+
         PROP_TAB_TITLE:
           begin
             if Assigned(F) then
             begin
-              F.TabCaptionFromApi:= true;
-              F.TabCaption:= Str;
+              if Str<>'' then
+              begin
+                F.TabCaptionFromApi:= true;
+                F.TabCaption:= Str;
+              end
+              else
+              begin
+                F.TabCaptionFromApi:= false;
+                F.UpdateCaptionFromFilename;
+              end;
             end;
           end;
 
@@ -4219,6 +4295,15 @@ begin
 
         PROP_MINIMAP:
           Ed.OptMinimapVisible:= ValueBool;
+
+        PROP_MINIMAP_CHAR_WIDTH:
+          Ed.OptMinimapCharWidth:= ValueInt;
+
+        PROP_MINIMAP_AT_LEFT:
+          Ed.OptMinimapAtLeft:= ValueBool;
+
+        PROP_MINIMAP_SCALE:
+          Ed.OptMinimapCustomScale:= ValueInt;
 
         PROP_MICROMAP:
           Ed.OptMicromapVisible:= ValueBool;
@@ -4432,6 +4517,12 @@ begin
 
         PROP_COMMAND_LOG_LIMIT:
           Ed.CommandLog.MaxCount:= ValueInt;
+
+        PROP_DIM_UNFOCUSED:
+          Ed.OptDimUnfocusedBack:= ValueInt;
+
+        PROP_CARET_MULTI:
+          Ed.OptCaretManyAllowed:= ValueBool;
 
         PROP_V_MODE:
           begin
@@ -5106,14 +5197,6 @@ begin
             Result:= PyBool_FromLong(Ord(ok));
           end;
 
-        APP_PROC_SIDEPANEL_ENUM:
-          begin
-            Str:= '';
-            for i:= 0 to fmMain.ToolbarSideTop.ButtonCount-1 do
-              Str:= Str + IfThen(i>0, #10) + fmMain.ToolbarSideTop.Buttons[i].Caption;
-            Result:= PyUnicodeFromString(Str);
-          end;
-
         APP_PROC_SIDEPANEL_ENUM_ALL:
           begin
             Result:= PyHelper_EnumSidebar(fmMain.ToolbarSideTop, AppPanels[cPaneSide]);
@@ -5193,14 +5276,6 @@ begin
             Result:= PyBool_FromLong(Ord(ok));
           end;
 
-        APP_PROC_BOTTOMPANEL_ENUM:
-          begin
-            Str:= '';
-            for i:= 0 to fmMain.ToolbarSideLow.ButtonCount-1 do
-              Str:= Str + IfThen(i>0, #10) + fmMain.ToolbarSideLow.Buttons[i].Caption;
-            Result:= PyUnicodeFromString(Str);
-          end;
-
         APP_PROC_BOTTOMPANEL_ENUM_ALL:
           begin
             Result:= PyHelper_EnumSidebar(fmMain.ToolbarSideLow, AppPanels[cPaneOut]);
@@ -5239,7 +5314,7 @@ begin
           end;
         APP_PROC_THEME_UI_SET:
           begin
-            fmMain.ThemeUi:= Str;
+            fmMain.UpdateThemes(Str, '?');
             Result:= ReturnNone;
           end;
         APP_PROC_THEME_SYNTAX_GET:
@@ -5248,7 +5323,7 @@ begin
           end;
         APP_PROC_THEME_SYNTAX_SET:
           begin
-            fmMain.ThemeSyntax:= Str;
+            fmMain.UpdateThemes('?', Str);
             Result:= ReturnNone;
           end;
 
@@ -5447,6 +5522,11 @@ begin
             finally
               FreeAndNil(SList);
             end;
+          end;
+
+        APP_PROC_GET_AUTOCOMPLETION_INVOKE:
+          begin
+            Result:= PyUnicodeFromString(AppAutocompleteInvoke);
           end;
 
         APP_PROC_SEND_MESSAGE:
@@ -6999,7 +7079,7 @@ begin
 
         IMAGELIST_ADD:
           begin
-            NX:= UpdateImagelistWithIconFromFile(List, StrValue, 'imagelist_proc(...IMAGELIST_ADD...)');
+            NX:= UpdateImagelistWithIconFromFile(List, StrValue, 'imagelist_proc(...IMAGELIST_ADD...)', true);
             if NX>=0 then
               Result:= PyLong_FromLong(NX)
             else
@@ -7049,6 +7129,7 @@ var
   Sep: TATStringSeparator;
   Obj: TObject;
   ObjData: TATRangeInCodeTree;
+  bStandardCodeTree: boolean;
   NPosX, NPosY, NCount: integer;
   i: integer;
 begin
@@ -7064,6 +7145,7 @@ begin
         exit(ReturnNone);
       end;
       TreeContainer:= TAppTreeContainer(Obj);
+      bStandardCodeTree:= TreeContainer=fmMain.CodeTree;
 
       Obj:= TObject(PtrInt(IdItem));
       if Assigned(Obj) and not (Obj is TTreeNode) then
@@ -7181,7 +7263,7 @@ begin
             else
             begin
               //handle code-tree clearing via API
-              if TreeContainer=fmMain.CodeTree then
+              if bStandardCodeTree then
                 fmMain.DoCodetree_Clear
               else
                 TreeContainer.Tree.Items.Clear;
@@ -7202,7 +7284,7 @@ begin
         TREE_ITEM_SET_ICON:
           begin
             //issue #3400
-            if TreeContainer=fmMain.CodeTree then
+            if bStandardCodeTree then
             begin
               fmMain.InitImageListCodetree;
               fmMain.UpdateTreeImagelistActivity;
@@ -7379,6 +7461,8 @@ begin
 
         TREE_GET_IMAGELIST:
           begin
+            if bStandardCodeTree then
+              fmMain.InitImageListCodetree;
             Result:= PyHelper_ObjectHandle(TreeContainer.Tree.Images);
           end;
 
@@ -7391,6 +7475,8 @@ begin
               MsgLogConsole('ERROR: tree_proc() gets bad handle of image-list, of type '+Obj.ClassName);
               exit(ReturnNone);
             end;
+            if bStandardCodeTree then
+              fmMain.InitImageListCodetree;
             TreeContainer.Tree.Images:= TImageList(Obj);
             Obj:= nil;
             Result:= ReturnNone;
@@ -7455,7 +7541,7 @@ var
   H: Int64;
   Ed: TATSynEdit;
   Id, NIndex1, NIndex2, NValue, NLen, i: integer;
-  Item: TATMarkerItem;
+  ItemPtr: PATMarkerItem;
 begin
   with AppPython.Engine do
     if Bool(PyArg_ParseTuple(Args, 'Liiii:dim', @H, @Id, @NIndex1, @NIndex2, @NValue)) then
@@ -7498,12 +7584,12 @@ begin
                 raise EPythonError.Create(msgPythonListError);
               for i:= 0 to NLen-1 do
               begin
-                Item:= Ed.DimRanges[i];
+                ItemPtr:= Ed.DimRanges.ItemPtr(i);
                 PyList_SetItem(Result, i,
-                  Py_BuildValue('(iii)',
-                    Item.PosY,
-                    Item.PosY+Item.SelY-1,
-                    Item.Value
+                  Py_BuildValue('(iiL)',
+                    ItemPtr^.PosY,
+                    ItemPtr^.PosY+ItemPtr^.SelY-1,
+                    ItemPtr^.TagEx
                     ));
               end;
             end;
@@ -8265,7 +8351,8 @@ begin
         EDACTION_UPDATE:
           begin
             Ed.Update(
-              AppStrToBool(StrText1)
+              AppStrToBool(StrText1),
+              true{AForceRepaint}
               );
 
             // fix https://github.com/CudaText-addons/cuda_testing_attr/issues/1
@@ -8364,7 +8451,9 @@ begin
               Result:= ReturnTrue;
             end
             else
+            begin
               Result:= ReturnFalse;
+            end;
           end;
 
         EDACTION_LEXER_SCAN:
@@ -8384,7 +8473,7 @@ begin
                   Ada:= Frame.Adapter[Ed];
                   if Ada=nil then
                   begin
-                    UiOps.AllowFrameParsing:= true;
+                    AppAllowFrameParsing:= true;
                     Frame.DoShow;
                     Ada:= Frame.Adapter[Ed];
                   end;
@@ -8567,6 +8656,7 @@ begin
         FOLDING_DELETE_ALL:
           begin
             Ed.Fold.Clear;
+            Ed.UpdateFoldLineIndexer; //fix #4553
             Ed.Update(true);
             Result:= ReturnNone;
           end;
@@ -8723,23 +8813,18 @@ end;
 //toolbar_proc(id_toolbar, id_action, text="", text2="", command="", index=-1, index2=-1)
 function api_toolbar_proc(Self, Args: PPyObject): PPyObject; cdecl;
 var
-  PtrToolbar, PtrText, PtrText2, PtrCmd: PChar;
-  StrToolbar: string;
+  HBar: Int64;
+  PtrText, PtrText2, PtrCmd: PChar;
   FToolbar: TATFlatToolbar;
   NAction: integer;
   NIndex1, NIndex2: integer;
 begin
   with AppPython.Engine do
   begin
-    if Bool(PyArg_ParseTuple(Args, 'sisssii:toolbar_proc',
-      @PtrToolbar, @NAction, @PtrText, @PtrText2, @PtrCmd, @NIndex1, @NIndex2)) then
+    if Bool(PyArg_ParseTuple(Args, 'Lisssii:toolbar_proc',
+      @HBar, @NAction, @PtrText, @PtrText2, @PtrCmd, @NIndex1, @NIndex2)) then
     begin
-      StrToolbar:= string(PtrToolbar);
-      //StrText:= string(PtrText);
-      //StrText2:= string(PtrText2);
-      //StrCmd:= string(PtrCmd);
-
-      FToolbar:= PyHelper_ToolbarFromId(StrToolbar);
+      FToolbar:= PyHelper_ToolbarFromId(HBar);
       if FToolbar=nil then
         exit(ReturnNone);
 
@@ -8849,8 +8934,9 @@ end;
 //statusbar_proc(id_statusbar, id_action, index=-1, tag=0, value="")
 function api_statusbar_proc(Self, Args: PPyObject): PPyObject; cdecl;
 var
-  PtrBar, PtrValue: PChar;
-  StrBar, StrValue: string;
+  HBar: Int64;
+  PtrValue: PChar;
+  StrValue: string;
   FBar: TATStatus;
   NAction: integer;
   NIndex: integer;
@@ -8858,16 +8944,16 @@ var
   ImgList: TImageList;
   Data: TATStatusData;
   Rect: TRect;
+  bOk: boolean;
 begin
   with AppPython.Engine do
   begin
-    if Bool(PyArg_ParseTuple(Args, 'siiLs:statusbar_proc',
-      @PtrBar, @NAction, @NIndex, @NTag, @PtrValue)) then
+    if Bool(PyArg_ParseTuple(Args, 'LiiLs:statusbar_proc',
+      @HBar, @NAction, @NIndex, @NTag, @PtrValue)) then
     begin
-      StrBar:= string(PtrBar);
       StrValue:= string(PtrValue);
 
-      FBar:= PyHelper_StatusbarFromId(StrBar);
+      FBar:= PyHelper_StatusbarFromId(HBar);
       if FBar=nil then
         exit(ReturnNone);
 
@@ -8919,6 +9005,7 @@ begin
           begin
             ImgList:= PyHelper_ImagelistFromId(StrValue);
             FBar.Images:= ImgList;
+            FBar.Invalidate;
             Result:= ReturnNone;
           end;
 
@@ -9016,6 +9103,15 @@ begin
               FBar.Invalidate;
             end;
             Result:= ReturnNone;
+          end;
+
+        STATUSBAR_MOVE_CELL:
+          begin
+            bOk:= FBar.MovePanel(
+              NIndex,
+              StrToIntDef(StrValue, -1)
+              );
+            Result:= PyBool_FromLong(Ord(bOk));
           end;
 
         STATUSBAR_SET_CELL_COLOR_BACK:
@@ -9132,7 +9228,10 @@ begin
           begin
             Data:= FBar.GetPanelData(NIndex);
             if Assigned(Data) then
+            begin
               Data.OverlayText:= StrValue;
+              FBar.Invalidate;
+            end;
             Result:= ReturnNone;
           end;
 
@@ -9472,6 +9571,7 @@ begin
             if Form.Parent=nil then
             begin
               Form.DoEmulatedModalShow;
+              Form.ShowInTaskBar:= Form.ShowInTaskbar_Pending; //after xxShow, for #4456
             end
             else
               MsgLogConsole('ERROR: DLG_SHOW_MODAL was called for docked form');
@@ -9481,6 +9581,7 @@ begin
         DLG_SHOW_NONMODAL:
           begin
             Form.Show;
+            Form.ShowInTaskBar:= Form.ShowInTaskbar_Pending; //after Show, for #4456
             Result:= ReturnNone;
           end;
 

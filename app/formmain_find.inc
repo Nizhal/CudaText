@@ -45,7 +45,14 @@ begin
           NLen:= APos1.X-APos2.X
         else
           NLen:= 0;
-        Ed.Markers.Add(APos2.X, APos2.Y, 0, 0, 0, nil, 0, mmmShowInTextOnly, NLen);
+        Ed.Markers.Add(
+          Point(APos2.X, APos2.Y),
+          Point(0, 0),
+          TATMarkerTags.Init(0, 0),
+          nil,
+          mmmShowInTextOnly,
+          NLen
+          );
       end;
 
     markingBookmarks:
@@ -113,23 +120,165 @@ begin
   FindDialogDone(Sender, Res, true);
 end;
 
+procedure TfmMain.FindAndExtractRegexMatches;
+var
+  Matches: TStringList;
+  Frame: TEditorFrame;
+  Ed: TATSynEdit;
+begin
+  Matches:= TStringList.Create;
+  try
+    FFinder.DoAction_ExtractAll(false, Matches, false, FFinder.OptCase, dupAccept);
+    if Matches.Count>0 then
+    begin
+      StringsDeduplicate(Matches, FFinder.OptCase);
+      Frame:= DoFileOpen('', '');
+      if Frame=nil then exit;
+      Frame.TabCaptionUntitled:= msgFinderRegexMatchesNumbered;
+      Ed:= Frame.Ed1;
+      Ed.Strings.LoadFromStrings(Matches, cEndUnix);
+      Ed.UpdateWrapInfo(true, false); //AForceUpdate=True to fix #4609
+      Ed.Update;
+      Ed.DoEventChange;
+      MsgStatus(Format(msgStatusFoundFragments, [Matches.Count]), true);
+    end
+    else
+      FinderShowResult(false, FFinder);
+  finally
+    FreeAndNil(Matches);
+  end;
+end;
+
+procedure TfmMain.FindAndSelectAll(var NCounter: integer);
+begin
+  DoFindMarkingInit(markingSelections);
+  NCounter:= FFinder.DoAction_CountAll(true);
+  DoFindMarkingInit(markingNone);
+  FinderUpdateEditor(false);
+
+  if NCounter>0 then
+  begin
+    FFinder.Editor.DoCommand(cCommand_ScrollToCaretTop, cInvokeAppInternal);
+    //FFinder.Editor.DoGotoCaret(cEdgeTop); //also works, but it's more complicated, less wanted
+  end;
+
+  if (NCounter=0) and FFinder.IsRegexBad then
+    MsgStatusErrorInRegex
+  else
+    MsgStatus(
+      Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), NCounter]) +
+      FinderOptionsToHint(FFinder),
+      true);
+end;
+
+procedure TfmMain.FindAndMarkAll(var NCounter: integer);
+begin
+  DoFindMarkingInit(markingMarkers);
+  NCounter:= FFinder.DoAction_CountAll(true);
+  DoFindMarkingInit(markingNone);
+  FinderUpdateEditor(false);
+  if (NCounter=0) and FFinder.IsRegexBad then
+    MsgStatusErrorInRegex
+  else
+    MsgStatus(
+      Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), NCounter]) +
+      FinderOptionsToHint(FFinder),
+      true);
+end;
+
+procedure TfmMain.FindAndCountAll(var NCounter: integer);
+begin
+  DoFindMarkingInit(markingNone);
+  NCounter:= FFinder.DoAction_CountAll(false);
+  if (NCounter=0) and FFinder.IsRegexBad then
+    MsgStatusErrorInRegex
+  else
+    MsgStatus(
+      Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), NCounter])+FinderOptionsToHint(FFinder),
+      true);
+end;
+
+procedure TfmMain.FindAndStop(ABack: boolean);
+var
+  ok, bChanged: boolean;
+begin
+  FFinder.OptBack:= ABack;
+  ok:= FFinder.DoAction_FindOrReplace(
+    false, false, bChanged, true);
+  FinderUpdateEditor(false);
+  FinderShowResult(ok, FFinder);
+end;
+
+procedure TfmMain.FindAndReplaceOneMatch(AndStop: boolean);
+var
+  ok, bChanged: boolean;
+begin
+  //replace match
+  ok:= FFinder.DoAction_ReplaceSelected(true);
+  //after match is replaced, do find-next
+  if not AndStop then
+    if ok then
+      ok:= FFinder.DoAction_FindOrReplace(false, false, bChanged, true);
+  FinderUpdateEditor(true);
+  FinderShowResult(ok, FFinder);
+end;
+
+procedure TfmMain.FindAndReplaceAll(var NCounter: integer);
+var
+  NTick: QWord;
+  NTime: integer;
+begin
+  NTick:= GetTickCount64;
+  NCounter:= FinderReplaceAll(FFinder.Editor, false);
+  NTime:= (GetTickCount64-NTick) div 1000;
+  UpdateStatusbar;
+  FinderShowReplaceReport(NCounter, NTime);
+end;
+
+procedure TfmMain.FindAndReplaceInAllFrames(FramePrev: TEditorFrame; var NCounter: integer);
+var
+  NTick: QWord;
+  FrameNew: TEditorFrame;
+  NTime, IndexFrame: integer;
+  bChangeFrame: boolean;
+begin
+  NCounter:= 0;
+  NTick:= GetTickCount64;
+  bChangeFrame:= FFinder.OptConfirmReplace;
+
+  for IndexFrame:= 0 to FrameCount-1 do
+  begin
+    FrameNew:= Frames[IndexFrame];
+    if FrameNew.FrameKind<>efkEditor then Continue;
+
+    if bChangeFrame then
+      SetFrame(FrameNew);
+
+    NCounter+= FinderReplaceAll(FrameNew.Ed1, true);
+    if not FrameNew.EditorsLinked then
+      NCounter+= FinderReplaceAll(FrameNew.Ed2, true);
+  end;
+
+  NTime:= (GetTickCount64-NTick) div 1000;
+  if bChangeFrame then
+    SetFrame(FramePrev);
+  UpdateStatusbar;
+  FinderShowReplaceReport(NCounter, NTime);
+end;
+
 procedure TfmMain.FindDialogDone(Sender: TObject; Res: TAppFinderOperation; AEnableUpdateAll: boolean);
 var
   Category: TAppFinderOperationCategory;
-  ListFound: TStringList;
-  Frame, FrameNew, FramePrev: TEditorFrame;
-  Ed: TATSynEdit;
-  ok, bChanged, bDoLock, bFindMode, bChangeFrame: boolean;
-  bHiliteAll: boolean;
-  NCounter, IndexFrame: integer;
-  NTime: integer;
-  NTick: QWord;
+  Frame: TEditorFrame;
+  ok, bDoLock, bFindMode, bHiliteAll: boolean;
+  NCounter: integer;
 begin
   InitFormFind;
   Frame:= CurrentFrame;
   Category:= cAppFinderOperationCategory[Res];
   if Category=afcNone then exit;
   bHiliteAll:= false;
+  NCounter:= 0;
 
   if Category in [afcFind, afcReplaceOne] then
   begin
@@ -226,8 +375,8 @@ begin
     Frame.MacroStrings.Add(
         IntToStr(cmd_FinderAction)+','+
         cAppFinderOperationString[Res]+#1+
-        FFinder.StrFind+#1+
-        FFinder.StrReplace+#1+
+        UTF8Encode(FFinder.StrFind)+#1+
+        UTF8Encode(FFinder.StrReplace)+#1+
         FinderOptionsToString(FFinder)
         );
 
@@ -250,142 +399,71 @@ begin
     afoFindNext,
     afoFindPrev:
     begin
-      FFinder.OptBack:= (Res=afoFindPrev);
-      ok:= FFinder.DoAction_FindOrReplace(
-        false, false, bChanged, true);
-      FinderUpdateEditor(false);
-      FinderShowResult(ok, FFinder);
+      FindAndStop(Res=afoFindPrev);
     end;
 
     afoReplace,
     afoReplaceStop:
     begin
-      //replace match
-      ok:= FFinder.DoAction_ReplaceSelected(true);
-      //after match is replaced, do find-next
-      if Res=afoReplace then
-        if ok then
-          ok:= FFinder.DoAction_FindOrReplace(false, false, bChanged, true);
-      FinderUpdateEditor(true);
-      FinderShowResult(ok, FFinder);
+      FindAndReplaceOneMatch(Res=afoReplaceStop);
     end;
 
     afoReplaceAll:
     begin
-      NTick:= GetTickCount64;
-      NCounter:= FinderReplaceAll(FFinder.Editor, false);
-      NTime:= (GetTickCount64-NTick) div 1000;
-      UpdateStatusbar;
-      FinderShowReplaceReport(NCounter, NTime);
+      FindAndReplaceAll(NCounter);
     end;
 
     afoReplaceGlobal:
     begin
-      NCounter:= 0;
-      NTick:= GetTickCount64;
-      FramePrev:= Frame;
-      bChangeFrame:= FFinder.OptConfirmReplace;
-
-      for IndexFrame:= 0 to FrameCount-1 do
-      begin
-        FrameNew:= Frames[IndexFrame];
-        if FrameNew.FrameKind<>efkEditor then Continue;
-
-        if bChangeFrame then
-          SetFrame(FrameNew);
-
-        NCounter+= FinderReplaceAll(FrameNew.Ed1, true);
-        if not FrameNew.EditorsLinked then
-          NCounter+= FinderReplaceAll(FrameNew.Ed2, true);
-      end;
-
-      NTime:= (GetTickCount64-NTick) div 1000;
-      if bChangeFrame then
-        SetFrame(FramePrev);
-      UpdateStatusbar;
-      FinderShowReplaceReport(NCounter, NTime);
+      FindAndReplaceInAllFrames(Frame, NCounter);
     end;
 
     afoCountAll:
     begin
-      DoFindMarkingInit(markingNone);
-      NCounter:= FFinder.DoAction_CountAll(false);
-      if (NCounter=0) and FFinder.IsRegexBad then
-        MsgStatusErrorInRegex
-      else
-        MsgStatus(
-          Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), NCounter])+FinderOptionsToHint(FFinder),
-          true);
+      FindAndCountAll(NCounter);
     end;
 
     afoExtractAll:
     begin
-      ListFound:= TStringList.Create;
-      try
-        FFinder.DoAction_ExtractAll(false, ListFound, true, FFinder.OptCase, dupIgnore);
-        if ListFound.Count>0 then
-        begin
-          FrameNew:= DoFileOpen('', '');
-          FrameNew.TabCaptionUntitled:= msgFinderRegexMatchesNumbered;
-          Ed:= FrameNew.Editor;
-          try
-            Ed.Strings.LoadFromStrings(ListFound, cEndUnix);
-            MsgStatus(Format(msgStatusFoundFragments, [ListFound.Count]), true);
-          finally
-            Ed.DoEventChange;
-          end;
-        end
-        else
-          FinderShowResult(false, FFinder);
-      finally
-        FreeAndNil(ListFound);
-      end;
+      FindAndExtractRegexMatches;
     end;
 
     afoFindSelectAll:
     begin
-      DoFindMarkingInit(markingSelections);
-      NCounter:= FFinder.DoAction_CountAll(true);
-      DoFindMarkingInit(markingNone);
-      FinderUpdateEditor(false);
-      if (NCounter=0) and FFinder.IsRegexBad then
-        MsgStatusErrorInRegex
-      else
-        MsgStatus(
-          Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), NCounter]) +
-          FinderOptionsToHint(FFinder),
-          true);
+      FindAndSelectAll(NCounter);
     end;
 
     afoFindMarkAll:
     begin
-      DoFindMarkingInit(markingMarkers);
-      NCounter:= FFinder.DoAction_CountAll(true);
-      DoFindMarkingInit(markingNone);
-      FinderUpdateEditor(false);
-      if (NCounter=0) and FFinder.IsRegexBad then
-        MsgStatusErrorInRegex
-      else
-        MsgStatus(
-          Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), NCounter]) +
-          FinderOptionsToHint(FFinder),
-          true);
+      FindAndMarkAll(NCounter);
     end;
   end; //case Res of
 
   UpdateAppForSearch(false, false, bFindMode, AEnableUpdateAll);
 
   {$ifdef LCLgtk2}
-  //Linux gtk2: UpdateAppForSearch don't put focus anywhere (Laz bug?) after "confirmation" form
+  //Linux gtk2: UpdateAppForSearch don't put focus anywhere (Laz bug?) after "confirmation" form;
   //make workaround
-  if (Res=afoReplaceAll) or
-     (Res=afoReplaceGlobal) then
+  if Res in [afoReplaceAll, afoReplaceGlobal] then
   begin
     Frame:= CurrentFrame;
     if Assigned(Frame) then
       Frame.SetFocus;
   end;
   {$endif}
+
+  //close dialog after 'Select all'/'Mark all', issue #4503
+  if Res in [afoFindSelectAll, afoFindMarkAll] then
+    if NCounter>0 then
+    begin
+      fmFind.Hide;
+      Frame:= CurrentFrame;
+      if Assigned(Frame) then
+      begin
+        EditorClearHiAllMarkers(Frame.Editor);
+        Frame.SetFocus;
+      end;
+    end;
 end;
 
 procedure TfmMain.InitFormFind;
@@ -448,7 +526,7 @@ begin
   fmFind.Localize;
 end;
 
-procedure TfmMain.DoDialogFind(AReplaceMode: boolean);
+procedure TfmMain.UpdateFindDialogFromSuggestions;
 var
   Frame: TEditorFrame;
   Ed: TATSynEdit;
@@ -456,6 +534,7 @@ var
   bMultiLineSel: boolean;
 begin
   Frame:= CurrentFrame;
+  if Frame=nil then exit;
   Ed:= Frame.Editor;
 
   StrWord:= Ed.TextCurrentWord;
@@ -468,9 +547,11 @@ begin
 
   bMultiLineSel:= false;
   if Ed.Carets.Count=1 then
-    bMultiLineSel:= Ed.Carets[0].IsMultilineSelection;
+    bMultiLineSel:= Ed.Carets[0].IsMultilineSelection
+  else
+  if Ed.Carets.Count>1 then
+    bMultiLineSel:= Ed.Carets.IsSelectionInAllCarets;
 
-  //MsgLogDebug('find dlg: init');
   InitFormFind;
 
   if StrSel='' then
@@ -490,10 +571,6 @@ begin
   if UiOps.FindSuggestWord and (StrWord<>'') then
     StrSuggested:= StrWord;
 
-  //MsgLogDebug('find dlg: select all in input');
-  fmFind.edFind.DoCommand(cCommand_SelectAll, cInvokeAppInternal);
-  fmFind.edRep.DoCommand(cCommand_SelectAll, cInvokeAppInternal);
-
   fmFind.chkCase.Checked:= FFinder.OptCase;
   fmFind.chkWords.Checked:= FFinder.OptWords;
   fmFind.chkRegex.Checked:= FFinder.OptRegex;
@@ -511,20 +588,22 @@ begin
 
   fmFind.UpdateInitialCaretPos;
   if StrSuggested<>'' then
-    fmFind.UpdateInputFind(StrSuggested)
-  else
-    fmFind.edFind.DoSelect_All;
-  fmFind.IsReplace:= AReplaceMode;
+    fmFind.UpdateInputFind(StrSuggested);
 
+  fmFind.edFind.DoSelect_All;
+  fmFind.edRep.DoSelect_All;
+end;
+
+procedure TfmMain.DoDialogFind(AReplaceMode: boolean);
+begin
+  UpdateFindDialogFromSuggestions;
   UpdateFindDialogParent;
-  //MsgLogDebug('find dlg: update state');
+  fmFind.IsReplace:= AReplaceMode;
   fmFind.UpdateState(true);
-  //MsgLogDebug('find dlg: show');
   fmFind.Show;
-  //MsgLogDebug('find dlg: focus');
   fmFind.UpdateFormHeight; //update 'Replace' buttons visibility, when dlg is in the floating-grp-form
 
-  UpdateFindDialogEnabled(Frame);
+  UpdateFindDialogEnabled(CurrentFrame);
   if fmFind.Enabled then
     fmFind.UpdateFocus(true);
 end;
@@ -603,6 +682,7 @@ begin
   end
   else
   begin
+    UpdateFindDialogFromSuggestions;
     UpdateFindDialogParent;
     fmFind.IsReplace:= AReplaceMode;
     fmFind.Show;
@@ -1413,7 +1493,7 @@ begin
   Ed:= CurrentEditor;
   if Ed=nil then exit;
 
-  FillChar(KeyHistory{%H-}, SizeOf(KeyHistory), 0);
+  KeyHistory.Clear;
   NCmd:= Ed.Keymap.GetCommandFromShortcut(ShortCut(AKey, AShiftState), KeyHistory);
   if IsCommandHandledFromFindDialog(NCmd) then
   begin
@@ -1436,7 +1516,7 @@ begin
   if fmFind.Parent=nil then exit;
 
   F:= Screen.ActiveForm;
-  if F=Self then
+  if (F=nil) or (F=Self) then
     fmFind.Parent:= Self.PanelMain
   else
   if (F=FFormFloatGroups1) or

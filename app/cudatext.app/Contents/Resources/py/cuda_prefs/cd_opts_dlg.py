@@ -2,11 +2,11 @@
 Authors:
     Andrey Kvichansky    (kvichans on github.com)
 Version:
-    '2.3.15 2021-04-02'
+    '2.3.16 2022-11-04'
 ToDo: (see end of file)
 '''
 
-import  re, os, sys, json, collections, itertools, webbrowser, tempfile, html, pickle, time, datetime
+import  re, os, sys, json, collections, tempfile
 from    itertools       import *
 from pathlib import PurePath as PPath
 from pathlib import     Path as  Path
@@ -348,13 +348,13 @@ def upd_cald_vals(ois, what=''):
             dct         = odict(oi.get('dct', []))
             oi['juvl']  = oi.get('uval', '') \
                             if not dct or 'uval' not in oi else \
-                          f('({}) {}', oi['uval'], dct[oi['uval']])
+                          f('({}) {}', oi['uval'], dct.get(oi['uval'], ''))
             oi['jlvl']  = oi.get('lval', '') \
                             if not dct or 'lval' not in oi else \
-                          f('({}) {}', oi['lval'], dct[oi['lval']])
+                          f('({}) {}', oi['lval'], dct.get(oi['lval'], ''))
             oi['jfvl']  = oi.get('fval', '') \
                             if not dct or 'fval' not in oi else \
-                          f('({}) {}', oi['fval'], dct[oi['fval']])
+                          f('({}) {}', oi['fval'], dct.get(oi['fval'], ''))
    #def upd_cald_vals
 
 

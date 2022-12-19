@@ -296,6 +296,12 @@ PROP_NUMBERS_ONLY       = 153
 PROP_NUMBERS_NEGATIVE   = 154
 PROP_COMMAND_LOG        = 155
 PROP_COMMAND_LOG_LIMIT  = 156
+PROP_TAB_COLOR_FONT     = 157
+PROP_DIM_UNFOCUSED      = 158
+PROP_CARET_MULTI        = 159
+PROP_MINIMAP_CHAR_WIDTH = 160
+PROP_MINIMAP_AT_LEFT    = 161
+PROP_MINIMAP_SCALE      = 162
 
 SPLITTER_SIDE    = 0
 SPLITTER_BOTTOM  = 1
@@ -327,7 +333,6 @@ PROC_SET_ESCAPE          = 18
 PROC_PARSE_COMMAND_LINE  = 19
 #
 PROC_SIDEPANEL_ACTIVATE    = 25
-PROC_SIDEPANEL_ENUM        = 26
 PROC_SIDEPANEL_GET_CONTROL = 27
 PROC_SIDEPANEL_ENUM_ALL    = 28
 PROC_SIDEPANEL_REMOVE      = 29
@@ -369,7 +374,6 @@ PROC_GET_MAIN_TOOLBAR   = 66
 PROC_GET_MAIN_STATUSBAR = 67
 #
 PROC_BOTTOMPANEL_ACTIVATE    = 81
-PROC_BOTTOMPANEL_ENUM        = 82
 PROC_BOTTOMPANEL_GET_CONTROL = 83
 PROC_BOTTOMPANEL_REMOVE      = 84
 PROC_BOTTOMPANEL_ADD_DIALOG  = 85
@@ -420,6 +424,7 @@ PROC_ENUM_FONTS       = 160
 PROC_SEND_MESSAGE     = 161
 PROC_GET_COMPILER_INFO = 162
 PROC_ENUM_ENCODINGS   = 163
+PROC_GET_AUTOCOMPLETION_INVOKE = 164
 
 PROC_CONFIG_READ           = 169
 PROC_CONFIG_NEWDOC_EOL_GET = 170
@@ -914,6 +919,8 @@ STATUSBAR_GET_COLOR_BORDER_R   = 64
 STATUSBAR_GET_COLOR_BORDER_U   = 65
 STATUSBAR_GET_COLOR_BORDER_D   = 66
 
+STATUSBAR_MOVE_CELL            = 70
+
 HOTSPOT_GET_LIST      = 0
 HOTSPOT_ADD           = 1
 HOTSPOT_DELETE_ALL    = 2
@@ -1153,15 +1160,15 @@ def button_proc(id_button, id_action, value=''):
 def listbox_proc(id_listbox, id_action, index=0, text="", tag=0):
     return ct.listbox_proc(id_listbox, id_action, index, to_str(text), to_str(tag))
 
-def toolbar_proc(id_toolbar, id_action, text="", text2="", command=0, index=-1, index2=-1):
+def toolbar_proc(id_bar, id_action, text="", text2="", command=0, index=-1, index2=-1):
     if callable(command):
         sid_callback = str(command)
         _live[sid_callback] = command
         command = 'module={};func=_menu_proc_callback_proxy;info="{}";'.format(__name__, sid_callback)
-    return ct.toolbar_proc(str(id_toolbar), id_action, text, text2, str(command), index, index2)
+    return ct.toolbar_proc(id_bar, id_action, text, text2, str(command), index, index2)
 
-def statusbar_proc(id_statusbar, id_action, index=-1, tag=0, value=""):
-    return ct.statusbar_proc(str(id_statusbar), id_action, index, tag, to_str(value))
+def statusbar_proc(id_bar, id_action, index=-1, tag=0, value=""):
+    return ct.statusbar_proc(id_bar, id_action, index, tag, to_str(value))
 
 def canvas_proc(id_canvas, id_action, text='', color=-1, size=-1, x=-1, y=-1, x2=-1, y2=-1, style=-1, p1=-1, p2=-1):
     return ct.canvas_proc(id_canvas, id_action, text, color, size, x, y, x2, y2, style, p1, p2)

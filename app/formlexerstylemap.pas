@@ -14,6 +14,7 @@ interface
 uses
   Classes, SysUtils, FileUtil, Forms, Controls, Graphics, Dialogs, ButtonPanel,
   StdCtrls, StrUtils, IniFiles,
+  Types, LCLType,
   ec_SyntAnal,
   ec_syntax_format,
   proc_msg,
@@ -38,6 +39,9 @@ type
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
+    procedure ListLexSelectionChange(Sender: TObject; User: boolean);
+    procedure ListThDrawItem(Control: TWinControl; AIndex: Integer;
+      ARect: TRect; State: TOwnerDrawState);
   private
     { private declarations }
     LexerName: string;
@@ -168,6 +172,7 @@ var
   F: TfmLexerStyleMap;
   anNotCorrent: TecSyntAnalyzer;
   iStyle: TAppThemeStyleId;
+  st: TecSyntaxFormat;
   i: integer;
 begin
   Result:= false;
@@ -184,7 +189,10 @@ begin
     for i:= 0 to an.Formats.Count-1 do
       F.ItemsVal.Add('');
     for iStyle:= Low(iStyle) to High(iStyle) do
-      F.ItemsTh.Add(AppTheme.Styles[iStyle].DisplayName);
+    begin
+      st:= AppTheme.Styles[iStyle];
+      F.ItemsTh.AddObject(st.DisplayName, st);
+    end;
 
     F.ListLex.Items.AddStrings(F.ItemsLex);
     F.ListLex.ItemIndex:= 0;
@@ -211,9 +219,9 @@ end;
 procedure TfmLexerStyleMap.FormCreate(Sender: TObject);
 begin
   Localize;
-  ItemsLex:= TStringlist.Create;
-  ItemsTh:= TStringlist.Create;
-  ItemsVal:= TStringlist.Create;
+  ItemsLex:= TStringList.Create;
+  ItemsTh:= TStringList.Create;
+  ItemsVal:= TStringList.Create;
 end;
 
 procedure TfmLexerStyleMap.btnSetClick(Sender: TObject);
@@ -244,6 +252,17 @@ end;
 procedure TfmLexerStyleMap.FormShow(Sender: TObject);
 begin
   UpdateFormOnTop(Self);
+  ListLexSelectionChange(Self, false);
+end;
+
+procedure TfmLexerStyleMap.ListLexSelectionChange(Sender: TObject; User: boolean);
+var
+  i: integer;
+begin
+  if ListLex.ItemIndex<0 then exit;
+  i:= ListTh.Items.IndexOf(ItemsVal[ListLex.ItemIndex]);
+  if i>=0 then
+    ListTh.ItemIndex:= i;
 end;
 
 procedure TfmLexerStyleMap.DoSave;
@@ -309,6 +328,56 @@ begin
   finally
     FreeAndNil(ini);
   end;
+end;
+
+
+procedure TfmLexerStyleMap.ListThDrawItem(Control: TWinControl; AIndex: Integer;
+  ARect: TRect; State: TOwnerDrawState);
+const
+  cIndent = 6;
+  cExample = ' Example ';
+var
+  C: TCanvas;
+  st: TecSyntaxFormat;
+  NWidth: integer;
+begin
+  if (AIndex<0) or (AIndex>=ListTh.Items.Count) then exit;
+
+  C:= (Control as TListbox).Canvas;
+  st:= ListTh.Items.Objects[AIndex] as TecSyntaxFormat;
+
+  C.Brush.Color:= clWindow;
+  C.FillRect(ARect);
+
+  C.Font.Color:= st.Font.Color;
+  C.Font.Style:= st.Font.Style;
+  C.Brush.Color:= st.BgColor;
+  if st.BgColor=clNone then
+    C.Brush.Color:= AppTheme.Colors[apclEdTextBg].Color;
+
+  NWidth:= C.TextWidth(cExample);
+  C.TextOut(ARect.Right-NWidth, ARect.Top, cExample);
+
+  if st.BorderColorBottom<>clNone then
+  begin
+    C.Pen.Color:= st.BorderColorBottom;
+    C.Line(ARect.Right-NWidth, ARect.Bottom-2, ARect.Right, ARect.Bottom-2);
+  end;
+
+  if odSelected in State then
+  begin
+    C.Brush.Color:= clHighlight;
+    C.Font.Color:= clHighlightText;
+    C.FillRect(ARect.Left, ARect.Top, ARect.Right-NWidth, ARect.Bottom);
+  end
+  else
+  begin
+    C.Brush.Color:= clWindow;
+    C.Font.Color:= clWindowText;
+  end;
+
+  C.Font.Style:= [];
+  C.TextOut(ARect.Left+cIndent, ARect.Top, ListTh.Items[AIndex]);
 end;
 
 

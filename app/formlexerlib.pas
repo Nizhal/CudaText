@@ -16,6 +16,7 @@ uses
   StdCtrls, ComCtrls, IniFiles,
   LCLIntf, LCLType, LCLProc, ExtCtrls,
   LazUTF8, LazFileUtils,
+  ATStringProc,
   ec_SyntAnal,
   formlexerprop,
   proc_globdata,
@@ -41,6 +42,7 @@ type
   private
     { private declarations }
     FOnDeleteLexer: TAppStringEvent;
+    procedure DeletePackagesIniSection(ALexerName: string);
     procedure Localize;
     procedure UpdateList;
   public
@@ -190,29 +192,62 @@ begin
 end;
 
 
+procedure SEscapeSpecialChars(var S: string);
+var
+  i: byte;
+begin
+  SReplaceAll(S, ' ', '_');
+
+  for i in [ord('#'), ord('*'), ord('|'), ord('/')] do
+    SReplaceAll(S, Chr(i), '%'+IntToHex(i, 2));
+end;
+
+
+procedure TfmlexerLib.DeletePackagesIniSection(ALexerName: string);
+var
+  fn: string;
+  Ini: TIniFile;
+begin
+  SEscapeSpecialChars(ALexerName);
+
+  fn:= AppDir_Settings+DirectorySeparator+'packages.ini';
+  if FileExists(fn) then
+  begin
+    Ini:= TIniFile.Create(fn);
+    try
+      Ini.EraseSection('lexer.'+ALexerName+'.zip');
+    finally
+      FreeAndNil(Ini);
+    end;
+  end;
+end;
+
 procedure TfmLexerLib.btnDeleteClick(Sender: TObject);
 var
-  an: TecSyntAnalyzer;
+  An: TecSyntAnalyzer;
   NIndex: integer;
+  SLexerName: string;
 begin
   List.SetFocus;
 
   NIndex:= List.ItemIndex;
-  if NIndex<0 then exit;
-  an:= List.Items.Objects[NIndex] as TecSyntAnalyzer;
+  if (NIndex<0) or (NIndex>=List.Count) then exit;
+  An:= List.Items.Objects[NIndex] as TecSyntAnalyzer;
+  SLexerName:= An.LexerName;
 
   if MsgBox(
-    Format(msgConfirmDeleteLexer, [an.LexerName]),
+    Format(msgConfirmDeleteLexer, [SLexerName]),
     MB_OKCANCEL or MB_ICONWARNING)=ID_OK then
   begin
     if Assigned(FOnDeleteLexer) then
-      FOnDeleteLexer(nil, an.LexerName);
+      FOnDeleteLexer(nil, SLexerName);
 
-    DeleteFile(AppFile_Lexer(an.LexerName));
-    DeleteFile(AppFile_LexerMap(an.LexerName));
-    DeleteFile(AppFile_LexerAcp(an.LexerName));
+    DeleteFile(AppFile_Lexer(SLexerName));
+    DeleteFile(AppFile_LexerMap(SLexerName));
+    DeleteFile(AppFile_LexerAcp(SLexerName));
+    DeletePackagesIniSection(SLexerName);
 
-    AppManager.DeleteLexer(an);
+    AppManager.DeleteLexer(An);
     AppManager.Modified:= true;
 
     UpdateList;

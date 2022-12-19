@@ -281,6 +281,7 @@ const
   cmd_Encoding_iso2_NoReload      = 2726;
   cmd_Encoding_iso15_NoReload     = 2727;
   cmd_Encoding_iso16_NoReload     = 2728;
+  cmd_Encoding_cp865_NoReload     = 2729;
   cmd_Encoding_cp437_NoReload     = 2730;
   cmd_Encoding_cp850_NoReload     = 2731;
   cmd_Encoding_cp852_NoReload     = 2732;
@@ -300,6 +301,7 @@ const
   cmd_Encoding_iso7_NoReload      = 2746;
   cmd_Encoding_iso3_NoReload      = 2747;
   cmd_Encoding_iso4_NoReload      = 2748;
+  cmd_Encoding_cp861_NoReload     = 2749;
 
   cmd_Encoding_utf8bom_Reload   = 2751;
   cmd_Encoding_utf8nobom_Reload = 2752;
@@ -319,6 +321,7 @@ const
   cmd_Encoding_iso2_Reload      = 2766;
   cmd_Encoding_iso15_Reload     = 2767;
   cmd_Encoding_iso16_Reload     = 2768;
+  cmd_Encoding_cp865_Reload     = 2769;
   cmd_Encoding_cp437_Reload     = 2770;
   cmd_Encoding_cp850_Reload     = 2771;
   cmd_Encoding_cp852_Reload     = 2772;
@@ -338,6 +341,7 @@ const
   cmd_Encoding_iso7_Reload      = 2786;
   cmd_Encoding_iso3_Reload      = 2787;
   cmd_Encoding_iso4_Reload      = 2788;
+  cmd_Encoding_cp861_Reload     = 2789;
 
   cmd_Markers_SelectToCaret      = 2798;
   cmd_Markers_DeleteToCaret      = 2799;
@@ -651,6 +655,8 @@ begin
   M.Add(cmd_Encoding_cp437_NoReload, 'change encoding, no reload: cp437', [], []);
   M.Add(cmd_Encoding_cp850_NoReload, 'change encoding, no reload: cp850', [], []);
   M.Add(cmd_Encoding_cp852_NoReload, 'change encoding, no reload: cp852', [], []);
+  M.Add(cmd_Encoding_cp861_NoReload, 'change encoding, no reload: cp861', [], []);
+  M.Add(cmd_Encoding_cp865_NoReload, 'change encoding, no reload: cp865', [], []);
   M.Add(cmd_Encoding_cp866_NoReload, 'change encoding, no reload: cp866', [], []);
   M.Add(cmd_Encoding_cp874_NoReload, 'change encoding, no reload: cp874', [], []);
   M.Add(cmd_Encoding_cp932_NoReload, 'change encoding, no reload: cp932', [], []);
@@ -689,6 +695,8 @@ begin
   M.Add(cmd_Encoding_cp437_Reload, 'change encoding, reload: cp437', [], []);
   M.Add(cmd_Encoding_cp850_Reload, 'change encoding, reload: cp850', [], []);
   M.Add(cmd_Encoding_cp852_Reload, 'change encoding, reload: cp852', [], []);
+  M.Add(cmd_Encoding_cp861_Reload, 'change encoding, reload: cp861', [], []);
+  M.Add(cmd_Encoding_cp865_Reload, 'change encoding, reload: cp865', [], []);
   M.Add(cmd_Encoding_cp866_Reload, 'change encoding, reload: cp866', [], []);
   M.Add(cmd_Encoding_cp874_Reload, 'change encoding, reload: cp874', [], []);
   M.Add(cmd_Encoding_cp932_Reload, 'change encoding, reload: cp932', [], []);
@@ -882,6 +890,11 @@ end;
 function IsCommandHandledFromFindDialog(Cmd: integer): boolean;
 begin
   case Cmd of
+    cmd_FindCurWordNext,
+    cmd_FindCurWordPrev,
+    cmd_FindCurSelNext,
+    cmd_FindCurSelPrev,
+
     cmd_SwitchTab_HotkeyNext,
     cmd_SwitchTab_HotkeyPrev,
     cmd_SwitchTab_SimpleNext,

@@ -31,12 +31,14 @@ uses
   proc_customdialog,
   proc_customdialog_dummy,
   proc_editor,
+  proc_cmd,
   proc_msg;
 
 type
   TAppStrEvent = procedure(const Str: string) of object;
   TAppConsoleEvent = function(const Str: string): boolean of object;
   TAppConsoleCommandEvent = procedure(ACommand: integer; const AText: string; var AHandled: boolean) of object;
+  TAppConsoleGetEditor = procedure(out AEditor: TATSynEdit) of object;
 
   TAppConsoleLineKind = (
     acLineUsual,
@@ -52,19 +54,21 @@ type
   TfmConsole = class(TFormDummy)
   private
     { private declarations }
+    FFormMain: TCustomForm;
     FAdapter: TATAdapterSimple;
     FOnNavigate: TAppConsoleEvent;
     FOnNumberChange: TNotifyEvent;
+    FOnGetMainEditor: TAppConsoleGetEditor;
     FCudatextImported: boolean;
     FInputFirstChanged: boolean;
     mnuTextClear: TMenuItem;
     mnuTextNav: TMenuItem;
     mnuTextWrap: TMenuItem;
-    procedure InputOnCommand(Sender: TObject; ACmd: integer; AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
+    procedure InputOnCommand(Sender: TObject; ACommand: integer; AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
     procedure InputOnChange(Sender: TObject);
     procedure DoGetLineColor(Ed: TATSynEdit; ALineIndex: integer; var AColorFont, AColorBg: TColor);
     procedure MemoClickDbl(Sender: TObject; var AHandled: boolean);
-    procedure MemoCommand(Sender: TObject; ACmd: integer; AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
+    procedure MemoCommand(Sender: TObject; ACommand: integer; AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
     procedure MemoContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
     procedure DoNavigate(Sender: TObject);
     procedure DoToggleWrap(Sender: TObject);
@@ -73,6 +77,8 @@ type
     function GetWordWrap: boolean;
     procedure SetWordWrap(AValue: boolean);
     procedure DoRunLine(Str: string);
+  protected
+    procedure KeyDown(var Key: Word; Shift: TShiftState); override;
   public
     { public declarations }
     EdInput: TATComboEdit;
@@ -81,6 +87,7 @@ type
     constructor Create(AOwner: TComponent); override;
     property OnConsoleNav: TAppConsoleEvent read FOnNavigate write FOnNavigate;
     property OnNumberChange: TNotifyEvent read FOnNumberChange write FOnNumberChange;
+    property OnGetMainEditor: TAppConsoleGetEditor read FOnGetMainEditor write FOnGetMainEditor;
     procedure DoAddLine(const AText: UnicodeString);
     procedure DoClearMemo(Sender: TObject);
     procedure DoClearInput(Sender: TObject);
@@ -90,12 +97,13 @@ type
     property MemoWordWrap: boolean read GetWordWrap write SetWordWrap;
     procedure SetFocus; override;
     procedure ApplyTheme;
+    procedure ApplyCaretView;
   end;
 
 var
   fmConsole: TfmConsole = nil;
 
-procedure InitConsole;
+procedure InitConsole(AFormMain: TCustomForm; AOnGetMainEditor: TAppConsoleGetEditor);
 
 const
   cConsoleMaxLines = 1000;
@@ -277,6 +285,19 @@ begin
   end;
 end;
 
+procedure TfmConsole.KeyDown(var Key: Word; Shift: TShiftState);
+begin
+  if (Key=VK_ESCAPE) and (Shift=[]) then
+    if Assigned(FFormMain.OnKeyDown) then
+    begin
+      FFormMain.OnKeyDown(nil, Key, Shift);
+      Key:= 0;
+      exit;
+    end;
+
+  inherited KeyDown(Key, Shift);
+end;
+
 constructor TfmConsole.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
@@ -345,18 +366,23 @@ begin
 end;
 
 
-procedure InitConsole;
+procedure InitConsole(AFormMain: TCustomForm; AOnGetMainEditor: TAppConsoleGetEditor);
 begin
   if fmConsole=nil then
+  begin
     fmConsole:= TfmConsole.Create(nil);
+    fmConsole.FFormMain:= AFormMain;
+    fmConsole.OnGetMainEditor:= AOnGetMainEditor;
+  end;
 end;
 
-procedure TfmConsole.InputOnCommand(Sender: TObject; ACmd: integer;
+procedure TfmConsole.InputOnCommand(Sender: TObject; ACommand: integer;
   AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
 var
+  Ed: TATSynEdit;
   s: string;
 begin
-  if ACmd=cCommand_KeyEnter then
+  if ACommand=cCommand_KeyEnter then
   begin
     s:= UTF8Encode(EdInput.Text);
     DoRunLine(s);
@@ -365,11 +391,16 @@ begin
     EdInput.DoCaretSingle(0, 0);
 
     AHandled:= true;
-    Exit
+    exit
   end;
 
-  //if Assigned(FOnEditCommand) then
-  //  FOnEditCommand(ACmd, AText, AHandled);
+  if (ACommand>=cmdFirstAppCommand) and (ACommand<=cmdLastAppCommand) then
+  begin
+    FOnGetMainEditor(Ed);
+    Ed.DoCommand(ACommand, cInvokeHotkey, '');
+    AHandled:= true;
+    exit;
+  end;
 end;
 
 function TfmConsole.GetWordWrap: boolean;
@@ -471,13 +502,24 @@ begin
   EdMemo.Update;
 end;
 
-procedure TfmConsole.MemoCommand(Sender: TObject; ACmd: integer;
+procedure TfmConsole.MemoCommand(Sender: TObject; ACommand: integer;
   AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
+var
+  Ed: TATSynEdit;
 begin
-  if ACmd=cCommand_KeyEnter then
+  if ACommand=cCommand_KeyEnter then
   begin
     MemoClickDbl(nil, AHandled);
     AHandled:= true;
+    exit;
+  end;
+
+  if (ACommand>=cmdFirstAppCommand) and (ACommand<=cmdLastAppCommand) then
+  begin
+    FOnGetMainEditor(Ed);
+    Ed.DoCommand(ACommand, cInvokeHotkey, '');
+    AHandled:= true;
+    exit;
   end;
 end;
 
@@ -507,6 +549,16 @@ begin
   EditorApplyTheme(EdInput);
   EditorApplyTheme(EdMemo);
   Invalidate;
+end;
+
+procedure TfmConsole.ApplyCaretView;
+begin
+  EditorCaretShapeFromString(EdInput.CaretShapeNormal, EditorOps.OpCaretViewNormal);
+  EditorCaretShapeFromString(EdInput.CaretShapeOverwrite, EditorOps.OpCaretViewOverwrite);
+
+  EditorCaretShapeFromString(EdMemo.CaretShapeNormal, EditorOps.OpCaretViewNormal);
+  EditorCaretShapeFromString(EdMemo.CaretShapeOverwrite, EditorOps.OpCaretViewOverwrite);
+  EditorCaretShapeFromString(EdMemo.CaretShapeReadonly, EditorOps.OpCaretViewReadonly);
 end;
 
 finalization

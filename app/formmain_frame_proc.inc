@@ -21,7 +21,20 @@ begin
   if D=nil then Exit;
   D.TabCaption:= Frame.TabCaption;
   D.TabCaptionAddon:= Frame.TabCaptionAddon;
-  D.TabModified:= Frame.Ed1.Modified or Frame.Ed2.Modified;
+
+  if Frame.EditorsLinked then
+  begin
+    D.TabTwoDocuments:= false;
+    D.TabModified:= Frame.Ed1.Modified;
+    D.TabModified2:= false;
+  end
+  else
+  begin
+    D.TabTwoDocuments:= true;
+    D.TabModified:= Frame.Ed1.Modified;
+    D.TabModified2:= Frame.Ed2.Modified;
+  end;
+
   Pages.Invalidate;
 
   UpdateCaption;
@@ -286,6 +299,7 @@ var
   D: TATTabData;
 begin
   Result:= nil;
+  if GroupsCtx=nil then exit;
   Pages:= GroupsCtx.PopupPages; if Pages=nil then exit;
   NTab:= GroupsCtx.PopupTabIndex; if NTab<0 then exit;
   D:= Pages.Tabs.GetTabData(NTab); if D=nil then exit;
@@ -297,7 +311,6 @@ var
   Ed: TATSynEdit;
 begin
   Ed:= Sender as TATSynEdit;
-  DoPyEvent(Ed, cEventOnChangeSlow, []);
 
   //run tree-helper for lite lexers
   if Ed.AdapterForHilite is TATLiteLexer then

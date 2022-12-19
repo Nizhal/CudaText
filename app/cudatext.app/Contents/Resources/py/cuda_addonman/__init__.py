@@ -3,7 +3,6 @@ import re
 import shutil
 import json
 import collections
-import webbrowser
 import subprocess
 from cudatext import *
 from urllib.parse import unquote
@@ -14,12 +13,15 @@ from .work_github import *
 from .work_install_helper import after_install
 from . import opt
 
+'''
 if os.name=='nt':
     from .work_cudatext_updates__fosshub import check_cudatext
 else:
     from .work_cudatext_updates__sourceforge import check_cudatext
+'''
+from .work_cudatext_updates__sourceforge import check_cudatext
 
-from cudax_lib import get_translation
+from cudax_lib import get_translation, safe_open_url
 _   = get_translation(__file__)  # i18n
 
 _homedir = os.path.expanduser('~')
@@ -110,6 +112,7 @@ class Command:
             opt.ch_user = data.get('channels_user', opt.ch_user)
             opt.suggest_readme = data.get('suggest_readme', True)
             opt.install_confirm = data.get('install_confirm', True)
+            opt.verify_https = data.get('verify_https', True)
             opt.proxy = data.get('proxy', '')
 
 
@@ -121,6 +124,7 @@ class Command:
         data['channels_user'] = opt.ch_user
         data['suggest_readme'] = opt.suggest_readme
         data['install_confirm'] = opt.install_confirm
+        data['verify_https'] = opt.verify_https
         data['proxy'] = opt.proxy
 
         with open(fn_config, 'w') as f:
@@ -421,7 +425,7 @@ class Command:
         if m is None: return
         s = get_homepage_of_module(m)
         if s:
-            webbrowser.open_new_tab(s)
+            safe_open_url(s)
             msg_status(_('Opened browser: ')+s)
         else:
             msg_box(_('Plugin "%s" doesn\'t have "homepage" field in install.inf') % \
@@ -520,6 +524,33 @@ class Command:
             d['check'] = False
             addons.append(d)
 
+        KIND_ORDER = {
+            'plugin': 1,
+            'linter': 2,
+            'formatter': 3,
+            'treehelper': 4,
+            'snippets_ct': 50,
+            'theme': 100,
+            'toolbartheme': 101,
+            'toolbarxicons': 102,
+            'sidebartheme': 103,
+            'projtoolbaricons': 104,
+            'filetypeicons': 105,
+            'codetreeicons': 106,
+            'translation': 200,
+            'plugintranslation': 201,
+            'buildsystem': 300,
+            'lexer': 500,
+            'package': 600,
+        }
+
+        # show plugins first, ..., lexers last
+        addons = sorted(addons, key=lambda i: (
+            KIND_ORDER.get(i['kind'], 301),
+            i['name'],
+            i.get('module', ''),
+            ))
+
         text_headers = '\r'.join((_('Name=260'), _('Folder=180'), _('Local=125'), _('Available=125')))
         text_columns = ['\r'.join(('['+i['kind']+'] '+i['name'], i['dir'], i['v_local'], i['v'])) for i in addons]
         text_items = '\t'.join([text_headers]+text_columns)
@@ -533,17 +564,19 @@ class Command:
         RES_SEL_NONE = 3
         RES_SEL_NEW = 4
         c1 = chr(1)
+        DLG_W = 750
+        DLG_H = 600
 
         while True:
             text = '\n'.join([
-              c1.join(['type=button', 'pos=514,500,614,0', 'cap='+_('Update'), 'ex0=1']),
-              c1.join(['type=button', 'pos=620,500,720,0', 'cap='+_('Cancel')]),
-              c1.join(['type=checklistview', 'pos=6,6,720,490', 'items='+text_items, 'val='+text_val, 'ex0=1']),
-              c1.join(['type=button', 'pos=6,500,100,0', 'cap='+_('Deselect all')]),
-              c1.join(['type=button', 'pos=106,500,200,0', 'cap='+_('Select new')]),
+              c1.join(['type=button', 'pos=%d,%d,%d,%d'%(DLG_W-212, DLG_H-32, DLG_W-112, 0), 'cap='+_('Update'), 'ex0=1']),
+              c1.join(['type=button', 'pos=%d,%d,%d,%d'%(DLG_W-106, DLG_H-32, DLG_W-6, 0), 'cap='+_('Cancel')]),
+              c1.join(['type=checklistview', 'pos=%d,%d,%d,%d'%(6, 6, DLG_W-6, DLG_H-42), 'items='+text_items, 'val='+text_val, 'ex0=1']),
+              c1.join(['type=button', 'pos=%d,%d,%d,%d'%(6, DLG_H-32, 100, 0), 'cap='+_('Deselect all')]),
+              c1.join(['type=button', 'pos=%d,%d,%d,%d'%(106, DLG_H-32, 200, 0), 'cap='+_('Select new')]),
               ])
 
-            res = dlg_custom(_('Update add-ons'), 726, 532, text)
+            res = dlg_custom(_('Update add-ons'), DLG_W, DLG_H, text)
             if res is None: return
 
             res, text = res

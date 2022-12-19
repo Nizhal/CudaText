@@ -46,6 +46,7 @@ OPT2PROP            = dict(
     ,links_hilite               = app.PROP_LINKS_SHOW
     ,links_regex                = app.PROP_LINKS_REGEX
     ,mouse_click_links          = app.PROP_LINKS_CLICKS
+    ,mouse_wheel_zoom           = app.PROP_WHEEL_ZOOMS
     ,show_last_line_on_top      = app.PROP_LAST_LINE_ON_TOP
     ,margin                     = app.PROP_MARGIN
     ,margin_string              = app.PROP_MARGIN_STRING
@@ -60,6 +61,7 @@ OPT2PROP            = dict(
     ,unprinted_spaces           = app.PROP_UNPRINTED_SPACES
     ,unprinted_spaces_trailing  = app.PROP_UNPRINTED_SPACES_TRAILING
     ,wrap_mode                  = app.PROP_WRAP
+    ,dim_unfocused              = app.PROP_DIM_UNFOCUSED
     ,zebra                      = app.PROP_ZEBRA
     ,zebra_step                 = app.PROP_ZEBRA_STEP
     )
@@ -704,6 +706,18 @@ def get_translation(plug_file):
             break
     return _
    #def get_translation
+
+
+def safe_open_url(url):
+    '''
+    On Windows 10, app crashes when webbrowser.open* is called with running LSP server.
+    '''
+    if os.name=='nt':
+        import subprocess
+        subprocess.Popen(['start', '', url], shell=True)
+    else:
+        import webbrowser
+        webbrowser.open_new_tab(url)
 
 
 '''

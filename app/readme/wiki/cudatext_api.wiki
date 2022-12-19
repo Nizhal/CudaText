@@ -32,7 +32,8 @@ Event handlers (Command.on_nnnnn methods) return-value is ignored is many cases,
 * on_save_pre(self, ed_self): Called before saving file. Method can return False to disable saving, other value is ignored.
 * on_save_naming(self, ed_self): Called before saving untitled tab, to get suggested filename without path and extension. Method must return valid filename string or None.
 * on_delete_file(self, ed_self, filename): Called on running command "File / Close and delete file". ed_self is None.
-* on_start(self, ed_self): Called once on program start. ed_self is None.
+* on_start(self, ed_self): Called once on program start. Called early, before applying config files. ed_self is None.
+* on_start2(self, ed_self): Called once on program start. Called later than on_start, after configs are applied, just before the main form shows. ed_self is None.
 * on_exit(self, ed_self): Called on exiting application. This event is lazy, ie it's called only for already loaded plugins. ed_self is None.
 * on_app_activate(self, ed_self): Called when application window gets focus. ed_self is None.
 * on_app_deactivate(self, ed_self): Called when application window looses focus. ed_self is None.
@@ -40,14 +41,16 @@ Event handlers (Command.on_nnnnn methods) return-value is ignored is many cases,
 
 ==Events - Tabs==
 
-* on_tab_change(self, ed_self): Called after active tab is changed.
-* on_tab_move(self, ed_self): Called after closing a tab (another tab is already activated), or moving a tab (by drag-n-drop, or UI command).
+* on_tab_change(self, ed_self): Called after active UI-tab is changed.
+* on_tab_menu(self, ed_self): Called just before showing popup menu for UI-tab title. Method can return False to disable the standard popup menu, other return value is ignored.
+* on_tab_move(self, ed_self): Called after closing a UI-tab (another UI-tab is already activated), or moving a UI-tab (by drag-n-drop, or UI command).
 
 ==Events - Editor==
 
 * on_change(self, ed_self): Called after editor text is changed.
-* on_change_slow(self, ed_self): Called after editor text is changed, and few seconds (option) passed. Used in CudaLint plugin, it needs to react to change after a delay.
-* on_caret(self, ed_self): Called after editor caret position and/or selection is changed.
+* on_change_slow(self, ed_self): Called after editor text is changed, and small pause is passed (CudaText option "py_change_slow"), and application "idle" event happens (no keyboard/mouse input for 1-2sec).
+* on_caret(self, ed_self): Called after caret position/selection is changed.
+* on_caret_slow(self, ed_self): Called after caret position/selection is changed, and small pause is passed. Pause is CudaText option "py_caret_slow".
 * on_insert(self, ed_self, text): Called before inserting a text. Method can return False to disable insertion, other return value is ignored.
 * on_key(self, ed_self, key, state): Called when user presses a key in editor. Param "key" is int key code; values are listed in the module cudatext_keys. Param "state" is string of chars: "a" if Alt pressed, "c" if Ctrl pressed, "s" if Shift pressed, "m" if Meta (Windows-key) pressed. Method can return False to disable key processing, other return value is ignored.
 * on_key_up(self, ed_self, key, state): Called when user depresses a key in editor. Params meaning is the same as in "on_key". Currently called only for Ctrl/Shift/Alt keys (to not slow down).
@@ -58,8 +61,6 @@ Event handlers (Command.on_nnnnn methods) return-value is ignored is many cases,
 * on_scroll(self, ed_self): Called on scrolling in editor.
 * on_mouse_stop(self, ed_self, x, y): Called when mouse cursor stops (for a short delay) over editor. Params "x", "y" are mouse editor-related coords.
 * on_hotspot(self, ed_self, entered, hotspot_index): Called when mouse cursor moves in/out of hotspot. See ed.hotspots() API.
-* on_state(self, ed_self, state): Called after some app state is changed. Param "state" is one of APPSTATE_nnnn constants. ed_self is None.
-* on_state_ed(self, ed_self, state): Called after some editor state is changed. Param "state" is one of EDSTATE_nnnn constants.
 * on_snippet(self, ed_self, snippet_id, snippet_text): Called when user chooses snippet to insert, in ed.complete_alt() call.
 
 ==Events - Editor clicks==
@@ -69,6 +70,41 @@ Event handlers (Command.on_nnnnn methods) return-value is ignored is many cases,
 * on_click_gutter(self, ed_self, state, nline, nband): Called on mouse click on gutter area. Param "state": same as in on_key. Param "nline": index of editor line. Param "nband": index of gutter band. Method can return False to disable default processing.
 * on_click_gap(self, ed_self, state, nline, ntag, size_x, size_y, pos_x, pos_y): Called after mouse click on inter-line gap: see Editor.gap(). Param "state": same meaning as in on_key. Other params: properties of clicked gap.
 * on_click_link(self, ed_self, state, link): Called after link/URL in the editor is activated by click or double-click (event is not called on URL opening from Command Palette or from editor context menu). Param "state": same meaning as in on_key. Param "link": link string. Method can return False to disable default program action.
+
+==Events - State changes==
+
+* on_state(self, ed_self, state): Called after some app state is changed. Param "state" is one of APPSTATE_nnnn constants. ed_self is None.
+* on_state_ed(self, ed_self, state): Called after some editor state is changed. Param "state" is one of EDSTATE_nnnn constants.
+
+Constants in on_state:
+
+* APPSTATE_LANG: Changed UI translation.
+* APPSTATE_THEME_UI: Changed UI-theme.
+* APPSTATE_THEME_SYNTAX: Changed syntax-theme.
+* APPSTATE_GROUPS: Changed tab-grouping mode (see top menu item "=").
+* APPSTATE_CONFIG_REREAD: App config file is re-read and applied.
+* APPSTATE_SESSION_LOAD_BEGIN: Session loading begins.
+* APPSTATE_SESSION_LOAD: Session loading completes (after APPSTATE_SESSION_LOAD_BEGIN).
+* APPSTATE_SESSION_LOAD_FAIL: Session loading fails (after APPSTATE_SESSION_LOAD_BEGIN).
+* APPSTATE_PROJECT: Current project in the Project Manager is changed.
+* APPSTATE_API_SUBCOMMANDS: API call app_proc(PROC_SET_SUBCOMMANDS, ...).
+* APPSTATE_API_MENU_ADD: API menu_proc() added some menu item.
+* APPSTATE_API_MENU_REMOVE: API menu_proc() removed some menu item.
+* APPSTATE_API_MENU_CHANGE: API menu_proc() changed some menu item.
+* APPSTATE_CODETREE_CLEAR: Code-Tree: content is cleared.
+* APPSTATE_CODETREE_BEFORE_FILL: Code-Tree: before filling the content.
+* APPSTATE_CODETREE_AFTER_FILL: Code-Tree: after filling the content.
+* APPSTATE_CODETREE_SET_SELECTION: Code-Tree double-click changed scroll pos, or app sync'ed Code-Tree with caret pos.
+
+Constants in on_state_ed:
+
+* EDSTATE_WRAP: Word-wrap state is changed.
+* EDSTATE_TAB_TITLE: UI-tab title is changed.
+* EDSTATE_MODIFIED: Document modified state is changed.
+* EDSTATE_PINNED: UI-tab 'pinned' state is changed.
+* EDSTATE_READONLY: Read-only state is changed.
+* EDSTATE_ZOOM: Scale of document is changed, using Ctrl+MouseWheel or by a command.
+* EDSTATE_BOOKMARK: Bookmark is added or removed.
 
 ==Events - Smart commands==
 
@@ -244,7 +280,7 @@ Actions work with props of Find/Replace dialog, and props of low-level search en
 
 ====app_proc - System====
 
-* PROC_ENUM_FONTS: Returns list of font names, currently installed in OS. Note: only few names are common in all OSes (like Arial, Courier, Courier New, maybe more).
+* PROC_ENUM_FONTS: Returns list of font names, currently installed in OS. There are no font names common in all OS'es.
 * PROC_ENUM_ENCODINGS: Returns list of supported encoding names.
 * PROC_GET_SYSTEM_PPI: Returns int value of screen pixels-per-inch. Usual value is 96. When OS UI is scaled, it's bigger, e.g. for scale 150% it is round(96*1.5).
 * PROC_GET_GUI_HEIGHT: Returns height (pixels) of GUI element for dlg_custom(). Possible values of 'text': 'button', 'label', 'linklabel', 'combo', 'combo_ro', 'edit', 'spinedit', 'check', 'radio', 'checkbutton', 'filter_listbox', 'filter_listview'. Special value 'scrollbar' gets size of OS scrollbar. Returns None for other values.
@@ -322,6 +358,11 @@ Actions work with props of Find/Replace dialog, and props of low-level search en
 ** (for plugins) "p_lexers": str: Comma-separated lexers list.
 ** (for plugins) "p_from_api": bool: Shows that command was generated from API by some plugin.
 ** (for plugins) "p_in_menu": str: Value of parameter "menu" from install.inf.
+
+* PROC_GET_AUTOCOMPLETION_INVOKE: Returns the invokation kind of "on_complete" event call. Possible string values:
+** "c": Command or hotkey.
+** "a": Work of option "autocomplete_autoshow_chars".
+** "r": Re-showing of listbox, caused by typing, deleting, arrows left/right.
 
 ====app_proc - Hotkeys====
 
@@ -403,8 +444,6 @@ Actions:
 ** str: caption.
 ** 2-tuple (caption, bool_set_focus). Default for bool_set_focus is False.
 
-* (deprecated) PROC_SIDEPANEL_ENUM: Enumerates tabs. Returns str, "\n"-separated captions of tabs.
-
 * PROC_SIDEPANEL_ENUM_ALL: Enumerates tabs. Returns list of dict, each dict item has keys:
 ** "cap": str: Panel caption (not affected by translation)
 ** "hint": str: Button's floating tooltip (affected by translation).
@@ -429,7 +468,6 @@ Actions:
 * PROC_BOTTOMPANEL_ADD_DIALOG: Adds tab. Same as for PROC_SIDEPANEL_ADD_DIALOG.
 * PROC_BOTTOMPANEL_REMOVE: Removes tab. Same as for PROC_SIDEPANEL_REMOVE.
 * PROC_BOTTOMPANEL_ACTIVATE: Activates tab. Same as for PROC_SIDEPANEL_ACTIVATE.
-* (deprecated) PROC_BOTTOMPANEL_ENUM: Enumerates tabs. Same as for PROC_SIDEPANEL_ENUM.
 * PROC_BOTTOMPANEL_ENUM_ELL: Enumerates tabs. Same as for PROC_SIDEPANEL_ENUM_ALL.
 * PROC_BOTTOMPANEL_GET_CONTROL: Returns int handle of control. Same as for PROC_SIDEPANEL_GET_CONTROL.
 * PROC_BOTTOMPANEL_GET: Returns caption of last activated tab. Same as for PROC_SIDEPANEL_GET.
@@ -541,17 +579,20 @@ Actions get/set state of UI elements, "value" must be False/True:
 Notes:
 
 * When getting or setting coords, you get/set 4-tuple of int: (left, top, right, bottom).
+* Any coord of any monitor (and 'desktop') can be negative. For example, tuple (-1920, 0, 0, 1080) - this means that OS configuration has placed that monitor lefter than x=0.
 
 Actions:
 
 * PROC_COORD_WINDOW_GET: Returns coords of app window.
 * PROC_COORD_WINDOW_SET: Sets coords of app window.
-* PROC_COORD_DESKTOP: Returns coords of virtual desktop, which includes all monitors.
+
 * PROC_COORD_MONITOR: Returns coords of monitor with app window.
 * PROC_COORD_MONITOR0: Returns coords of 1st monitor.
 * PROC_COORD_MONITOR1: Returns coords of 2nd monitor, or None if no such monitor.
 * PROC_COORD_MONITOR2: Returns coords of 3rd monitor, or None if no such monitor.
 * PROC_COORD_MONITOR3: Returns coords of 4th monitor, or None if no such monitor.
+
+* PROC_COORD_DESKTOP: Returns coords of 'desktop', which is the combined areas of all existing monitors. For example, with 2 monitors, 'desktop' is about 2x wider or about 2x taller than one average monitor. With 3-4 monitors, you cannot assume that all monitors are placed in horizontal row, or in vertical row, or in another shape. But you can detect that from coords of all monitors.
 
 ===app_log===
 
@@ -1068,7 +1109,6 @@ Additional types, supported only by "dlg_proc":
 ** DBORDER_TOOL: Like DBORDER_SINGLE but with a smaller caption
 ** DBORDER_TOOLSIZE: Like DBORDER_SIZE but with a smaller caption
 
-* "topmost": bool: Makes form stay on top of other forms in CudaText.
 * "vis": bool: Visible state.
 * "color": int: Background color.
 * "autosize": bool: Form automatically resizes to the minimal size, which shows all visible controls.
@@ -1076,6 +1116,11 @@ Additional types, supported only by "dlg_proc":
 * "p": int: Parent handle. Set this property to int handle of any windowed UI control or form, this control/form will be parent of form.
 * "focused" (only for reading): index of currently focused control.
 * "form_state" (only for reading): current form state, string: "norm" for normal, "min" for minimized, "max" for maximized, "fullscr" for full-screen.
+* "topmost": bool: Makes form stay on top of other forms in CudaText.
+* "taskbar": int enum: When form appears on OS taskbar.
+** 0: Application default behaviour
+** 1: Always
+** 2: Never
 
 ====dlg_proc - Forms events====
 
@@ -1666,40 +1711,40 @@ Example adds 3 columns:
    x=-1, y=-1, x2=-1, y2=-1,
    style=-1, p1=-1, p2=-1)
 
-Performs action on canvas (drawing surface of some GUI control).
-Id_canvas is handle of canvas of some GUI control. Special value 0 means testing empty panel, it appears at the top of app, when used.
+Performs action on canvas, ie drawing surface of some GUI control.
+Param "id_canvas" is handle of canvas of some GUI control. Special value 0 means testing empty panel, it appears at the top of app, when used.
 
 Possible values of "id_action":
 
-* CANVAS_SET_FONT: Sets props of font. Params:
+* CANVAS_SET_FONT: Sets props of font. Params used:
 ** "text": font name
 ** "color"
 ** "size"
 ** "style": 0 for normal, or sum of values FONT_B (bold), FONT_I (italic), FONT_U (underline), FONT_S (strikeout)
 
-* CANVAS_SET_PEN: Sets props of pen. Params:
+* CANVAS_SET_PEN: Sets props of pen. Params used:
 ** "color"
 ** "size"
 ** "style": one of PEN_STYLE_nnnn
 ** "p1": end caps style - one of PEN_CAPS_nnnn
 ** "p2": line joining style - one of PEN_JOIN_nnnn
 
-* CANVAS_SET_BRUSH: Sets props of brush. Params:
+* CANVAS_SET_BRUSH: Sets props of brush. Params used:
 ** "color"
 ** "style": one of BRUSH_nnnn. Usually used: BRUSH_SOLID (filled background), BRUSH_CLEAR (transparent background).
 
-* CANVAS_SET_ANTIALIAS: Sets anti-aliasing mode of canvas. Params: style - ANTIALIAS_NONE, _ON, _OFF.
-* CANVAS_GET_TEXT_SIZE: Returns size of text on canvas, as 2-tuple (size_x, size_y). Uses font. Params: text.
-* CANVAS_TEXT: Paints text at given coords. Uses font and brush. Params: text, x, y.
-* CANVAS_LINE: Paints line at given coords. Uses pen. Params: x, y, x2, y2.
-* CANVAS_PIXEL: Paints one pixel at given coords. Params: x, y, color.
-* CANVAS_RECT: Paints rectangle. Uses pen and brush. Params: x, y, x2, y2.
-* CANVAS_RECT_FRAME: Paints rectangle. Uses only pen. Params: x, y, x2, y2.
-* CANVAS_RECT_FILL: Paints rectangle. Uses only brush. Params: x, y, x2, y2.
-* CANVAS_RECT_ROUND: Paints rounded rectangle. Uses pen and brush. Params: x, y, x2, y2, style - radius of corners.
-* CANVAS_ELLIPSE: Paints ellipse or circle. Uses pen and brush. Params: x, y, x2, y2.
-* CANVAS_POLYGON: Paints polygon from any number of points (>2). Uses pen and brush. Params: text - comma separated list of (x,y) coords. Example: "10,10,200,50,10,100" - 3 points.
-* CANVAS_SET_TESTPANEL: Sets height of testing panel at the top. Params: size. If it's "too small", panel hides; for big size, size is limited.
+* CANVAS_SET_ANTIALIAS: Sets anti-aliasing mode of canvas. Params used: "style" - ANTIALIAS_NONE, ANTIALIAS_ON, ANTIALIAS_OFF.
+* CANVAS_GET_TEXT_SIZE: Returns size of text on canvas, as 2-tuple (size_x, size_y). Uses font. Params used: "text".
+* CANVAS_TEXT: Paints text at given coords. Uses font and brush. Params used: "text", "x", "y".
+* CANVAS_LINE: Paints line at given coords. Uses pen. Params used: "x", "y", "x2", "y2".
+* CANVAS_PIXEL: Paints one pixel at given coords. Params used: "x", "y", "color".
+* CANVAS_RECT: Paints rectangle. Uses pen and brush. Params used: "x", "y", "x2", "y2".
+* CANVAS_RECT_FRAME: Paints rectangle. Uses only pen. Params used: "x", "y", "x2", "y2".
+* CANVAS_RECT_FILL: Paints rectangle. Uses only brush. Params used: "x", "y", "x2", "y2".
+* CANVAS_RECT_ROUND: Paints rounded rectangle. Uses pen and brush. Params used: "x", "y", "x2", "y2", "style" - radius of corners.
+* CANVAS_ELLIPSE: Paints ellipse or circle. Uses pen and brush. Params used: "x", "y", "x2", "y2".
+* CANVAS_POLYGON: Paints polygon from any number of points (>2). Uses pen and brush. Params used: "text" - comma separated list of (x,y) coords. Example: "10,10,200,50,10,100" - 3 points.
+* CANVAS_SET_TESTPANEL: Sets height of testing panel at the top. Params used: "size". If it's "too small" then panel hides; for big value, panel height is limited.
 
 === timer_proc ===
 
@@ -1840,13 +1885,11 @@ Example creates popup-menu with one item and shows it at (x=100, y=100):
 
 ===toolbar_proc===
 
- toolbar_proc(id_toolbar, id_action, text="", text2="", command=0, index=-1, index2=-1)
+ toolbar_proc(id_bar, id_action, text="", text2="", command=0, index=-1, index2=-1)
 
 Perform action on toolbar UI control.
 
-Param "id_toolbar": int handle of toolbar.
-Deprecated: it can be string "top" for main app toolbar.
-Function returns None, if "id_toolbar" is not correct.
+Param "id_bar": int handle of toolbar.
 
 Param "id_action" possible values:
 
@@ -1868,13 +1911,13 @@ Param "id_action" possible values:
 
 ===statusbar_proc===
 
- statusbar_proc(id_statusbar, id_action, index=-1, tag=0, value="")
+ statusbar_proc(id_bar, id_action, index=-1, tag=0, value="")
 
 Perform action on statusbar UI control.
 
-* Param "id_statusbar": handle of control. Deprecated: it can be string "main" for main app statusbar.
-* Param "index": index of cell (0-based), if action needs it.
-* Param "tag": int tag of cell. Tag value, if not 0, overrides "index" param. It's needed to address a cell without knowing its index, only by tag. CudaText addresses standard cells by tag in the range 1..20.
+* Param "id_bar": int handle of statusbar.
+* Param "index": int index of cell (0-based), if action needs it.
+* Param "tag": int tag of cell. Tag value, if not 0, overrides "index" param. It's needed to address a cell without knowing its index, only by tag. CudaText addresses standard cells by tags in the range 1..20.
 
 Param "id_action" can be:
 
@@ -1884,6 +1927,7 @@ Param "id_action" can be:
 
 * STATUSBAR_ADD_CELL: Adds one cell. Param "index": -1: cell will be appended; >=0: cell will be inserted at given index. Param "tag" has special meaning: it is tag value of a new cell. Returns index of new cell, or None if cannot add (e.g. "tag" is busy).
 * STATUSBAR_FIND_CELL: Returns index if cell from tag, or None. Param "value": int tag. Params "index", "tag" ignored.
+* STATUSBAR_MOVE_CELL: Moves cell with specified index or tag, to another index specified in the int param "value". Returns bool: source/target indexes are OK, cell was moved.
 
 * STATUSBAR_GET_IMAGELIST: Returns handle of imagelist object, attached to statusbar, or 0 for none.
 * STATUSBAR_SET_IMAGELIST: Sets handle if imagelist object. Param "value": handle.
@@ -2058,7 +2102,9 @@ Note: Toolbars contain several "button_ex" objects, which are anchored one to an
 =Editor class=
 
 Editor class has methods to work with editor-controls.
-Global object of Editor exist: "ed", it always refers to the currently focused editor in UI-tabs.
+
+* Editor(0), the same as global object "ed", refers to the currently focused editor in UI-tabs.
+* Editor(1) refers the editor of right-clicked UI-tab.
 
 Notes:
 
@@ -2111,8 +2157,10 @@ Param "options" must be 0 or sum of the following flags:
 
  get_text_all()
 
-Returns the entire editor text, as string.
-Returns "\n" as line-breaks.
+Returns the entire editor text as string.
+
+Notes:
+* All line breaks are returned as LF, ie "\n".
 
 ===Editor.set_text_all===
 
@@ -2326,12 +2374,16 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"). Possi
 * PROP_CARET_VIEW_RO: 3-tuple: shape of caret, read-only mode.
 * PROP_CARET_VIRTUAL: bool: caret position is allowed after line-ends.
 * PROP_CARET_STOP_UNFOCUSED: bool: caret blinks only when editor is focused.
+* PROP_CARET_MULTI: bool: allow multi-carets.
 * PROP_MACRO_REC: bool: currently macro is recording.
 * PROP_MARKED_RANGE: 2-tuple with line indexes of "marked range"; (-1, -1) if range not set.
 * PROP_VISIBLE_LINES: int: max count of lines that fit to window (doesn't consider word wrap).
 * PROP_VISIBLE_COLUMNS: int: max count of columns that fit to window.
 * PROP_PICTURE: properties of picture file as 3-tuple: (picture_filename, size_x, size_y), or None if not picture loaded in tab. For picture ed.get_filename() returns "?".
 * PROP_MINIMAP: bool: minimap is visible.
+* PROP_MINIMAP_CHAR_WIDTH: int: minimap width, in average chars.
+* PROP_MINIMAP_SCALE: int: minimap custom scale, in percents; if value<=100: auto-detect.
+* PROP_MINIMAP_AT_LEFT: bool: minimap is shown on the left side.
 * PROP_MICROMAP: bool: micromap is visible.
 * PROP_LINK_AT_POS: str: hyperlink string in the document, at given position. Value must be 2-tuple: (pos_x, pos_y).
 * PROP_LINKS_SHOW: bool: enable hyperlinks underlining.
@@ -2339,15 +2391,16 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"). Possi
 * PROP_LINKS_CLICKS: int: how mouse clicks activate hyperlinks. 0: disabled, 1: single click, 2: double click.
 * PROP_IN_SESSION: bool: document was loaded from "session".
 * PROP_IN_HISTORY: bool: document history was loaded from history file (history embedded to "session" or main history file).
-* PROP_TAB_SPACES: bool: tab-key inserts spaces (not tab-char).
+* PROP_TAB_SPACES: bool: tab-key inserts spaces, not tab-char.
 * PROP_TAB_SIZE: int: size of tab-char.
 * PROP_TAB_COLLECT_MARKERS: bool: tab-key collects (jumps to and deletes) markers (if markers placed).
-* PROP_TAB_TITLE: str: title of tab, useful for untitled tabs, for tabs with picture files.
-* PROP_TAB_COLOR: int: color of tab containing editor; COLOR_NONE if not set.
-* PROP_TAB_ICON: int: index of tab icon, ie index in imagelist, which handle you can get via app_proc(PROC_GET_TAB_IMAGELIST).
-* PROP_TAB_PINNED: bool: tab is "pinned" (shows additional confirmation on closing).
-* PROP_TAB_ID: int: unique tab's identifier (one number for main/secondary editors in tab), it is not changed when tab is moved.
-* PROP_TAB_UI_SHOW: bool: tab header is visible on the tabs-bar.
+* PROP_TAB_TITLE: str: custom title of ui-tab; setting to empty string removes the custom title.
+* PROP_TAB_COLOR: int: color of ui-tab title background, integer RGB value (e.g. 0x00FF00 is green); COLOR_NONE if not set.
+* PROP_TAB_COLOR_FONT: int: color of ui-tab title font, integer RGB value (e.g. 0x00FF00 is green); COLOR_NONE if not set.
+* PROP_TAB_ICON: int: index of ui-tab icon, ie index in imagelist, which handle you can get via app_proc(PROC_GET_TAB_IMAGELIST).
+* PROP_TAB_PINNED: bool: ui-tab is "pinned" (shows additional confirmation on closing).
+* PROP_TAB_UI_SHOW: bool: ui-tab header is visible on the tabs-bar.
+* PROP_TAB_ID: int: ui-tab's unique identifier (single value for primary/secondary editors in tab); it is not changed when tab is moved to another position/group.
 * PROP_INDENT_SIZE: int: size of indent for Indent/Unindent commands. N>0: indent in spaces, N<0: indent in tabs, N=0: indent from PROP_TAB_SIZE/PROP_TAB_SPACES.
 * PROP_INDENT_KEEP_ALIGN: bool: command Unindent keeps alignment of block edge, ie don't unindent if any line reached column 0.
 * PROP_INDENT_AUTO: bool: makes next line also indented on Enter command.
@@ -2437,6 +2490,8 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"). Possi
 
 * PROP_COMMAND_LOG_LIMIT: int: maximal count of items in the list returned by PROP_COMMAND_LOG.
 
+* PROP_DIM_UNFOCUSED: int: for unfocused editor, dim the background color by specified percents (ranges is -250...250, 0: disabled).
+
 * PROP_V_MODE: int: mode of binary viewer. Reading it for editor, returns VMODE_NONE. Reading it for viewer, returns one of: VMODE_TEXT, VMODE_BINARY, VMODE_HEX, VMODE_UNICODE, VMODE_UNICODE_HEX.
 * PROP_V_POS: int: for binary viewer, scroll position.
 * PROP_V_SEL_START: int: for binary viewer, selection start offset.
@@ -2502,20 +2557,25 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"), tuple
 * PROP_CARET_VIEW_RO: 3-tuple: shape of caret, read-only mode.
 * PROP_CARET_VIRTUAL: bool: caret position is allowed after line-ends.
 * PROP_CARET_STOP_UNFOCUSED: bool: caret blinks only when editor is focused.
+* PROP_CARET_MULTI: bool: allow multi-carets.
 * PROP_MARKED_RANGE: line indexes of "marked range", value is 2-tuple (index1, index2) or (-1, -1) to remove this range.
 * PROP_MINIMAP: bool: minimap is visible.
+* PROP_MINIMAP_CHAR_WIDTH: int: minimap width, in average chars.
+* PROP_MINIMAP_SCALE: int: minimap custom scale, in percents; if value<=100: auto-detect.
+* PROP_MINIMAP_AT_LEFT: bool: minimap is shown on the left side.
 * PROP_MICROMAP: bool: micromap is visible.
 * PROP_LINKS_SHOW: bool: enable hyperlinks underlining.
 * PROP_LINKS_REGEX: str: regular expression for hyperlinks.
 * PROP_LINKS_CLICKS: int: how mouse clicks activate hyperlinks. 0: disabled, 1: single click, 2: double click.
-* PROP_TAB_SPACES: bool: tab-key inserts spaces.
+* PROP_TAB_SPACES: bool: tab-key inserts spaces, not tab-char.
 * PROP_TAB_SIZE: int: size of tab-char.
 * PROP_TAB_COLLECT_MARKERS: bool: tab-key collects (jumps to and deletes) markers.
-* PROP_TAB_COLOR: int: color of tab containing editor; set COLOR_NONE to reset.
-* PROP_TAB_TITLE: str: title of tab, useful for untitled tabs.
-* PROP_TAB_ICON: int: index of tab icon, ie index in imagelist, which handle you can get via app_proc(PROC_GET_TAB_IMAGELIST).
-* PROP_TAB_PINNED: bool: tab is "pinned" (shows additional confirmation on closing).
-* PROP_TAB_UI_SHOW: bool: tab header is visible on the tabs-bar.
+* PROP_TAB_COLOR: int: color of ui-tab title background, integer RGB value (e.g. 0x00FF00 is green); COLOR_NONE if not set.
+* PROP_TAB_COLOR_FONT: int: color of ui-tab title font, integer RGB value (e.g. 0x00FF00 is green); COLOR_NONE if not set.
+* PROP_TAB_TITLE: str: custom title of ui-tab; setting to empty string removes the custom title.
+* PROP_TAB_ICON: int: index of ui-tab icon, ie index in imagelist, which handle you can get via app_proc(PROC_GET_TAB_IMAGELIST).
+* PROP_TAB_PINNED: bool: ui-tab is "pinned" (shows additional confirmation on closing).
+* PROP_TAB_UI_SHOW: bool: ui-tab header is visible on the tabs-bar.
 * PROP_INDENT_SIZE: int: size of indent for Indent/Unindent commands. N>0: indent in spaces, N<0: indent in tabs, N=0: indent from PROP_TAB_SIZE/PROP_TAB_SPACES.
 * PROP_INDENT_KEEP_ALIGN: bool: command Unindent keeps alignment of block edge, ie don't unindent if any line reached column 0.
 * PROP_INDENT_AUTO: bool: makes next line also indented on Enter command.
@@ -2565,6 +2625,8 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"), tuple
 * PROP_NUMBERS_NEGATIVE: bool: additional to PROP_NUMBERS_ONLY, allow negative numbers<0.
 
 * PROP_COMMAND_LOG_LIMIT: int: maximal count of items in the list returned by PROP_COMMAND_LOG.
+
+* PROP_DIM_UNFOCUSED: int: for unfocused editor, dim the background color by specified percents (ranges is -250...250, 0: disabled).
 
 * PROP_V_MODE: int: mode of binary viewer. Setting it for viewer to one of VMODE_ values, changes viewer mode. Setting it for editor to one of VMODE_ values, switches editor to viewer in the given mode. Setting it for viewer to VMODE_NONE, switches viewer to editor.
 * PROP_V_POS: int: for binary viewer, scroll position.
@@ -2682,7 +2744,9 @@ Controls decorations on gutter. It is used to show some visual marks, which look
 * DECOR_DELETE_ALL: Deletes all decorations.
 * DECOR_GET_IMAGELIST: Returns int handle of decoration imagelist (default size is 16x16).
 
-Note: decoration list allows 2 items for the same line number. One of items (it can be added first or last) must be "background filler" (ie empty "text" and "image" is -1), and another one must be "not background filler".
+Notes:
+* Decor item's "text" can contain 2 items if you use chr(1): caption + chr(1) + tooltip.
+* Decoration list allows 2 items for the same line number. One of items (it can be added first or last) must be "background filler" (ie empty "text" and "image" is -1), and another one must be "not background filler".
 
 ===Editor.folding===
 
@@ -2899,19 +2963,23 @@ Possible values of "id":
 
  save(filename="")
 
-Saves editor's tab to disk.
+Saves editor's text to disk.
 
-Shows save-as dialog for untitled tab.
-If param filename not empty, uses it (untitled tab becomes titled).
+Shows "Save as" dialog for untitled tab.
+If param "filename" is not empty, saves to the given filename (untitled tab becomes titled).
 Returns bool: file was saved.
 
 ===Editor.cmd===
 
  cmd(code, text="")
 
-Command runner, it runs any command in editor by its int code.
+Runs any command in editor by its integer code.
+See possible codes in module "cudatext_cmd".
 
-See codes in module cudatext_cmd. Param text is needed for rare commands (e.g. by cCommand_TextInsert).
+Param "text" is needed only for rare commands, mainly for "cCommand_TextInsert".
+
+Notes:
+* When you perform some caret-positioning command (e.g. "cCommand_GotoTextEnd") in not yet painted editor-control, it doesn't run OK. Reason: editor must be properly inited which happens on first painting. If you need to place the caret on form showing ("dlg_proc" API), do it in form's "on_show" event. Maybe you need also to start a timer ("timer_proc" API) which will run the caret command.
 
 ===Editor.focus===
 
@@ -2962,7 +3030,17 @@ Function returns None and listbox stays open. When user chooses listbox item, it
 ** alt_order=False: pass items in each line: prefix, id, desc. Listbox shows prefix at the left edge.
 ** alt_order=True: pass items in each line in such order: id, prefix, desc. Listbox shows id at the left edge. Use it if plugin needs to show long "prefixes".
 
-Note: listbox disappears if you move caret or type text, unlike usual auto-completion listboxes (they can recalculate items for new caret pos).
+Note:
+* Listbox disappears if you move caret or type text, unlike usual auto-completion listboxes (they can recalculate items for new caret pos).
+
+If an item begins with "&lt;html&gt;", HTML tags are allowed in this item:
+<pre>
+<b>bold</b>
+<i>italic</i>
+<u>underline</u>
+<s>strikeout</s>
+<font color="#AABBCC">colored</font>
+</pre>
 
 ===Editor.complete_alt===
 
@@ -2986,6 +3064,9 @@ After user has chosen some item in the completion listbox, event "on_snippet" wi
 
 * Param "snippet_id": Value from complete_alt() call.
 * Param "snippet_text": Text of chosen snippet.
+
+If an item begins with "&lt;html&gt;", HTML tags are allowed in this item.
+Supported tags are listed in [[#Editor.complete]].
 
 ===Editor.gap===
 
@@ -4659,5 +4740,45 @@ It provides:
 
 1.0.426 (app 1.167.2)
 * add: Editor.get_prop/set_prop: PROP_WHEEL_ZOOMS
+
+1.0.427 (app 1.169.1)
+* add: Editor.decor: item "text" can contain tooltip after chr(1)
+
+1.0.428 (app 1.169.5)
+* add: event "on_caret_slow"
+* add: app_proc: PROC_GET_AUTOCOMPLETION_INVOKE
+* add: Editor.get_prop/set_prop: PROP_TAB_COLOR_FONT
+
+1.0.429 (app 1.170.1)
+* add: dlg_proc: form property "taskbar"
+* add: Editor.get_prop/set_prop: PROP_DIM_UNFOCUSED
+
+1.0.430 (app 1.171.0)
+* delete deprecated: statusbar_proc special handle 'main'
+* delete depreacted: toolbar_proc special handle 'top'
+* add: statusbar_proc: STATUSBAR_MOVE_CELL
+* add: Editor.get_prop/set_prop: PROP_CARET_MULTI
+* add: Editor.set_prop: PROP_TAB_TITLE setting to empty str, resets the caption
+* fix: Editor.action: EDACTION_UPDATE did not work sometimes (cmd_RepaintEditor worked better)
+
+1.0.431 (app 1.171.5)
+* add: Editor.complete, Editor.complete_alt: if cell begins with "&lt;html&gt;", HTML tags are allowed: b, i, u, s
+* add: Editor.get_prop/set_prop: PROP_MINIMAP_CHAR_WIDTH
+* add: Editor.get_prop/set_prop: PROP_MINIMAP_SCALE
+* add: Editor.get_prop/set_prop: PROP_MINIMAP_AT_LEFT
+
+1.0.432 (app 1.172.1)
+* delete deprecated: PROC_SIDEPANEL_ENUM
+* delete deprecated: PROC_BOTTOMPANEL_ENUM
+
+1.0.433 (app 1.173.0)
+* add: Editor.complete, Editor.complete_alt: support HTML tag "font color=..."
+
+1.0.435 (app 1.176.5)
+* add: event on_start2
+* add: Editor() supports handle==1 to get editor from right-clicked tab
+
+1.0.436 (app 1.178.0)
+* add: event on_tab_menu
 
 [[Category:CudaText]]

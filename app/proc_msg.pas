@@ -17,8 +17,8 @@ uses
   ATSynEdit;
 
 const
-  cAppExeVersion = '1.169.0.2';
-  cAppApiVersion = 426;
+  cAppExeVersion = '1.180.0.0';
+  cAppApiVersion = 436;
 
 const
   cOptionSystemSuffix =
@@ -41,16 +41,21 @@ const
     {$ifdef netbsd} '/usr/pkg/lib' {$endif}
     {$ifdef openbsd} '/usr/local/lib' {$endif}
     {$ifdef dragonfly} '/usr/lib' {$endif}
-    {$ifdef solaris} '/usr/local/lib' {$endif}
+    {$ifdef solaris} '/usr/lib/amd64' {$endif}
     {$ifdef haiku} '/system/lib' {$endif}
     ;
 
   cSystemHasPkExec =
-    {$if defined(linux) or defined(bsd)}
-    true
-    {$else}
-    false
-    {$endif};
+    {$ifdef windows}   false {$endif}
+    {$ifdef linux}     true {$endif}
+    {$ifdef darwin}    false {$endif}
+    {$ifdef freebsd}   true {$endif}
+    {$ifdef netbsd}    true {$endif}
+    {$ifdef openbsd}   true {$endif}
+    {$ifdef dragonfly} true {$endif}
+    {$ifdef solaris}   true {$endif}
+    {$ifdef haiku}     false {$endif}
+    ;
 
 const
   EOL = #10;
@@ -99,7 +104,8 @@ const
   msgTooltipArrowRight: string = 'Scroll tabs right';
   msgTooltipArrowMenu: string = 'Show tabs menu';
 
-  msgUntitledTab: string = 'Untitled';
+  msgUntitledEnglish = 'Untitled';
+  msgUntitledTab: string = msgUntitledEnglish;
   msgAllFiles: string = 'All files';
   msgNoLexer: string = '(none)';
   msgThemeDefault: string = '(default)';
@@ -228,6 +234,7 @@ const
   msgCannotInstallReqLexer: string = 'Cannot install "%s", it requires missing lexer(s): %s';
   msgCannotAutocompleteMultiCarets: string = 'Cannot auto-complete with multi-carets';
   msgCannotFindPkExec: string = 'Cannot find "pkexec" program to copy as root.';
+  msgCannotSetWrap: string = 'Cannot set word-wrap mode. Line count %d is bigger than value of option "wrap_enabled_max_lines": %d.';
 
   msgStatusbarTextTab: string = 'Tab';
   msgStatusbarTextSpaces: string = 'Spaces';
@@ -331,8 +338,11 @@ const
   msgConfirmReplaceGlobal: string = 'This will perform mass replace in all opened documents. This will also reset all selections. Continue?';
 
   msgCommandNeedsPython: string =
-    'This command requires Python engine.'+
-    ' Set proper value of "pylib'+cOptionSystemSuffix+'" in the user.json.';
+    'This command requires Python engine.'
+    {$ifndef windows}
+    +' Set proper value of "pylib'+cOptionSystemSuffix+'" in the user.json.'
+    {$endif}
+    ;
 
   msgCommandLineHelp =
       'Usage:'+EOL+
@@ -375,9 +385,8 @@ const
       'If Python engine is set up, you can install popular add-ons'+EOL+
       'using menu item "Plugins / Multi Installer".'+EOL+
       '---------------------------------------------------------------'+EOL+
-      'You can double-click these video links:'+EOL+
-      '* long tour in 14 minutes: https://www.youtube.com/watch?v=q8edzSd400Y'+EOL+
-      '* micro review in 3 minutes: https://www.youtube.com/watch?v=ts0z7CsflT4'+EOL+
+      'You can double-click this video link:'+EOL+
+      '* tour in 14 minutes: https://www.youtube.com/watch?v=q8edzSd400Y'+EOL+
       '---------------------------------------------------------------'+EOL;
 
 const
@@ -430,9 +439,12 @@ const
 
 function msgTranslatedPanelCaption(const ACaption: string): string;
 function msgFinderRegexMatchesNumbered: string;
-
+function msgTranslatedUntitledTab(const ACaption: string): string;
 
 implementation
+
+uses
+  ATStringProc;
 
 function msgTranslatedPanelCaption(const ACaption: string): string;
 begin
@@ -462,6 +474,19 @@ const
 begin
   Inc(NCounter);
   Result:= msgFinderRegexMathes+' '+IntToStr(NCounter);
+end;
+
+function msgTranslatedUntitledTab(const ACaption: string): string;
+var
+  StrIndex: string;
+begin
+  if SBeginsWith(ACaption, msgUntitledEnglish) then
+  begin
+    StrIndex:= Copy(ACaption, Length(msgUntitledEnglish)+1, MaxInt);
+    Result:= msgUntitledTab+StrIndex;
+  end
+  else
+    Result:= ACaption;
 end;
 
 

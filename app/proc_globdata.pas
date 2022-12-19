@@ -44,6 +44,7 @@ uses
   proc_cmd,
   proc_msg,
   proc_str,
+  AppUniqueInstance,
   ec_LexerList,
   ec_SyntAnal;
 
@@ -72,13 +73,30 @@ type
 
   TAppCommandsDelayed = specialize TQueue<TAppCommandDelayed>;
 
+  TAppStringArray = array of string;
+
+{$ifdef unix}
 var
+  AppUniqInst: TUniqueInstance = nil;
+
+function IsAnotherInstanceRunning: boolean;
+{$endif}
+
+var
+  AppFormShowCompleted: boolean = false;
+  AppAllowFrameParsing: boolean = false; //must be set in FormMain.OnShow
   AppSessionIsLoading: boolean = false;
   AppSessionIsClosing: boolean = false;
+  AppCommandHandlerIsBusy: boolean = false; //currently is set by 'close all' command only
   AppActiveForm: TObject = nil;
   AppThemeStatusbar: TATFlatTheme;
   AppApiOnStartActivated: boolean = false;
   AppApiDialogCounter: integer = 0;
+  AppDroppedFiles: array of string = nil;
+  AppDroppingFiles: boolean = false;
+  AppClosingTabs: boolean = false;
+  AppOpeningFile: boolean = false;
+
   AppCodetreeState: record
     Editor: TATSynEdit;
     Lexer: string;
@@ -87,6 +105,7 @@ var
     DblClicking: boolean;
     NeedsSelJump: boolean;
   end;
+
   AppLexersLastDetected: TStringList = nil;
 
 type
@@ -206,14 +225,17 @@ type
     //timer delay for many commands. see proc_cmd.pas, function IsCommandNeedTimer.
     //if too low, we have risk of crash in 'close tab' commands. 150ms is safe.
     CommandTimerInterval: integer;
+
     //Sleep() delay used when plugin calls Editor.cmd() (for the same list of commands).
     PyCommandSleepInterval: integer;
 
     PyLibrary: string;
+    PyCaretSlow: integer;
     PyChangeSlow: integer;
     PyOutputCopyToStdout: boolean;
+
+    MaxLineLenForEditingKeepingLexer: integer;
     InfoAboutOptionsEditor: boolean;
-    AllowFrameParsing: boolean; //must be set in FormMain.OnShow
     AllowRunPkExec: boolean;
     AllowCheckConfigsForNullBytes: boolean;
 
@@ -248,6 +270,7 @@ type
     DefaultTabSplitIsHorz: boolean;
     MaxFileSizeToOpen: integer;
     MaxFileSizeForLexer: integer;
+    MaxFileSizeWithoutProgressForm: integer;
     MaxStatusbarMessages: integer;
 
     AutocompleteAcpFiles: boolean;
@@ -351,6 +374,7 @@ type
     ConsoleWordWrap: boolean;
     InputHeight: integer;
     InitialDir: string;
+    OpenDir: string;
     ConfirmLinksClicks: boolean;
     ConfirmSaveEmptyUntitledTab: boolean;
     SplittersUsePoorStyle: boolean;
@@ -394,10 +418,6 @@ type
     AltTooltipPaddingX: integer;
     AltTooltipPaddingY: integer;
 
-    ScrollbarWidth: integer;
-    ScrollbarBorderSize: integer;
-    ScrollbarArrowSize: integer;
-
     ProgressbarWidth: integer;
     ProgressbarHeightSmall: integer;
 
@@ -426,7 +446,6 @@ type
     NotificationEnabled: boolean;
     NotificationTimeSeconds: integer;
     NotificationConfirmReload: integer;
-    PromptToCloseFileDeletedOutside: boolean;
     NotificationPanelHeight: integer;
     NotificationButtonHeight: integer;
     NotificationButtonsDistance: integer;
@@ -492,8 +511,10 @@ type
     OpFontSize_original_i: integer;
     OpFontSize_original_b: integer;
     OpFontSize_original_bi: integer;
+
     OpFontQuality: TFontQuality;
     OpFontLigatures: boolean;
+    OpFlickerReducingPause: integer;
 
     OpScrollAnimationSteps: integer;
     OpScrollAnimationSleep: integer;
@@ -536,6 +557,8 @@ type
     OpGutterFoldAlways: boolean;
     OpGutterFoldIcons: integer;
     OpGutterBookmarks: boolean;
+    OpGutterLineStates: boolean;
+    OpGutterIconSize: integer;
 
     OpNumbersShow: boolean;
     OpNumbersStyle: integer;
@@ -728,6 +751,8 @@ function AppSessionName_ForHistoryFile: string;
 function IsDefaultSession(const S: string): boolean;
 function IsDefaultSessionActive: boolean;
 
+function IsSetToOneInstance: boolean;
+
 function MsgBox(const AText: string; AFlags: Longint): integer;
 procedure MsgBadConfig(const fn, msg: string);
 procedure MsgStdout(const Str: string; AllowMsgBox: boolean = false);
@@ -738,7 +763,7 @@ procedure MsgFileFromSessionNotFound(const fn: string);
 
 function AppListboxItemHeight(AScale, ADoubleHeight: boolean): integer;
 procedure AppGetFileProps(const FileName: string; out P: TAppFileProps);
-procedure AppUpdateWatcherFrames;
+procedure AppUpdateWatcherFrames(AMaxWorkTime: integer = 500);
 procedure AppStopListTimers;
 
 procedure FixFormPositionToDesktop(F: TForm);
@@ -804,7 +829,7 @@ type
   end;
 
 const
-  AppEncodings: array[0..47] of TAppEncodingRecord = (
+  AppEncodings: array[0..49] of TAppEncodingRecord = (
     (Sub: ''; Name: cEncNameUtf8_NoBom; ShortName: 'utf8'),
     (Sub: ''; Name: cEncNameUtf8_WithBom; ShortName: 'utf8_bom'),
     (Sub: ''; Name: cEncNameUtf16LE_NoBom; ShortName: 'utf16le'),
@@ -826,6 +851,8 @@ const
     (Sub: 'eu'; Name: 'cp437'; ShortName: 'cp437'),
     (Sub: 'eu'; Name: 'cp850'; ShortName: 'cp850'),
     (Sub: 'eu'; Name: 'cp852'; ShortName: 'cp852'),
+    (Sub: 'eu'; Name: 'cp861'; ShortName: 'cp861'),
+    (Sub: 'eu'; Name: 'cp865'; ShortName: 'cp865'),
     (Sub: 'eu'; Name: 'cp866'; ShortName: 'cp866'),
     (Sub: 'eu'; Name: '-'; ShortName: ''),
     (Sub: 'eu'; Name: 'iso-8859-1'; ShortName: 'iso-8859-1'),
@@ -871,6 +898,7 @@ type
     cEventOnChange,
     cEventOnChangeSlow,
     cEventOnCaret,
+    cEventOnCaretSlow,
     cEventOnScroll,
     cEventOnMouseStop,
     cEventOnClick,
@@ -882,6 +910,7 @@ type
     cEventOnStateEd,
     cEventOnFocus,
     cEventOnStart,
+    cEventOnStart2,
     cEventOnOpen,
     cEventOnOpenBefore,
     cEventOnOpenNone,
@@ -898,6 +927,7 @@ type
     cEventOnFuncHint,
     cEventOnTabChange,
     cEventOnTabMove,
+    cEventOnTabMenu,
     cEventOnPaste,
     cEventOnMessage,
     cEventOnConsoleNav,
@@ -928,6 +958,7 @@ const
     'on_change',
     'on_change_slow',
     'on_caret',
+    'on_caret_slow',
     'on_scroll',
     'on_mouse_stop',
     'on_click',
@@ -939,6 +970,7 @@ const
     'on_state_ed',
     'on_focus',
     'on_start',
+    'on_start2',
     'on_open',
     'on_open_pre',
     'on_open_none',
@@ -955,6 +987,7 @@ const
     'on_func_hint',
     'on_tab_change',
     'on_tab_move',
+    'on_tab_menu',
     'on_paste',
     'on_message',
     'on_console_nav',
@@ -1057,6 +1090,7 @@ procedure DoStatusbarColorByTag(AStatus: TATStatus; ATag: PtrInt; AColor: TColor
 
 function IsFileTooBigForOpening(const AFilename: string): boolean;
 function IsFileTooBigForLexer(const AFilename: string): boolean;
+function IsFilenameForLexerDetecter(const AFileName: string): boolean;
 function IsOsFullPath(const S: string): boolean;
 
 procedure Lexer_DetectByFilename(const AFilename: string;
@@ -1085,12 +1119,50 @@ type
 var
   AppManagerThread: TAppManagerThread = nil;
 
+var
+  //if True, next IdleTimer call will fire the auto-completion.
+  //avoid direct firing of auto-completion for "autocomplete_autoshow_chars":3,
+  //with LSP Client it makes the work slower.
+  AppRunAutocomplete: boolean = false;
+  AppRunAutocompleteInEditor: TATSynEdit = nil;
+
+  //'c': by hotkey or command
+  //'a': by 'autocomplete_autoshow_chars' option
+  //'r': by showing again by typing or left/right
+  AppAutocompleteInvoke: string = 'c';
+
+const
+  AppDefaultEdFont: string = '';
+  AppDefaultEdFonts: array[0..2] of string =
+    {$ifdef windows}
+    ('Consolas', 'Courier New', 'Courier');
+    {$else}
+      {$ifdef darwin}
+      ('Monaco', 'Liberation Mono', 'DejaVu Sans Mono');
+      {$else}
+        {$ifdef haiku}
+        ('Noto Sans Mono', '', '');
+        {$else}
+        ('DejaVu Sans Mono', 'Liberation Mono', 'Courier New');
+        {$endif}
+      {$endif}
+    {$endif}
+
+  AppDefaultEdFontSize =
+    {$ifdef haiku}
+    12;
+    {$else}
+    9;
+    {$endif}
+
+
 implementation
 
 uses
   ATSynEdit_LineParts,
   ATSynEdit_Adapter_EControl,
   ec_syntax_format,
+  proc_files,
   proc_colors,
   proc_lexer_styles;
 
@@ -1181,7 +1253,7 @@ end;
 
 function InitPyLibraryPath: string;
 const
-  cMaxVersion = 10;
+  cMaxVersion = 11;
   cMinVersionUnix = 5;
   cMinVersionWindows = 4; //support Python 3.4 for WinXP
 {$ifdef windows}
@@ -1536,30 +1608,6 @@ begin
     CopyFile(AppFile_OptionsUserInit, AppFile_OptionsUser, [], false);
 end;
 
-const
-  AppDefaultEdFont: string = '';
-  AppDefaultEdFonts: array[0..2] of string =
-    {$ifdef windows}
-    ('Consolas', 'Courier New', 'Courier');
-    {$else}
-      {$ifdef darwin}
-      ('Monaco', 'Liberation Mono', 'DejaVu Sans Mono');
-      {$else}
-        {$ifdef haiku}
-        ('Noto Sans Mono', '', '');
-        {$else}
-        ('DejaVu Sans Mono', 'Liberation Mono', 'Courier New');
-        {$endif}
-      {$endif}
-    {$endif}
-
-  AppDefaultEdFontSize =
-    {$ifdef haiku}
-    12;
-    {$else}
-    9;
-    {$endif}
-
 function InitAppDefaultEdFont: string;
 var
   i: integer;
@@ -1594,6 +1642,7 @@ begin
 
     OpFontQuality:= fqDefault;
     OpFontLigatures:= true;
+    OpFlickerReducingPause:= 0;
 
     OpScrollAnimationSteps:= cInitScrollAnimationSteps;
     OpScrollAnimationSleep:= cInitScrollAnimationSleep;
@@ -1634,7 +1683,9 @@ begin
     OpGutterFold:= true;
     OpGutterFoldAlways:= true;
     OpGutterBookmarks:= true;
+    OpGutterLineStates:= true;
     OpGutterFoldIcons:= 0;
+    OpGutterIconSize:= 4;
 
     OpNumbersShow:= true;
     OpNumbersStyle:= Ord(cNumbersAll);
@@ -1767,7 +1818,7 @@ begin
     OpKeyUpDownKeepColumn:= true;
     OpKeyUpDownNavigateWrapped:= true;
     OpKeyUpDownAllowToEdge:= false;
-    OpKeyLeftRightGoToNextLineWithCarets:= false;
+    OpKeyLeftRightGoToNextLineWithCarets:= true;
     OpKeyLeftRightSwapSel:= true;
     OpKeyLeftRightSwapSelAndSelect:= false;
 
@@ -1862,12 +1913,12 @@ begin
     HtmlBackgroundColorPair[false]:= $F0F0F0;
     HtmlBackgroundColorPair[true]:= $101010;
 
-    PyLibrary:= InitPyLibraryPath;
     PictureTypes:= 'bmp,png,jpg,jpeg,gif,ico,webp,psd,tga,cur';
 
     DefaultTabSplitIsHorz:= false;
     MaxFileSizeToOpen:= 500;
     MaxFileSizeForLexer:= 2;
+    MaxFileSizeWithoutProgressForm:= 10*1024*1024;
     MaxStatusbarMessages:= 35; //Linux gtk2 shows maximal ~38 lines in tooltip
 
     ListboxCentered:= true;
@@ -1957,6 +2008,7 @@ begin
     ConsoleWordWrap:= true;
     InputHeight:= 26;
     InitialDir:= '';
+    OpenDir:= 'pflih';
     ConfirmLinksClicks:= true;
     ConfirmSaveEmptyUntitledTab:= false;
     SplittersUsePoorStyle:= true;
@@ -1976,10 +2028,13 @@ begin
     TreeFillMaxTime:= 1000;
     TreeFillMaxTimeForAPI:= 6*1000;
 
+    PyLibrary:= InitPyLibraryPath;
+    PyCaretSlow:= 600;
     PyChangeSlow:= 2000;
     PyOutputCopyToStdout:= false;
+
+    MaxLineLenForEditingKeepingLexer:= 2000;
     InfoAboutOptionsEditor:= true;
-    AllowFrameParsing:= false;
     AllowRunPkExec:= true;
     AllowCheckConfigsForNullBytes:= true;
 
@@ -2013,10 +2068,6 @@ begin
     AltTooltipPaddingX:= 6;
     AltTooltipPaddingY:= 3;
 
-    ScrollbarWidth:= 14;
-    ScrollbarBorderSize:= 0;
-    ScrollbarArrowSize:= 3;
-
     ProgressbarWidth:= 50;
     ProgressbarHeightSmall:= 6;
 
@@ -2026,10 +2077,10 @@ begin
     ShowTitlePath:= false;
 
     ReopenSession:= true;
-    ReopenSessionWithCmdLine:= false;
+    ReopenSessionWithCmdLine:= true;
     SessionSaveInterval:= 30;
     SessionSaveOnExit:= true;
-    BackupLastSessions:= 0;
+    BackupLastSessions:= 2;
     SaveModifiedTabsOnClose:= true;
 
     ShowFormsOnTop:= false;
@@ -2046,7 +2097,6 @@ begin
     NotificationEnabled:= true;
     NotificationTimeSeconds:= 2;
     NotificationConfirmReload:= 1;
-    PromptToCloseFileDeletedOutside:= true;
     NotificationPanelHeight:= 31;
     NotificationButtonHeight:= 25;
     NotificationButtonsDistance:= 4;
@@ -2153,8 +2203,17 @@ begin
       Inc(Result, cmdFirstPluginCommand);
   end
   else
-    //usual item
+  begin
+    //str(number) item
     Result:= StrToIntDef(AId, -1);
+
+    //for broken keys config which has incorrect int keys, issue #4590
+    if (Result>=cmdFirstPluginCommand) and (Result<=cmdLastPluginCommand) then
+    begin
+      MsgLogConsole(Format('ERROR: Hotkeys config: bad key "%d", in the range [%d, %d]', [Result, cmdFirstPluginCommand, cmdLastPluginCommand]));
+      Result:= -1;
+    end;
+  end;
 end;
 
 class function TPluginHelper.Debug_PluginCommands(const AModule: string): string;
@@ -2507,6 +2566,8 @@ begin
     CmdItem.ItemCaption:= SItemCaption;
     CmdItem.ItemFromApi:= true;
 
+    if AppCommandList.Count>(cmdLastPluginCommand-cmdFirstPluginCommand) then
+      MsgLogConsole('ERROR: Too many plugin commands');
     AppCommandList.Add(CmdItem);
   until false;
 end;
@@ -2726,11 +2787,13 @@ var
   var
     j: integer;
   begin
-    FillChar(keys, SizeOf(keys), 0);
+    keys.Clear;
     cfg.GetValue(path, skeys, '');
     for j:= 0 to skeys.count-1 do
+    begin
       if skeys[j]<>'' then
         keys.Data[j]:= TextToShortCut(skeys[j]);
+    end;
   end;
   //
 var
@@ -2762,6 +2825,16 @@ begin
       DoReadConfigToKeys(StrId+'/s1', AKeymap[nitem].Keys1);
       DoReadConfigToKeys(StrId+'/s2', AKeymap[nitem].Keys2);
       AKeymap[nitem].LexerSpecific:= AForLexer;
+
+      { //debug
+      if Pos('cuda_project_man,menu_goto', AKeymap[nitem].Description)>0 then
+        ShowMessage(Format('i %d, nitem %d,'#10'name: %s'#10'slist[i]: %s', [
+          i,
+          nitem,
+          AKeymap[nitem].Name,
+          StrId
+          ]));
+          }
     end;
   finally
     skeys.Free;
@@ -2955,6 +3028,18 @@ function IsFileTooBigForLexer(const AFilename: string): boolean;
 begin
   Result:= (AFilename<>'') and (FileSize(AFilename) div (1024*1024) >= UiOps.MaxFileSizeForLexer);
 end;
+
+function IsFilenameForLexerDetecter(const AFileName: string): boolean;
+begin
+  if IsFileTooBigForLexer(AFileName) then //fixing issue #3449
+    Result:= false
+  else
+  if ExtractFileName(AFileName)='CMakeLists.txt' then //CMakeLists.txt is for lexer CMake
+    Result:= true
+  else
+    Result:= LowerCase(ExtractFileExt(AFileName))<>'.txt';
+end;
+
 
 
 procedure Lexer_DetectByFilename(const AFilename: string;
@@ -3165,9 +3250,11 @@ begin
   end;
 end;
 
-procedure AppUpdateWatcherFrames;
+procedure AppUpdateWatcherFrames(AMaxWorkTime: integer = 500);
 var
-  i: integer;
+  Frame: TObject;
+  NTick: QWord;
+  NCount: integer;
 begin
   //function is called in IdleTimer, so just exit if watcher thread is busy,
   //we will try this again on next timer tick
@@ -3175,13 +3262,25 @@ begin
 
   AppEventLister.ResetEvent;
   try
-    for i:= 0 to AppFrameListDeleting.Count-1 do
-      TObject(AppFrameListDeleting[i]).Free;
-    AppFrameListDeleting.Clear;
+    NTick:= GetTickCount64;
+    repeat
+      NCount:= AppFrameListDeleting.Count;
+      if NCount=0 then
+        Break;
+      Frame:= TObject(AppFrameListDeleting[NCount-1]);
+      Frame.Free;
+      AppFrameListDeleting.Count:= NCount-1;
+      if GetTickCount64-NTick>=AMaxWorkTime then
+        Break;
+      if Application.Terminated then
+        Break;
+    until false;
 
     AppFrameList2.Assign(AppFrameList1);
   finally
     AppEventLister.SetEvent;
+    if AppFrameListDeleting.Count=0 then
+      AppCommandHandlerIsBusy:= false;
   end;
 end;
 
@@ -3229,6 +3328,24 @@ begin
   for i:= 1 to ParamCount do
   begin
     S:= ParamStr(i);
+
+    if (S='--version') or (S='-v') then
+    begin
+      MsgStdout('CudaText '+cAppExeVersion, true);
+      Halt;
+    end;
+
+    if (S='--help') or (S='-h') then
+    begin
+      MsgStdout(msgCommandLineHelp, true);
+      Halt;
+    end;
+
+    if (S='-el') then
+    begin
+      MsgStdout(AppEncodingListAsString, true);
+      Halt;
+    end;
 
     if S='-n' then
     begin
@@ -3571,7 +3688,8 @@ begin
     exit(false);
 
   //don't allow to reassign these
-  if (Key in [VK_SPACE, VK_RETURN, VK_TAB, VK_BACK]) and (Shift=[]) then
+  //VK_RETURN is not here - issue #4510
+  if (Key in [VK_SPACE, {VK_RETURN,} VK_TAB, VK_BACK]) and (Shift=[]) then
     exit(false);
 end;
 
@@ -3581,9 +3699,7 @@ const
 var
   r, g, b: byte;
 begin
-  r:= Red(C);
-  g:= Green(C);
-  b:= Blue(C);
+  RedGreenBlue(C, r, g, b);
   Result:= (r<=cMargin) and (g<=cMargin) and (b<=cMargin);
 end;
 
@@ -3618,6 +3734,90 @@ begin
   FreeAndNil(AppListTimers);
 end;
 }
+
+function IsSetToOneInstance: boolean;
+var
+  c: TJSONConfig;
+begin
+  //default must be True, issue #3337
+  Result := True;
+  c := TJSONConfig.Create(nil);
+  try
+    try
+      c.Filename := AppFile_OptionsUser;
+    except
+      on E: Exception do
+      begin
+        MsgBadConfig(AppFile_OptionsUser, E.Message);
+        Exit;
+      end;
+    end;
+    Result := c.GetValue('ui_one_instance', Result);
+  finally
+    c.Free;
+  end;
+end;
+
+procedure GetParamsForUniqueInstance(out AParams: TAppStringArray);
+var
+  N, i: integer;
+  S, WorkDir: string;
+  bAddDir: boolean;
+begin
+  WorkDir:= GetCurrentDirUTF8;
+
+  N:= ParamCount;
+  SetLength(AParams, N);
+
+  for i:= 1 to N do
+  begin
+    S:= ParamStr(i);
+    S:= AppExpandFilename(S);
+
+    bAddDir :=
+      (S[1] <> '-') and
+      (WorkDir <> '') and
+      not IsOsFullPath(S);
+
+    if bAddDir then
+      S:= WorkDir+DirectorySeparator+S;
+
+    AParams[i-1]:= S;
+  end;
+end;
+
+{$ifdef unix}
+type
+  TAppUniqInstDummy = class
+  public
+    procedure HandleOtherInstance(Sender: TObject; ParamCount: Integer; const Parameters: array of String);
+  end;
+
+var
+  AppUniqInstDummy: TAppUniqInstDummy = nil;
+
+function IsAnotherInstanceRunning: boolean;
+var
+  CmdParams: TAppStringArray;
+begin
+  AppUniqInstDummy:= TAppUniqInstDummy.Create;
+  AppUniqInst:= TUniqueInstance.Create(nil);
+  AppUniqInst.Identifier:= AppUserName+'_'+AppServerId; //added username to fix CudaText #4079
+  AppUniqInst.OnOtherInstance:= @AppUniqInstDummy.HandleOtherInstance;
+  AppUniqInst.Enabled:= true;
+
+  GetParamsForUniqueInstance(CmdParams);
+  AppUniqInst.Loaded(CmdParams);
+  Result:= AppUniqInst.PriorInstanceRunning;
+end;
+
+procedure TAppUniqInstDummy.HandleOtherInstance(Sender: TObject;
+  ParamCount: Integer; const Parameters: array of String);
+begin
+  //dummy
+end;
+{$endif}
+
 
 initialization
 
@@ -3720,5 +3920,12 @@ finalization
 
   //AppFreeListTimers; //somehow gives crash on exit, if TerminalPlus was used, in timer_proc(TIMER_DELETE...)
   //AppClearPluginLists;
+
+  {$ifdef unix}
+  if Assigned(AppUniqInst) then
+    FreeAndNil(AppUniqInst);
+  if Assigned(AppUniqInstDummy) then
+    FreeAndNil(AppUniqInstDummy);
+  {$endif}
 
 end.

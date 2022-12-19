@@ -58,6 +58,8 @@ def dialog_github_install(history):
     if btn!=id_ok: return
     text = text.splitlines()
     url = text[id_edit]
+    if url.endswith('/'):
+        url = url[:-1]
     return url
 
 
@@ -141,7 +143,7 @@ def do_install_from_github():
 
     if do_clone:
         try:
-            subprocess.call(['git', 'clone', url], cwd=dir_py)
+            subprocess.call(['git', 'clone', '--branch', branch, url], cwd=dir_py)
         except:
             msg_box(_('Error running Git command'), MB_OK+MB_ICONERROR)
             return

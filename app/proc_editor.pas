@@ -14,7 +14,7 @@ interface
 
 uses
   Classes, SysUtils, Graphics, StrUtils,
-  Controls, LCLType,
+  Controls, LCLType, LCLIntf,
   Dialogs, Forms,
   Clipbrd,
   ATSynEdit,
@@ -31,6 +31,7 @@ uses
   ATSynEdit_Bookmarks,
   ATSynEdit_Finder,
   ATSynEdit_Cmp_HTML,
+  ATSynEdit_Cmp_Form,
   ATSynEdit_RegExpr,
   ATSynEdit_FGL,
   ATStrings,
@@ -90,6 +91,7 @@ function EditorGetColorById(Ed: TATSynEdit; const Id: string): TColor;
 
 function EditorIsAutocompleteCssPosition(Ed: TATSynEdit; AX, AY: integer): boolean;
 function EditorAutoSkipClosingBracket(Ed: TATSynEdit; CharClosing: char): boolean;
+function EditorAutoDeleteClosingBracket(Ed: TATSynEdit): boolean;
 function EditorAutoPairChar(Ed: TATSynEdit; CharBegin: atChar): boolean;
 procedure EditorCopySelToPrimarySelection(Ed: TATSynEdit; AMaxLineCount: integer);
 procedure EditorCopyLine(Ed: TATSynEdit);
@@ -97,7 +99,7 @@ procedure EditorCopyLine(Ed: TATSynEdit);
 procedure EditorSetLine(Ed: TATSynEdit; AIndex: integer; AStr: UnicodeString);
 procedure EditorSetAllText(Ed: TATSynEdit; const AStr: string);
 procedure EditorDeleteRange(Ed: TATSynEdit; X1, Y1, X2, Y2: integer);
-function EditorInsert(Ed: TATSynEdit; AX, AY: integer; const AStr: UnicodeString; var APosAfter: TPoint): boolean;
+function EditorInsert(Ed: TATSynEdit; AX, AY: integer; const AStr: UnicodeString; out APosAfter: TPoint): boolean;
 procedure EditorHighlightBadRegexBrackets(Ed: TATSynEdit; AOnlyClear: boolean);
 
 procedure EditorCaretShapeFromString(Props: TATCaretShape; const AText: string);
@@ -161,11 +163,15 @@ procedure EditorHighlightAllMatches(AFinder: TATEditorFinder;
   AEnableFindNext: boolean; out AMatchesCount: integer; ACaretPos: TPoint);
 
 function EditorAutoCompletionAfterTypingChar(Ed: TATSynEdit;
-  const AText: string; var ACharsTyped: integer; AOnAutoCompletion: TEditorBooleanEvent): boolean;
+  const AText: string; var ACharsTyped: integer): boolean;
 function EditorGetLefterHtmlTag(Ed: TATSynEdit; AX, AY: integer): UnicodeString;
 procedure EditorAutoCloseOpeningHtmlTag(Ed: TATSynEdit; AX, AY: integer);
 procedure EditorAutoCloseClosingHtmlTag(Ed: TATSynEdit; AX, AY: integer);
 procedure EditorChangeLineEndsForSelection(Ed: TATSynEdit; AValue: TATLineEnds);
+procedure EditorClearHiAllMarkers(Ed: TATSynEdit);
+procedure EditorForceUpdateIfWrapped(Ed: TATSynEdit);
+procedure EditorScrollToCaret(Ed: TATSynEdit; ANeedWrapOff, AllowProcessMsg: boolean);
+procedure EditorCaretToView(Ed: TATSynEdit; ANeedWrapOff, AllowProcessMsg: boolean);
 
 implementation
 
@@ -188,6 +194,7 @@ begin
 
   Ed.Font.Quality:= Op.OpFontQuality;
   Ed.OptShowFontLigatures:= Op.OpFontLigatures;
+  Ed.OptFlickerReducingPause:= Op.OpFlickerReducingPause;
 
   Ed.OptScrollAnimationSteps:= Op.OpScrollAnimationSteps;
   Ed.OptScrollAnimationSleep:= Op.OpScrollAnimationSleep;
@@ -229,6 +236,9 @@ begin
       Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible:= Op.OpGutterFold;
     if not Ed.IsModifiedGutterNumbersVisible then
       Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible:= Op.OpNumbersShow;
+    //if not Ed.IsModifiedGutterLineStatesVisible then
+      Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagLineStates)].Visible:= Op.OpGutterLineStates;
+    Ed.OptGutterPlusSize:= Op.OpGutterIconSize;
     Ed.Gutter.Update;
 
     if Op.OpNumbersStyle<=Ord(High(TATEditorNumbersStyle)) then
@@ -968,13 +978,97 @@ begin
       Str:= St.Lines[Caret.PosY];
       if (Caret.PosX<Length(Str)) then
        if Str[Caret.PosX+1]=CharClosing then
-        if (Caret.PosX>0) and (Str[Caret.PosX]=CharOpening) then //only if previous is ([{
+        //if (Caret.PosX>0) and (Str[Caret.PosX]=CharOpening) then //only if previous is ([{ ? no, always, like Sublime Text
         begin
           Caret.Change(Caret.PosX+1, Caret.PosY, -1, -1);
           Result:= true;
         end;
     end;
   end;
+end;
+
+
+function EditorAutoDeleteClosingBracket(Ed: TATSynEdit): boolean;
+var
+  St: TATStrings;
+  Str: UnicodeString;
+  Caret: TATCaretItem;
+  Props: array of record NLine, XOpen, XClose: integer; end;
+  NLine, XOpen, XClose: integer;
+  CharPrev, CharNext: WideChar;
+  iCaret, X: integer;
+begin
+  Result:= false;
+  St:= Ed.Strings;
+
+  if Ed.Carets.IsSelection then exit;
+
+  SetLength(Props, Ed.Carets.Count);
+
+  //check each caret has the situation "(|)" or "(|  )"
+  for iCaret:= Ed.Carets.Count-1 downto 0 do
+  begin
+    Props[iCaret].NLine:= -1;
+    Props[iCaret].XOpen:= -1;
+    Props[iCaret].XClose:= -1;
+
+    Caret:= Ed.Carets[iCaret];
+    if St.IsIndexValid(Caret.PosY) then
+    begin
+      Str:= St.Lines[Caret.PosY];
+      if (Caret.PosX>0) and (Caret.PosX<Length(Str)) then
+      begin
+        CharPrev:= Str[Caret.PosX];
+        if Pos(CharPrev, Ed.OptAutoPairChars)=0 then
+          Break;
+
+        CharNext:= EditorBracket_GetPairForOpeningBracketOrQuote(CharPrev);
+        if CharNext=#0 then
+          Break;
+
+        X:= Caret.PosX+1;
+        while (X<=Length(Str)) and IsCharSpace(Str[X]) do
+          Inc(X);
+        if (X<=Length(Str)) and (Str[X]=CharNext) then
+        begin
+          Props[iCaret].NLine:= Caret.PosY;
+          Props[iCaret].XOpen:= Caret.PosX;
+          Props[iCaret].XClose:= X;
+        end;
+      end;
+    end;
+  end;
+
+  for iCaret:= Ed.Carets.Count-1 downto 0 do
+  begin
+    if Props[iCaret].NLine<0 then exit;
+  end;
+
+  //all carets have 'good situation', delete pair brackets
+  for iCaret:= Ed.Carets.Count-1 downto 0 do
+  begin
+    NLine:= Props[iCaret].NLine;
+    XOpen:= Props[iCaret].XOpen;
+    XClose:= Props[iCaret].XClose;
+
+    Str:= St.Lines[NLine];
+    Delete(Str, XClose, 1);
+    Delete(Str, XOpen, 1);
+    St.Lines[NLine]:= Str;
+
+    Caret:= Ed.Carets[iCaret];
+    Caret.Change(XOpen-1, NLine, -1, -1);
+
+    Ed.UpdateCaretsAndMarkersOnEditing(
+      iCaret+1,
+      Point(XOpen, NLine),
+      Point(-1, -1),
+      Point(-2, 0),
+      Point(XOpen-1, NLine)
+      );
+  end;
+
+  Result:= true;
 end;
 
 
@@ -1063,7 +1157,11 @@ begin
     if not bSel then
     begin
       St.TextInsert(X1, Y1, CharBegin+CharEnd, false, Shift, PosAfter);
-      Ed.UpdateCaretsAndMarkersOnEditing(NCaret, X1, Y1, Shift.X, Shift.Y, PosAfter);
+      Ed.UpdateCaretsAndMarkersOnEditing(NCaret+1,
+        Point(X1, Y1),
+        Point(X1, Y1),
+        Shift,
+        PosAfter);
 
       Caret.PosX:= Caret.PosX+1;
       Caret.EndX:= -1;
@@ -1072,10 +1170,18 @@ begin
     else
     begin
       St.TextInsert(X2, Y2, CharEnd, false, Shift, PosAfter);
-      Ed.UpdateCaretsAndMarkersOnEditing(NCaret, X2, Y2, Shift.X, Shift.Y, PosAfter);
+      Ed.UpdateCaretsAndMarkersOnEditing(NCaret+1,
+        Point(X2, Y2),
+        Point(X2, Y2),
+        Shift,
+        PosAfter);
 
       St.TextInsert(X1, Y1, CharBegin, false, Shift, PosAfter);
-      Ed.UpdateCaretsAndMarkersOnEditing(NCaret, X1, Y1, Shift.X, Shift.Y, PosAfter);
+      Ed.UpdateCaretsAndMarkersOnEditing(NCaret+1,
+        Point(X1, Y1),
+        Point(X1, Y1),
+        Shift,
+        PosAfter);
 
       Caret.EndX:= X1+1;
       Caret.EndY:= Y1;
@@ -1474,11 +1580,13 @@ end;
 
 function EditorBracket_ClearHilite(Ed: TATSynEdit): boolean;
 var
-  b1, b2: boolean;
+  bChange1, bChange2: boolean;
 begin
-  b1:= Ed.Attribs.DeleteWithTag(cEditorTagForBracket);
-  b2:= Ed.GutterDecor.DeleteByTag(cEditorTagForBracket);
-  Result:= b1 or b2;
+  bChange1:= Ed.Attribs.DeleteWithTag(cEditorTagForBracket);
+  bChange2:= Ed.GutterDecor.DeleteByTag(cEditorTagForBracket);
+  Result:= bChange1 or bChange2;
+  if Result then
+    Ed.Update;
 end;
 
 procedure EditorBracket_FindBoth(Ed: TATSynEdit;
@@ -1563,7 +1671,7 @@ var
   Caret: TATCaretItem;
   CharFrom, CharTo: atChar;
   Kind: TATEditorBracketKind;
-  PartObj: TATLinePartClass;
+  LinePart: TATLinePart;
   Decor: TATGutterDecorData;
   PosX, PosY, FoundX, FoundY: integer;
   Pnt1, Pnt2: TPoint;
@@ -1596,13 +1704,22 @@ begin
   case Action of
     bracketActionHilite:
       begin
-        PartObj:= TATLinePartClass.Create;
-        ApplyPartStyleFromEcontrolStyle(PartObj.Data, GetAppStyle(apstBracketBG));
-        Ed.Attribs.Add(PosX, PosY, cEditorTagForBracket, 1, 0, PartObj);
+        InitLinePart(LinePart);
+        ApplyPartStyleFromEcontrolStyle(LinePart, GetAppStyle(apstBracketBG));
+        Ed.Attribs.Add(
+          Point(PosX, PosY),
+          Point(1, 0),
+          TATMarkerTags.Init(cEditorTagForBracket, 0),
+          @LinePart
+          );
 
-        PartObj:= TATLinePartClass.Create;
-        ApplyPartStyleFromEcontrolStyle(PartObj.Data, GetAppStyle(apstBracketBG));
-        Ed.Attribs.Add(FoundX, FoundY, cEditorTagForBracket, 1, 0, PartObj);
+        ApplyPartStyleFromEcontrolStyle(LinePart, GetAppStyle(apstBracketBG));
+        Ed.Attribs.Add(
+          Point(FoundX, FoundY),
+          Point(1, 0),
+          TATMarkerTags.Init(cEditorTagForBracket, 0),
+          @LinePart
+          );
 
         FillChar(Decor, SizeOf(Decor), 0);
         StyleSymbol:= GetAppStyle(apstSymbol);
@@ -1616,22 +1733,27 @@ begin
         if PosY<>FoundY then
         begin
           Decor.LineNum:= PosY;
-          Decor.Text:= CharFrom;
+          Decor.TextBuffer:= nil; //not important
+          Decor.TextAll:= CharFrom;
           Ed.GutterDecor.Add(Decor);
 
           Decor.LineNum:= FoundY;
-          Decor.Text:= CharTo;
+          Decor.TextBuffer:= nil; //important
+          Decor.TextAll:= CharTo;
           Ed.GutterDecor.Add(Decor);
         end
         else
         begin
           Decor.LineNum:= PosY;
+          Decor.TextBuffer:= nil;
           if Kind=bracketOpening then
-            Decor.Text:= CharFrom+CharTo
+            Decor.TextAll:= CharFrom+CharTo
           else
-            Decor.Text:= CharTo+CharFrom;
+            Decor.TextAll:= CharTo+CharFrom;
           Ed.GutterDecor.Add(Decor);
         end;
+
+        Ed.Update;
       end;
 
     bracketActionJump:
@@ -1910,13 +2032,10 @@ begin
         //place marker which will be useful after find-next will wrap, so
         //last-occurrence-pos will be irrelevant, but marker will be used
         Ed.Markers.Add(
-          Finder.MatchEdEnd.X,
-          Finder.MatchEdEnd.Y,
-          UiOps.FindOccur_TagValue,
-          0,
-          0,
+          Point(Finder.MatchEdEnd.X, Finder.MatchEdEnd.Y),
+          Point(0, 0),
+          TATMarkerTags.Init(UiOps.FindOccur_TagValue, 0),
           nil,
-          0,
           mmmShowInTextOnly,
           -NSelLen //marker with underline looks good
           );
@@ -2105,22 +2224,22 @@ end;
 procedure EditorHighlightCharsInLine(Ed: TATSynEdit; AY: integer;
   const AX: TATIntArray; AStyle: TAppThemeStyleId; ATag: integer);
 var
-  PartObj: TATLinePartClass;
-  Part: TATLinePart;
+  LinePart: TATLinePart;
   i: integer;
 begin
   if Length(AX)=0 then exit;
 
-  FillChar(Part, SizeOf(Part), 0);
-  ApplyPartStyleFromEcontrolStyle(Part, GetAppStyle(AStyle));
-  Part.ColorBG:= clNone;
+  InitLinePart(LinePart);
+  ApplyPartStyleFromEcontrolStyle(LinePart, GetAppStyle(AStyle));
+  LinePart.ColorBG:= clNone;
 
   for i:= 0 to High(AX) do
-  begin
-    PartObj:= TATLinePartClass.Create;
-    PartObj.Data:= Part;
-    Ed.Attribs.Add(AX[i], AY, ATag, 1, 0, PartObj);
-  end;
+    Ed.Attribs.Add(
+      Point(AX[i], AY),
+      Point(1, 0),
+      TATMarkerTags.Init(ATag, 0),
+      @LinePart
+      );
 
   Ed.Invalidate;
 end;
@@ -2199,13 +2318,17 @@ begin
 
   Strs.TextDeleteRange(X1, Y1, X2, Y2, Shift, PosAfter);
   Ed.UpdateMarkersOnDeleting(X1, Y1, X2, Y2);
-  Ed.UpdateCaretsAndMarkersOnEditing(0, X1, Y1, Shift.X, Shift.Y, PosAfter);
+  Ed.UpdateCaretsAndMarkersOnEditing(0,
+    Point(X1, Y1),
+    Point(X2, Y2),
+    Shift,
+    PosAfter);
 
   Ed.DoEventChange(Y1);
   Ed.Update(true);
 end;
 
-function EditorInsert(Ed: TATSynEdit; AX, AY: integer; const AStr: UnicodeString; var APosAfter: TPoint): boolean;
+function EditorInsert(Ed: TATSynEdit; AX, AY: integer; const AStr: UnicodeString; out APosAfter: TPoint): boolean;
 var
   Strs: TATStrings;
   Shift: TPoint;
@@ -2213,11 +2336,9 @@ begin
   Result:= true;
   Strs:= Ed.Strings;
   Strs.SetNewCommandMark;
+  APosAfter:= Point(AX, AY);
   if AY<0 then
-  begin
-    APosAfter:= Point(0, 0);
     exit(false);
-  end;
 
   //too big index: do append
   if AY>=Strs.Count then
@@ -2225,7 +2346,11 @@ begin
   else
   begin
     Strs.TextInsert(AX, AY, AStr, false, Shift, APosAfter);
-    Ed.UpdateCaretsAndMarkersOnEditing(0, AX, AY, Shift.X, Shift.Y, APosAfter);
+    Ed.UpdateCaretsAndMarkersOnEditing(0,
+      Point(AX, AY),
+      Point(AX, AY),
+      Shift,
+      APosAfter);
   end;
 
   Ed.DoEventChange(AY);
@@ -2335,7 +2460,6 @@ procedure EditorAdjustForBigFile(Ed: TATSynEdit);
 begin
   Ed.OptWrapMode:= cWrapOff;
   Ed.OptMicromapVisible:= false;
-  Ed.OptMinimapVisible:= false;
 end;
 
 
@@ -2394,8 +2518,7 @@ begin
 end;
 
 function EditorAutoCompletionAfterTypingChar(Ed: TATSynEdit;
-  const AText: string; var ACharsTyped: integer;
-  AOnAutoCompletion: TEditorBooleanEvent): boolean;
+  const AText: string; var ACharsTyped: integer): boolean;
 var
   Caret: TATCaretItem;
   STextW: UnicodeString;
@@ -2406,6 +2529,11 @@ begin
   Result:= true;
   if Ed.Carets.Count=0 then exit;
   Caret:= Ed.Carets[0];
+  bWordChar:= false;
+  bIdentChar:= false;
+
+  //avoid double firing on_complete API event, when user types chars with listbox visible; issue #4323
+  if IsAutocompletionFormVisible then exit;
 
   SLexerName:= EditorLexerNameAtPos(Ed, Point(Caret.PosX, Caret.PosY));
   bLexerHTML:= Pos('HTML', SLexerName)>0;
@@ -2418,7 +2546,8 @@ begin
     if EditorCaretInsideCommentOrString(Ed, Caret.PosX, Caret.PosY) then exit;
 
     ACharsTyped:= 0;
-    AOnAutoCompletion(Ed, true);
+    AppRunAutocomplete:= true;
+    AppRunAutocompleteInEditor:= Ed;
     exit;
   end;
 
@@ -2429,9 +2558,16 @@ begin
     bWordChar:= IsCharWord(STextW[1], Ed.OptNonWordChars);
     if not bWordChar then
     begin
+      AppRunAutocomplete:= false;
+      AppRunAutocompleteInEditor:= nil;
       ACharsTyped:= 0;
       exit;
     end;
+  end
+  else
+  begin
+    AppRunAutocomplete:= false;
+    AppRunAutocompleteInEditor:= nil;
   end;
 
   //autoshow for all, when typed N chars
@@ -2447,21 +2583,29 @@ begin
       if EditorCaretInsideCommentOrString(Ed, Caret.PosX, Caret.PosY) then exit;
 
     Inc(ACharsTyped);
-    if ACharsTyped=Ed.OptAutocompleteAutoshowCharCount then
+    if ACharsTyped>=Ed.OptAutocompleteAutoshowCharCount then
     begin
-      ACharsTyped:= 0;
-      AOnAutoCompletion(Ed, true);
+      //ACharsTyped:= 0; //don't reset, fix #4479
+      AppRunAutocomplete:= true;
+      AppRunAutocompleteInEditor:= Ed;
       exit;
     end;
   end
   else
+  begin
+    AppRunAutocomplete:= false;
+    AppRunAutocompleteInEditor:= nil;
     ACharsTyped:= 0;
+  end;
 
   //autoshow for HTML
   if UiOps.AutocompleteHtml and bLexerHTML then
   begin
     if Ed.Strings.LineCharAt(Caret.PosY, Caret.PosX-1)='<' then
-      AOnAutoCompletion(Ed, true);
+    begin
+      AppRunAutocomplete:= true;
+      AppRunAutocompleteInEditor:= Ed;
+    end;
     exit;
   end;
 
@@ -2476,6 +2620,7 @@ begin
   end;
   *)
 
+  AppRunAutocompleteInEditor:= nil;
   Result:= false;
 end;
 
@@ -2754,6 +2899,50 @@ begin
       Ed.Strings.LinesEnds[iLine]:= AValue;
   end;
   Ed.Modified:= true;
+end;
+
+procedure EditorClearHiAllMarkers(Ed: TATSynEdit);
+begin
+  if Ed.Attribs.Count>0 then
+  begin
+    Ed.Attribs.DeleteWithTag(UiOps.FindHiAll_TagValue);
+    Ed.Update;
+  end;
+end;
+
+procedure EditorForceUpdateIfWrapped(Ed: TATSynEdit);
+begin
+  if Ed.OptWrapMode<>cWrapOff then
+  begin
+    Ed.UpdateWrapInfo;
+    Ed.Update;
+  end;
+end;
+
+procedure EditorScrollToCaret(Ed: TATSynEdit; ANeedWrapOff, AllowProcessMsg: boolean);
+begin
+  if Ed.Carets.Count=0 then exit;
+  if ANeedWrapOff then
+    if Ed.OptWrapMode<>cWrapOff then exit;
+  if AllowProcessMsg then
+    Application.ProcessMessages;
+  if Ed.IsCaretOnVisibleRect then exit; //don't work on GTK2 without App.ProcessMessagess
+
+  Ed.DoCommand(cCommand_ScrollToCaretTop, cInvokeAppInternal);
+end;
+
+procedure EditorCaretToView(Ed: TATSynEdit; ANeedWrapOff, AllowProcessMsg: boolean);
+begin
+  if Ed.Carets.Count=0 then exit;
+  if ANeedWrapOff then
+    if Ed.OptWrapMode<>cWrapOff then exit;
+  if AllowProcessMsg then
+    Application.ProcessMessages;
+  if Ed.IsCaretOnVisibleRect then exit; //don't work on GTK2 without App.ProcessMessagess
+
+  Ed.Carets[0].PosX:= 0;
+  Ed.DoEventCarets;
+  Ed.Update;
 end;
 
 { TEditorHtmlTagList }

@@ -28,6 +28,7 @@ uses
   LclType,
   LclIntf, Buttons,
   proc_globdata,
+  proc_editor,
   proc_colors,
   proc_str,
   math;
@@ -88,6 +89,9 @@ procedure TfmMenuApi.FormShow(Sender: TObject);
 var
   N: integer;
 begin
+  EditorCaretShapeFromString(edit.CaretShapeNormal, EditorOps.OpCaretViewNormal);
+  EditorCaretShapeFromString(edit.CaretShapeOverwrite, EditorOps.OpCaretViewOverwrite);
+
   UpdateFormOnTop(Self);
   FixFormPositionToDesktop(Self);
 
@@ -276,11 +280,13 @@ var
   buf, part_L, part_R: string;
   s_filter, s_name, s_name2, s_right: string;
   s_name_wide: UnicodeString;
+  s_dots: string;
   cl: TColor;
   pnt: TPoint;
   RectClip: TRect;
   bCurrentFuzzy: boolean;
   bFound: boolean;
+  nPosOfDots: integer;
   n, i: integer;
 begin
   {$ifdef log_index}
@@ -358,6 +364,14 @@ begin
   s_name_wide:= Utf8Decode(s_name);
   s_filter:= Trim(Utf8Encode(edit.Text));
 
+  if CollapseMode<>acsmNone then
+  begin
+    s_dots:= UTF8Encode(UnicodeString(#$2026));
+    nPosOfDots:= Pos(s_dots, s_name2);
+  end
+  else
+    nPosOfDots:= 0;
+
   bCurrentFuzzy:= UiOps.ListboxFuzzySearch and not DisableFuzzy;
   if bCurrentFuzzy and (s_name<>s_name2) then
     bCurrentFuzzy:= false;
@@ -381,6 +395,8 @@ begin
     begin
       for i:= Low(FuzzyResults) to High(FuzzyResults) do
       begin
+        if (nPosOfDots>0) and (FuzzyResults[i]>nPosOfDots) then
+          Break;
         buf:= Utf8Encode(UnicodeString(s_name_wide[FuzzyResults[i]]));
         n:= c.TextWidth(Utf8Encode(Copy(s_name_wide, 1, FuzzyResults[i]-1)));
         RectClip:= Rect(
@@ -405,6 +421,8 @@ begin
     begin
       for i:= 0 to WordResults.MatchesCount-1 do
       begin
+        if (nPosOfDots>0) and (WordResults.MatchesArray[i].WordPos+WordResults.MatchesArray[i].WordLen>nPosOfDots) then
+          Break;
         buf:= Copy(s_name, WordResults.MatchesArray[i].WordPos, WordResults.MatchesArray[i].WordLen);
         n:= c.TextWidth(Copy(s_name, 1, WordResults.MatchesArray[i].WordPos-1));
         RectClip:= Rect(

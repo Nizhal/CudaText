@@ -20,7 +20,10 @@ begin
       acgNoCommands:
         Break;
       acgBadCommand:
-        Continue;
+        begin
+          Sleep(15);
+          Continue;
+        end;
     end;
 
     HandleTimerCommand(Ed, CmdCode, CmdInvoke);
@@ -49,7 +52,8 @@ begin
 
     cmd_FileClose:
       begin
-        EdGrp.CloseTabs(tabCloseCurrent, false);
+        EdGrp.CloseTabs(tabCloseCurrent, false, true);
+
         Frame:= CurrentFrame;
         if Assigned(Frame) then
           Frame.SetFocus
@@ -62,7 +66,8 @@ begin
 
     cmd_FileCloseAll:
       begin
-        DoCloseAllTabs;
+        DoCloseAllTabs(false);
+
         Frame:= CurrentFrame;
         if Assigned(Frame) then
           Frame.SetFocus
@@ -75,12 +80,16 @@ begin
 
     cmd_FileCloseOtherThis:
       begin
-        EdGrp.CloseTabs(tabCloseOthersThisPage, false);
+        AppClosingTabs:= true;
+        EdGrp.CloseTabs(tabCloseOthersThisPage, false, false);
+        AppClosingTabs:= false;
       end;
 
     cmd_FileCloseOtherAll:
       begin
-        EdGrp.CloseTabs(tabCloseOthersAllPages, false);
+        AppClosingTabs:= true;
+        EdGrp.CloseTabs(tabCloseOthersAllPages, false, false);
+        AppClosingTabs:= false;
       end;
 
     cmd_FileCloseAndDelete:
@@ -547,7 +556,10 @@ begin
       end;
 
     cmd_AutoComplete:
-      DoAutoComplete(Ed);
+      begin
+        AppAutocompleteInvoke:= 'c';
+        DoAutoComplete(Ed);
+      end;
 
     cmd_GotoDefinition:
       DoGotoDefinition(Ed);
@@ -722,7 +734,11 @@ var
   Str: string;
 begin
   AHandled:= true;
-  if not Groups.Enabled then Exit;
+  if not Groups.Enabled then
+  begin
+    AHandled:= false; //if True: scrolling to 1st caret after 'select all' in Find dlg won't work
+    Exit;
+  end;
 
   Ed:= Sender as TATSynEdit;
   Frame:= TGroupsHelper.GetEditorFrame(Ed);
@@ -1191,6 +1207,8 @@ begin
     cmd_Encoding_cp437_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP437], false); AHandled:= true; exit end;
     cmd_Encoding_cp850_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP850], false); AHandled:= true; exit end;
     cmd_Encoding_cp852_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP852], false); AHandled:= true; exit end;
+    cmd_Encoding_cp861_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP861], false); AHandled:= true; exit end;
+    cmd_Encoding_cp865_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP865], false); AHandled:= true; exit end;
     cmd_Encoding_cp866_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP866], false); AHandled:= true; exit end;
     cmd_Encoding_cp874_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP874], false); AHandled:= true; exit end;
     cmd_Encoding_cp932_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP932], false); AHandled:= true; exit end;
@@ -1229,6 +1247,8 @@ begin
     cmd_Encoding_cp437_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP437], true); AHandled:= true; exit end;
     cmd_Encoding_cp850_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP850], true); AHandled:= true; exit end;
     cmd_Encoding_cp852_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP852], true); AHandled:= true; exit end;
+    cmd_Encoding_cp861_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP861], true); AHandled:= true; exit end;
+    cmd_Encoding_cp865_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP865], true); AHandled:= true; exit end;
     cmd_Encoding_cp866_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP866], true); AHandled:= true; exit end;
     cmd_Encoding_cp874_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP874], true); AHandled:= true; exit end;
     cmd_Encoding_cp932_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP932], true); AHandled:= true; exit end;

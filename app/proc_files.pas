@@ -11,6 +11,9 @@ unit proc_files;
 
 interface
 
+uses
+  Classes;
+
 function AppCreateFile(const fn: string): boolean;
 function AppCreateFileJSON(const fn: string): boolean;
 
@@ -31,17 +34,66 @@ procedure AppBrowseToFilenameInShell(const fn: string);
 function AppFileExtentionCreatable(const fn: string): boolean;
 procedure AppFileCheckForNullBytes(const fn: string);
 procedure AppMakeBackupFiles(const AFilename, AExtension: string; ACount: integer);
+procedure AppFindFilesByMask(List: TStringList; AMask: string);
 
 
 implementation
 
 uses
-  Classes, SysUtils, LCLIntf,
+  SysUtils, LCLIntf,
   FileUtil, LazFileUtils, LCLType,
   ATStrings,
   proc_globdata,
   proc_msg,
   win32linkfiles;
+
+// https://forum.lazarus.freepascal.org/index.php/topic,60972.msg457443.html#msg457443
+function AppNormalizeFilenameCase(const AFilepath: string): string;
+var
+  SR: TSearchRec;
+  tmp: string;
+  splits: TStringArray;
+  final: TStringArray;
+  i: Integer;
+begin
+  Result := AFilepath;
+
+  if ((not FileExists(AFilepath)) and (not DirectoryExists(AFilepath))) then
+    Exit;
+
+  final := nil;
+  splits := string(ExcludeTrailingBackslash(AFilepath)).Split(Pathdelim);
+  SetLength(final, Length(splits));
+  tmp := '';
+  for i := Low(splits) to High(splits) do
+    begin
+      if i < High(splits) then
+        tmp := tmp + IncludeTrailingBackslash(splits[i])
+        else
+        tmp := tmp + splits[i];
+      final[i] := tmp;
+    end;
+
+  for i := Low(final) to High(final) do
+    if i > 0 then
+      if FindFirst(ExcludeTrailingBackslash(final[i]), faAnyfile or faDirectory, SR) = 0 then
+        begin
+          splits[i] := SR.Name;
+          FindClose(SR);
+        end;
+
+  tmp := '';
+  for i := Low(splits) to High(splits) do
+    begin
+      if i < High(splits) then
+        tmp := tmp + IncludeTrailingBackslash(splits[i])
+        else
+        tmp := tmp + splits[i];
+      final[i] := tmp;
+    end;
+  tmp := final[High(final)];
+  Result := tmp;
+end;
 
 function AppCreateFile(const fn: string): boolean;
 var
@@ -286,6 +338,14 @@ begin
     {$endif}
     fn
     )));
+
+  {$ifdef windows}
+  if (Length(Result)>3) and
+    (Result[1] in ['a'..'z', 'A'..'Z']) and
+    (Result[2]=':') and
+    (Result[3]='\') then
+    Result:= AppNormalizeFilenameCase(Result);
+  {$endif}
 end;
 
 
@@ -380,6 +440,30 @@ begin
       RenameFile(fnTemp2, fnTemp);
   end;
 end;
+
+procedure AppFindFilesByMask(List: TStringList; AMask: string);
+var
+  Dir: string;
+begin
+  Dir:= GetCurrentDirUTF8;
+
+  //support full dir path
+  if IsOsFullPath(AMask) then
+  begin
+    Dir:= ExtractFileDir(AMask);
+    AMask:= ExtractFileName(AMask);
+  end
+  else
+  //support relative dir path
+  if Pos(DirectorySeparator, AMask)>0 then
+  begin
+    Dir+= DirectorySeparator+ExtractFileDir(AMask);
+    AMask:= ExtractFileName(AMask);
+  end;
+
+  FindAllFiles(List, Dir, AMask, false{SubDirs});
+end;
+
 
 end.
 

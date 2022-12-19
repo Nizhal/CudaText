@@ -2,6 +2,7 @@ EVENTS = [
     'on_app_activate',
     'on_app_deactivate',
     'on_caret',
+    'on_caret_slow',
     'on_change',
     'on_change_slow',
     'on_cli',
@@ -41,9 +42,11 @@ EVENTS = [
     'on_sidebar_popup',
     'on_snippet',
     'on_start',
+    'on_start2',
     'on_state',
     'on_state_ed',
     'on_tab_change',
+    'on_tab_menu',
     'on_tab_move',
   ]
 

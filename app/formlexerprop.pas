@@ -231,6 +231,18 @@ begin
 
   edSample.DoubleBuffered:= UiOps.DoubleBuffered;
   edSample.OptTabSize:= 4;
+  edSample.OptShowMouseSelFrame:= EditorOps.OpShowMouseSelFrame;
+  edSample.OptShowFullWidthForSelection:= EditorOps.OpShowFullBackgroundSel;
+  edSample.OptShowFullWidthForSyntaxHilite:= EditorOps.OpShowFullBackgroundSyntax;
+  edSample.OptScrollSmooth:= EditorOps.OpSmoothScroll;
+  edSample.OptMouseWheelScrollVertSpeed:= EditorOps.OpMouseWheelSpeedVert;
+  edSample.OptMouseWheelScrollHorzSpeed:= EditorOps.OpMouseWheelSpeedHorz;
+  edSample.OptMouse2ClickDragSelectsWords:= EditorOps.OpMouse2ClickDragSelectsWords;
+  edSample.OptMouseRightClickMovesCaret:= EditorOps.OpMouseRightClickMovesCaret;
+  edSample.OptCaretVirtual:= EditorOps.OpCaretVirtual;
+  EditorCaretShapeFromString(edSample.CaretShapeNormal, EditorOps.OpCaretViewNormal);
+  EditorCaretShapeFromString(edSample.CaretShapeOverwrite, EditorOps.OpCaretViewOverwrite);
+  EditorCaretShapeFromString(edSample.CaretShapeReadonly, EditorOps.OpCaretViewReadonly);
 
   FFormats:= TecStylesCollection.Create;
 

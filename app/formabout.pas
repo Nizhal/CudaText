@@ -13,7 +13,8 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, StdCtrls,
-  ButtonPanel, IniFiles,
+  Buttons, ButtonPanel,
+  IniFiles, Clipbrd,
   LCLProc, LCLType, LCLIntf,
   ScrollingText,
   proc_msg,
@@ -29,8 +30,10 @@ type
     labelName: TLabel;
     labelPlatform: TLabel;
     labelVersion: TLabel;
+    btnCopyToClp: TSpeedButton;
     procedure bCreditsClick(Sender: TObject);
     procedure bOkClick(Sender: TObject);
+    procedure btnCopyToClpClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure FormShow(Sender: TObject);
@@ -75,6 +78,11 @@ begin
   ModalResult:= mrCancel;
 end;
 
+procedure TfmAbout.btnCopyToClpClick(Sender: TObject);
+begin
+  Clipboard.AsText:= 'CudaText '+labelVersion.Caption+', '+labelPlatform.Caption;
+end;
+
 procedure TfmAbout.FormCreate(Sender: TObject);
 var
   fn: string;
@@ -101,6 +109,9 @@ begin
   Credits.Hide;
   Credits.Parent:= Self;
   Credits.Align:= alClient;
+  Credits.Font.Color:= clWindowText;
+  Credits.LinkFont.Color:= FLabelLink.ColorLinkNormal;
+  Credits.LinkFont.Style:= [fsUnderline];
 
   fn:= AppDir_DataLang+DirectorySeparator+'credits.txt';
   if FileExists(fn) then
@@ -111,6 +122,10 @@ begin
     Credits.Lines.Add(msgCannotFindFile);
     Credits.Lines.Add(AppCollapseHomeDirInFilename(fn));
   end;
+
+  //big title
+  labelName.Font.Style:= [fsBold];
+  labelName.Font.Size:= 20;
 end;
 
 procedure TfmAbout.FormKeyDown(Sender: TObject; var Key: Word;
@@ -126,19 +141,27 @@ end;
 
 
 procedure TfmAbout.FormShow(Sender: TObject);
+var
+  fnIcon: string;
+  bitmap: TPortableNetworkGraphic;
 begin
   DoForm_ScaleAuto(Self, true);
   UpdateFormOnTop(Self);
 
-  //big title
-  labelName.Font.Style:= [fsBold];
-  labelName.Font.Size:= 20;
-
-  with Credits do
+  fnIcon:= AppDir_DataToolbarIcons+DirectorySeparator+'default_24x24'+DirectorySeparator+'e_copy.png';
+  if FileExists(fnIcon) then
   begin
-    LinkFont.Color:= clBlue;
-    LinkFont.Style:= [fsUnderline];
+    bitmap:= TPortableNetworkGraphic.Create;
+    try
+      bitmap.LoadFromFile(fnIcon);
+      btnCopyToClp.Glyph.Assign(bitmap);
+    finally
+      bitmap.Free;
+    end;
   end;
+
+  btnCopyToClp.Hint:= msgCopySub;
+  btnCopyToClp.ShowHint:= true;
 end;
 
 procedure TfmAbout.bCreditsClick(Sender: TObject);
@@ -148,6 +171,7 @@ begin
   labelPlatform.Hide;
   FLabelLink.Hide;
   ButtonPanel1.HelpButton.Enabled:= false;
+  btnCopyToClp.Hide;
 
   Credits.Show;
   Credits.Active:= true;

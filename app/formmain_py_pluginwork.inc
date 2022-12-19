@@ -1,22 +1,41 @@
 {$ifdef nn}begin end;{$endif}
 
-function IsPluginBad(const S: string): boolean;
-var
-  i: integer;
+function IsPluginBad(const ADirName: string; out AShowWarning: boolean): boolean;
 begin
-  Result:= false;
-  for i:= 0 to High(IgnoredPlugins) do
-    if S=IgnoredPlugins[i] then exit(true);
+  AShowWarning:= false;
+
+  case ADirName of
+    'cuda_tree', //replaced with built-in tree-helper engine
+    'cuda_tree_markdown', //rewritten in Pascal
+    'cuda_tree_mediawiki', //rewritten in Pascal
+    'cuda_tree_rest', //rewritten in Pascal
+    'cuda_auto_copy', //replaced with built-in code
+    'cuda_brackets_hilite': //replaced with built-in code
+    begin
+      Result:= true;
+      AShowWarning:= true;
+    end
+    else
+      Result:= false;
+  end;
+
+  if not Result then
+    if SBeginsWith(ADirName, 'cuda_lint_') or //sub-plugins of CudaLinter
+      SBeginsWith(ADirName, 'cuda_fmt_') //sub-plugins of CudaFormatter
+      then
+        Result:= true;
 end;
+
 
 procedure TfmMain.DoOps_LoadPlugins(AKeepHotkeys: boolean);
 var
   ListFiles: TStringlist;
-  SItem, SFilenameInf, DirName: string;
+  SItem, SFilenameInf, SFilenameDisabled, DirName: string;
   IniPlugins: TMemIniFile;
   BackupMain,
   BackupTemp: TAppHotkeyBackup;
   BackupLexers: TFPList;
+  bShowIgnoredWarning: boolean;
   i: integer;
 begin
   if not AppPython.Inited then exit;
@@ -68,14 +87,16 @@ begin
     for SItem in ListFiles do
     begin
       DirName:= ExtractFileName(SItem);
-      if IsPluginBad(DirName) then
+      if IsPluginBad(DirName, bShowIgnoredWarning) then
       begin
-        MsgLogConsole(Format(msgErrorPluginIgnored, [DirName]));
+        if bShowIgnoredWarning then
+          MsgLogConsole(Format(msgErrorPluginIgnored, [DirName]));
         Continue;
       end;
 
       SFilenameInf:= SItem+DirectorySeparator+'install.inf';
-      if FileExists(SFilenameInf) then
+      SFilenameDisabled:= SItem+DirectorySeparator+'plugin_disabled';
+      if FileExists(SFilenameInf) and not FileExists(SFilenameDisabled) then
         DoOps_LoadPluginFromInf(SFilenameInf, IniPlugins);
     end;
 
@@ -234,6 +255,9 @@ begin
               CmdItem.ItemCaption:= s_caption;
               CmdItem.ItemLexers:= s_lexers;
               CmdItem.ItemInMenu:= s_inmenu;
+
+              if AppCommandList.Count>(cmdLastPluginCommand-cmdFirstPluginCommand) then
+                MsgLogConsole('ERROR: Too many plugin commands');
               AppCommandList.Add(CmdItem);
             end;
           'events':

@@ -3,11 +3,10 @@ import os
 import re
 import platform
 import tempfile
-import webbrowser
 import cudatext as app
 from .work_remote import *
 
-from cudax_lib import get_translation
+from cudax_lib import get_translation, safe_open_url
 _   = get_translation(__file__)  # i18n
 
 OS = platform.system()
@@ -40,6 +39,7 @@ FILE_RES = {
     }
 FILE_RE = FILE_RES.get(OS)
 
+CHANGELOG_PAGE = 'https://cudatext.github.io/history.txt'
 
 def versions_ordered(s1, s2):
     """
@@ -77,11 +77,26 @@ def check_cudatext():
     ver_local = app.app_exe_version()
 
     if versions_ordered(ver_inet, ver_local):
-        app.msg_box(_('Latest CudaText is already here.\nLocal: {}\nInternet: {}')
-                   .format(ver_local, ver_inet), app.MB_OK+app.MB_ICONINFO)
+        msg_ = app.msg_box_ex(
+            _('Check for updates'),
+            _('Latest CudaText is already here.\n\nLocal: {}\nInternet: {}').format(ver_local, ver_inet),
+            [_('OK'), _('Open changelog')],
+            app.MB_ICONQUESTION
+            )
+        if msg_ == 1:
+            safe_open_url(CHANGELOG_PAGE)
+            app.msg_status(_('Opened changelog link'))
         return
 
-    if app.msg_box(_('CudaText update is available.\nLocal: {}\nInternet: {}\n\nOpen download URL in browser?')
-                  .format(ver_local, ver_inet), app.MB_YESNO+app.MB_ICONINFO) == app.ID_YES:
-        webbrowser.open_new_tab(url)
-        print(_('Opened download URL'))
+    msg_ = app.msg_box_ex(
+        _('Check for updates'),
+        _('CudaText update is available.\n\nLocal: {}\nInternet: {}').format(ver_local, ver_inet),
+        [_('Cancel'), _('Open download link'), _('Open changelog')],
+        app.MB_ICONQUESTION
+        )
+    if msg_ == 1:
+        safe_open_url(url)
+        app.msg_status(_('Opened download link'))
+    elif msg_ == 2:
+        safe_open_url(CHANGELOG_PAGE)
+        app.msg_status(_('Opened changelog link'))

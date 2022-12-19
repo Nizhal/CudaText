@@ -31,6 +31,7 @@ uses
   proc_miscutils,
   proc_colors,
   proc_editor,
+  proc_cmd,
   ec_SyntAnal,
   formlexerstylemap;
 
@@ -158,7 +159,7 @@ type
     procedure chkWordsClick(Sender: TObject);
     procedure chkWrapClick(Sender: TObject);
     procedure edFindChange(Sender: TObject);
-    procedure edFindCommand(Sender: TObject; ACommand: integer;
+    procedure edFindCommand(Sender: TObject; ACommand: integer; AInvoke: TATEditorCommandInvoke;
       const AText: string; var AHandled: boolean);
     procedure edFindEnter(Sender: TObject);
     procedure edFindKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -172,6 +173,7 @@ type
     procedure FormShow(Sender: TObject);
   private
     { private declarations }
+    FTimerShow: TTimer;
     FPopupMore: TPopupMenu;
     FMenuitemOptRegex: TMenuItem;
     FMenuitemOptCase: TMenuItem;
@@ -210,6 +212,7 @@ type
     AdapterActive: boolean;
     procedure bRepStopClick(Sender: TObject);
     procedure ControlAutosizeOptionsByWidth;
+    procedure CopyFieldFindToReplace;
     procedure DoFocusEditor;
     procedure DoResult(Op: TAppFinderOperation);
     function GetHiAll: boolean;
@@ -220,6 +223,7 @@ type
     procedure SetMultiLine(AValue: boolean);
     procedure SetNarrow(AValue: boolean);
     procedure SetReplace(AValue: boolean);
+    procedure TimerShowTick(Sender: TObject);
     procedure UpdateButtonBold;
     procedure UpdateRegexHighlight;
   public
@@ -708,20 +712,39 @@ begin
 end;
 
 procedure TfmFind.edFindCommand(Sender: TObject; ACommand: integer;
-  const AText: string; var AHandled: boolean);
+  AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
+var
+  Ed: TATSynEdit;
 begin
   //auto turn on multi-line
   if ACommand=cCommand_KeyEnter then
   begin
     IsMultiLine:= true;
+    AHandled:= false;
     exit
+  end;
+
+  if (ACommand>=cmdFirstAppCommand) and (ACommand<=cmdLastAppCommand) then
+  begin
+    FOnGetMainEditor(Ed);
+    Ed.DoCommand(ACommand, cInvokeHotkey, '');
+    AHandled:= true;
+    exit;
   end;
 end;
 
 procedure TfmFind.edFindEnter(Sender: TObject);
 begin
-  edFind.DoCommand(cCommand_SelectAll, cInvokeAppInternal);
+  edFind.DoSelect_All;
   UpdateButtonBold;
+end;
+
+procedure TfmFind.CopyFieldFindToReplace;
+begin
+  edRep.Text:= edFind.Text;
+  edRep.DoCaretSingle(0, 0);
+  edRep.DoScrollToBeginOrEnd(true);
+  edRep.Update(true);
 end;
 
 procedure TfmFind.edFindKeyDown(Sender: TObject; var Key: Word;
@@ -730,16 +753,23 @@ begin
   //Ctrl+Down: copy find_edit to replace_edit
   if (Key=VK_DOWN) and (Shift=[ssCtrl]) then
   begin
-    edRep.Text:= edFind.Text;
-    edRep.Update(true);
-    key:= 0;
+    CopyFieldFindToReplace;
+    Key:= 0;
     exit
+  end;
+
+  //Ctrl+Enter: add line-break
+  if (Key=VK_RETURN) and (Shift=[ssCtrl]) then
+  begin
+    (Sender as TATSynEdit).DoCommand(cCommand_KeyEnter, cInvokeAppInternal);
+    Key:= 0;
+    exit;
   end;
 end;
 
 procedure TfmFind.edRepEnter(Sender: TObject);
 begin
-  edRep.DoCommand(cCommand_SelectAll, cInvokeAppInternal);
+  edRep.DoSelect_All;
   UpdateButtonBold;
 end;
 
@@ -759,11 +789,8 @@ var
   Ed: TATSynEdit;
 begin
   FOnGetMainEditor(Ed);
-  if Assigned(Ed) and (Ed.Attribs.Count>0) then
-  begin
-    Ed.Attribs.DeleteWithTag(UiOps.FindHiAll_TagValue);
-    Ed.Update;
-  end;
+  if Assigned(Ed) then
+    EditorClearHiAllMarkers(Ed);
 end;
 
 procedure TfmFind.FormCreate(Sender: TObject);
@@ -816,6 +843,11 @@ begin
 
   Adapter:= TATAdapterEControl.Create(Self);
   Adapter.Lexer:= AppManager.FindLexerByName('RegEx');
+
+  FTimerShow:= TTimer.Create(Self);
+  FTimerShow.Enabled:= false;
+  FTimerShow.Interval:= 100;
+  FTimerShow.OnTimer:= @TimerShowTick;
 end;
 
 procedure TfmFind.FormHide(Sender: TObject);
@@ -1126,6 +1158,14 @@ begin
   edFind.OptCaretBlinkTime:= EditorOps.OpCaretBlinkTime;
   edRep.OptCaretBlinkTime:= EditorOps.OpCaretBlinkTime;
 
+  edFind.OptMouseMiddleClickAction:= TATEditorMiddleClickAction(EditorOps.OpMouseMiddleClickAction);
+  edRep.OptMouseMiddleClickAction:= TATEditorMiddleClickAction(EditorOps.OpMouseMiddleClickAction);
+
+  EditorCaretShapeFromString(edFind.CaretShapeNormal, EditorOps.OpCaretViewNormal);
+  EditorCaretShapeFromString(edFind.CaretShapeOverwrite, EditorOps.OpCaretViewOverwrite);
+  EditorCaretShapeFromString(edRep.CaretShapeNormal, EditorOps.OpCaretViewNormal);
+  EditorCaretShapeFromString(edRep.CaretShapeOverwrite, EditorOps.OpCaretViewOverwrite);
+
   UpdateFormHeight;
   UpdateFonts;
   FixFormPositionToDesktop(Self);
@@ -1133,6 +1173,8 @@ begin
 
   if Assigned(FOnChangeVisible) then
     FOnChangeVisible(Self);
+
+  FTimerShow.Enabled:= true;
 end;
 
 procedure TfmFind.UpdateInitialCaretPos;
@@ -1274,6 +1316,14 @@ begin
   UpdateState(false);
 end;
 
+procedure TfmFind.TimerShowTick(Sender: TObject);
+begin
+  FTimerShow.Enabled:= false;
+  //fixing caret in the middle of field, #4670
+  edFind.Update;
+  edRep.Update;
+end;
+
 procedure TfmFind.UpdateFormHeight;
   //
   function MaxY(C: TControl): integer;
@@ -1361,7 +1411,8 @@ begin
   bMore.Enabled:= bEnabled and not FForViewer;
 
   FOnGetMainEditor(Ed);
-  chkHiAll.Enabled:= bEnabled and (Ed.Strings.Count<UiOps.FindHiAll_MaxLines);
+  //sometimes, Ed=Nil here (after changing groups 2->1)
+  chkHiAll.Enabled:= bEnabled and Assigned(Ed) and (Ed.Strings.Count<UiOps.FindHiAll_MaxLines);
 
   chkCase.Enabled:= bEnabled;
   chkWords.Enabled:= bEnabled and not chkRegex.Checked and (edFind.Strings.Count<2); //disable "w" for multi-line input
@@ -1395,6 +1446,10 @@ begin
   edRep.Left:= cPadding;
   edFind.OptTextHint:= msgFindHint_InputFind;
   edRep.OptTextHint:= msgFindHint_InputRep;
+
+  //form can be already closed ('select all' closes it);
+  //and we must avoid UpdateHiAll etc.
+  if not Visible then exit;
 
   UpdateButtonBold;
   UpdateFormHeight;

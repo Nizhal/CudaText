@@ -7,12 +7,12 @@ Copyright (c) Alexey Torgashin
 *)
 {$ifdef nn}begin end;{$endif}
 
-procedure TfmMain.DoLoadCommandLineBaseOptions(out AWindowPos: string;
+procedure InitAdditionalCommandLineOptions(
+  out AWindowPos: string;
   out AAllowSessionLoad, AAllowSessionSave: TAppAllowSomething;
   out AStartupCommand: string;
   out AFileFolderCount: integer);
-// Function handles these options: -v -h -w -el -ns
-// Option -n is handled via var proc_globdata.AppAlwaysNewInstance
+//Option -n is handled via proc_globdata.AppAlwaysNewInstance
 var
   SParam: string;
   i: integer;
@@ -34,18 +34,6 @@ begin
       Continue;
     end;
 
-    if (SParam='--version') or (SParam='-v') then
-    begin
-      MsgStdout('CudaText '+cAppExeVersion, true);
-      Application.Terminate;
-    end;
-
-    if (SParam='--help') or (SParam='-h') then
-    begin
-      MsgStdout(msgCommandLineHelp, true);
-      Application.Terminate;
-    end;
-
     if SBeginsWith(SParam, '-w=') then
     begin
       AWindowPos:= Copy(SParam, 4, MaxInt);
@@ -56,12 +44,6 @@ begin
     begin
       AStartupCommand:= Copy(SParam, 4, MaxInt);
       Continue;
-    end;
-
-    if (SParam='-el') then
-    begin
-      MsgStdout(AppEncodingListAsString, true);
-      Application.Terminate;
     end;
 
     if (SParam='-ns') then
@@ -105,32 +87,9 @@ begin
   end;
 end;
 
-procedure _AppFindFilesByMask(List: TStringList; AMask: string);
-var
-  Dir: string;
-begin
-  Dir:= GetCurrentDirUTF8;
-
-  //support full dir path
-  if IsOsFullPath(AMask) then
-  begin
-    Dir:= ExtractFileDir(AMask);
-    AMask:= ExtractFileName(AMask);
-  end
-  else
-  //support relative dir path
-  if Pos(DirectorySeparator, AMask)>0 then
-  begin
-    Dir+= DirectorySeparator+ExtractFileDir(AMask);
-    AMask:= ExtractFileName(AMask);
-  end;
-
-  FindAllFiles(List, Dir, AMask, false{SubDirs});
-end;
-
 procedure TfmMain.DoLoadCommandParams(const AParams: array of string; AOpenOptions: string);
 // Function handles passed file names, folder names, and such params as -r -nh -z -e,
-// while others params are handled in DoLoadCommandLineBaseOptions
+// while others params are handled in InitAdditionalCommandLineOptions
 var
   Frame: TEditorFrame;
   SParam: string;
@@ -271,7 +230,7 @@ begin
     begin
       List:= TStringList.Create;
       try
-        _AppFindFilesByMask(List, SParam);
+        AppFindFilesByMask(List, SParam);
         for SParam in List do
         begin
           Frame:= DoFileOpen(SParam, '', nil, AOpenOptions);
@@ -328,7 +287,10 @@ begin
     Params[Length(Params)-1]:= S;
   end;
 
-  DoLoadCommandParams(Params, '');
+  DoLoadCommandParams(
+    Params,
+    GetFileOpenOptionsString(Length(Params))
+    );
 
   if WindowState = wsMinimized then
   begin
@@ -338,13 +300,23 @@ begin
 end;
 {$endif}
 
+function TfmMain.GetFileOpenOptionsString(AFileCount: integer): string;
+begin
+  if AFileCount>1 then
+    Result:= '/passive /nonear'
+  else
+    Result:= '/nonear';
+end;
 
-procedure TfmMain.UniqInstanceOtherInstance(Sender: TObject;
+procedure TfmMain.HandleOtherInstance(Sender: TObject;
   ParamCount: Integer; const Parameters: array of String);
 begin
   if not IsAllowedToOpenFileNow then exit;
 
-  DoLoadCommandParams(Parameters, '');
+  DoLoadCommandParams(
+    Parameters,
+    GetFileOpenOptionsString(ParamCount)
+    );
 
   if WindowState=wsMinimized then
   begin
@@ -362,27 +334,23 @@ begin
 end;
 
 procedure TfmMain.DoLoadCommandLine;
-const
-  cOptionPassive = '/passive /nonear';
-  cOptionActive = '/nonear';
 var
   Params: array of string;
-  Options: string;
   i: integer;
 begin
-  DoLoadCommandParams(FFileNamesDroppedInitially, cOptionPassive);
-
-  //if passed single file, must activate it, else not
-  if ParamCount<2 then
-    Options:= cOptionActive
-  else
-    Options:= cOptionPassive;
+  DoLoadCommandParams(
+    AppDroppedFiles,
+    GetFileOpenOptionsString(100) //open with /passive flag
+    );
 
   SetLength(Params, ParamCount);
   for i:= 1 to Length(Params) do
     Params[i-1]:= ParamStrUTF8(i);
 
-  DoLoadCommandParams(Params, Options);
+  DoLoadCommandParams(
+    Params,
+    GetFileOpenOptionsString(Length(Params))
+    );
 end;
 
 procedure TfmMain.DoLoadCommandLine_FromString(const AText: string);
