@@ -966,21 +966,25 @@ end;
 
 procedure TfmMain.DoOps_LoadOptions_Global(cfg: TJSONConfig);
 const
-  cCharEllipsis = $2026;
-  cHexShow: array[boolean] of byte = (uw_space, uw_hexshow);
+  cMaxScale = 500;
 var
-  Sep: TATStringSeparator;
   List: TStringList;
   s: string;
   N: integer;
-  bValue: boolean;
 begin
   Application.{%H-}MainFormOnTaskBar:= cfg.GetValue('ui_taskbar_mode'+cOptionSystemSuffix, Application.{%H-}MainFormOnTaskBar);
 
-  ATEditorScalePercents:= cfg.GetValue('ui_scale'+cOptionSystemSuffix, 0);
-  ATEditorScaleFontPercents:= cfg.GetValue('ui_scale_font'+cOptionSystemSuffix, 100);
-  if ATEditorScalePercents=0 then
-    ATEditorScalePercents:= Max(100, 100*Screen.PixelsPerInch div 96); //some Linux'es return PixelsPerInch=91
+  N:= cfg.GetValue('ui_scale'+cOptionSystemSuffix, -1);
+  if (N>=0) and (N<=cMaxScale) then
+  begin
+    ATEditorScalePercents:= N;
+    if ATEditorScalePercents=0 then
+      ATEditorScalePercents:= Max(100, 100*Screen.PixelsPerInch div 96); //some Linux'es return PixelsPerInch=91
+  end;
+
+  N:= cfg.GetValue('ui_scale_font'+cOptionSystemSuffix, -1);
+  if (N>=0) and (N<=cMaxScale) then
+    ATEditorScaleFontPercents:= N;
 
   ATEditorOptions.CharSizeProportional:= cfg.GetValue('unicode_proportional', ATEditorOptions.CharSizeProportional);
   ATEditorOptions.CharScaleFullWidth:= cfg.GetValue('unicode_full_width', ATEditorOptions.CharScaleFullWidth);
@@ -989,86 +993,48 @@ begin
 
   ATEditorOptions.MouseDragDropFocusesTargetEditor:= cfg.GetValue('mouse_drag_drop_focus_target', ATEditorOptions.MouseDragDropFocusesTargetEditor);
   ATEditorOptions.MaxTabPositionToExpand:= cfg.GetValue('tab_max_pos_expanded', ATEditorOptions.MaxTabPositionToExpand);
-  ATEditorOptions.MaxLineLenForAccurateCharWidths:= cfg.GetValue('max_line_len_for_accurate_width', ATEditorOptions.MaxLineLenForAccurateCharWidths);
+  ATEditorOptions.MaxLineLenForAccurateCharWidths:= Min(1024, cfg.GetValue('max_line_len_for_accurate_width', ATEditorOptions.MaxLineLenForAccurateCharWidths));
   ATEditorOptions.MaxClipboardRecents:= cfg.GetValue('ui_max_history_clipboard', ATEditorOptions.MaxClipboardRecents);
   ATEditorOptions.MinimapColoringTime:= cfg.GetValue('minimap_coloring_time', ATEditorOptions.MinimapColoringTime);
+  ATEditorOptions.SpeedScrollAutoVert:= cfg.GetValue('mouse_scroll_speed_vert', ATEditorOptions.SpeedScrollAutoVert);
 
   ATEditorOptions.UnprintedTabCharLength:= cfg.GetValue('unprinted_tab_len', ATEditorOptions.UnprintedTabCharLength);
   ATEditorOptions.UnprintedReplaceSpec:= cfg.GetValue('unprinted_replace_spec', ATEditorOptions.UnprintedReplaceSpec);
-  s:= cfg.GetValue('unprinted_replace_to_code', 'A4');
-  ATEditorOptions.UnprintedReplaceSpecToCode:= StrToIntDef('$'+s, ATEditorOptions.UnprintedReplaceSpecToCode);
+  s:= cfg.GetValue('unprinted_replace_to_code', '');
+  if s<>'' then
+    ATEditorOptions.UnprintedReplaceSpecToCode:= StrToIntDef('$'+s, ATEditorOptions.UnprintedReplaceSpecToCode);
 
   UiOps.MaxLineLenForEditingKeepingLexer:= cfg.GetValue('max_line_len_for_editing_keeping_lexer', UiOps.MaxLineLenForEditingKeepingLexer);
 
+  s:= cfg.GetValue('fallback_encoding', '');
+  if s<>'' then
+    AppApplyFallbackEncoding(s);
+
   s:= cfg.GetValue('unprinted_symbols_scale', '');
   if s<>'' then
-  begin
-    Sep.Init(s);
-    Sep.GetItemInt(ATEditorOptions.UnprintedSpaceDotScale, ATEditorOptions.UnprintedSpaceDotScale, 1, 100);
-    Sep.GetItemInt(ATEditorOptions.UnprintedEndDotScale, ATEditorOptions.UnprintedEndDotScale, 1, 100);
-    Sep.GetItemInt(ATEditorOptions.UnprintedEndFontScale, ATEditorOptions.UnprintedEndFontScale * 10 div 6, 5, 100);
-    ATEditorOptions.UnprintedPilcrowScale:= ATEditorOptions.UnprintedEndFontScale;
-    ATEditorOptions.UnprintedEndFontScale:= ATEditorOptions.UnprintedEndFontScale * 6 div 10;
-    Sep.GetItemInt(ATEditorOptions.UnprintedTabPointerScale, ATEditorOptions.UnprintedTabPointerScale, 0, 100);
-  end;
+    AppApplyUnprintedSymbolsScale(s);
 
-  ATEditorOptions.SpeedScrollAutoVert:= cfg.GetValue('mouse_scroll_speed_vert', ATEditorOptions.SpeedScrollAutoVert);
+  s:= cfg.GetValue('auto_copy_clp', '?');
+  if s<>'?' then
+    AppApplyAutoCopyToClipboard(s);
 
-  s:= cfg.GetValue('auto_copy_clp', '');
-  ATEditorOptions.AutoCopyToClipboard:= Pos('c', s)>0;
-  ATEditorOptions.AutoCopyToPrimarySel:= Pos('p', s)>0;
-  N:= SExtractNumberFromStringAfterChar(s, 'm', 0);
-  if N>=1000 then
-    ATEditorOptions.AutoCopyMaxTextSize:= N;
-
-  EControlOptions.AutoFoldComments:= cfg.GetValue('auto_fold_comments', 0);
+  EControlOptions.AutoFoldComments:= cfg.GetValue('auto_fold_comments',
+    EControlOptions.AutoFoldComments);
   EControlOptions.MaxLinesWhenParserEnablesFolding:= cfg.GetValue('lexer_folding_max_lines',
     EControlOptions.MaxLinesWhenParserEnablesFolding);
 
-  ATFlatTheme.EnableColorBgOver:= cfg.GetValue('ui_button_hover', ATFlatTheme.EnableColorBgOver);
+  ATFlatTheme.EnableColorBgOver:= cfg.GetValue('ui_button_hover',
+    ATFlatTheme.EnableColorBgOver);
+  ATScrollbarTheme.DirectJumpOnClickPageUpDown:= cfg.GetValue('scrollbar_click_jump',
+    ATScrollbarTheme.DirectJumpOnClickPageUpDown);
 
   s:= cfg.GetValue('scrollbar_arrows', '');
   if s<>'' then
-  begin
-    Sep.Init(s);
-    if Sep.GetItemInt(N, -1) then
-      if (N>=0) and (N<=Ord(High(TATScrollbarArrowsStyle))) then
-        ATScrollbarTheme.ArrowStyleH:= TATScrollbarArrowsStyle(N);
-    if Sep.GetItemInt(N, -1) then
-      if (N>=0) and (N<=Ord(High(TATScrollbarArrowsStyle))) then
-        ATScrollbarTheme.ArrowStyleV:= TATScrollbarArrowsStyle(N);
-  end;
+    AppApplyScrollbarStyles(s);
 
-  s:= cfg.GetValue('renderer_tweaks'+cOptionSystemSuffix,
-    {$if defined(darwin) or defined(LCLQt5)}
-    ''
-    {$else}
-      {$ifdef windows}
-      'wo'
-      {$else}
-      'w'
-      {$endif}
-    {$endif} );
-  if Pos('e', s)>0 then
-    ATSynEdit_CharSizeArray.FixedSizes[cCharEllipsis]:= uw_normal
-  else
-    ATSynEdit_CharSizeArray.FixedSizes[cCharEllipsis]:= uw_fullwidth;
-  ATEditorOptions.PreciseCalculationOfCharWidth:= Pos('w', s)=0;
-  ATEditorOptions.TextoutNeedsOffsets:= Pos('o', s)>0;
-  ATEditorOptions.CaretTextOverInvertedRect:= Pos('c', s)>0;
-  ATEditorOptions.EnableLigaturesOnLineWithCaret:= Pos('l', s)>0;
-
-  bValue:= Pos('s', s)=0;
-  FixedSizes[$1680]:= cHexShow[bValue];
-  FixedSizes[$2007]:= cHexShow[bValue];
-  FixedSizes[$200B]:= cHexShow[bValue];
-  FixedSizes[$202F]:= cHexShow[bValue];
-  FixedSizes[$205F]:= cHexShow[bValue];
-  FixedSizes[$2060]:= cHexShow[bValue];
-  FixedSizes[$3000]:= cHexShow[bValue];
-
-  ATScrollbarTheme.DirectJumpOnClickPageUpDown:= cfg.GetValue('scrollbar_click_jump',
-    ATScrollbarTheme.DirectJumpOnClickPageUpDown);
+  s:= cfg.GetValue('renderer_tweaks'+cOptionSystemSuffix, '?');
+  if s<>'?' then
+    AppApplyRendererTweaks(s);
 
   //additional complex options with sub-keys
   List:= TStringList.Create;
@@ -1535,7 +1501,6 @@ begin
   UiOps.NewdocEnc:= cfg.GetValue('newdoc_encoding', UiOps.NewdocEnc);
   UiOps.NewdocEnds:= cfg.GetValue('newdoc_ends', UiOps.NewdocEnds);
 
-  UiOps.DefaultEncUtf8:= cfg.GetValue('def_encoding_utf8'+cOptionSystemSuffix, UiOps.DefaultEncUtf8);
   UiOps.ViewerBinaryWidth:= cfg.GetValue('viewer_binary_width', UiOps.ViewerBinaryWidth);
   UiOps.ViewerNonPrintable:= cfg.GetValue('viewer_unprinted', UiOps.ViewerNonPrintable);
 
@@ -1606,6 +1571,10 @@ var
   bExistsDefault, bExistsUser: boolean;
   TempOps: TATEditorTempOptions;
   SNewLoadedConfig: string;
+  PrevTabSize: integer;
+  PrevTabSizeChanged: boolean;
+  PrevTabSpaces: boolean;
+  PrevTabSpacesChanged: boolean;
 begin
   if F=nil then exit;
 
@@ -1625,6 +1594,11 @@ begin
     Ops:= EditorOps;
     EditorSaveTempOptions(Ed, TempOps);
 
+    PrevTabSize:= Ed.OptTabSize;
+    PrevTabSizeChanged:= F.TabSizeChanged;
+    PrevTabSpaces:= Ed.OptTabSpaces;
+    PrevTabSpacesChanged:= F.TabSpacesChanged;
+
     if bExistsDefault then
     begin
       DoOps_LoadOptions(FilenameDefault, Ops, false);
@@ -1637,6 +1611,11 @@ begin
 
     DoApplyFrameOps(F, Ops, true);
     EditorRestoreTempOptions(Ed, TempOps, Ed.InitialOptions);
+
+    if PrevTabSizeChanged then
+      Ed.OptTabSize:= PrevTabSize;
+    if PrevTabSpacesChanged then
+      Ed.OptTabSpaces:= PrevTabSpaces;
   end;
 end;
 
@@ -1758,5 +1737,4 @@ begin
   if bDisFree then
     SetShowDistractionFree_Forced;
 end;
-
 

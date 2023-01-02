@@ -113,7 +113,7 @@ var
   XColor, XColorBkmk, XColorSelected, XColorOccur, XColorSpell: TBGRAPixel;
   NColor: TColor;
   RectMark: TRect;
-  NLine1, NLine2, NIndex, NIndex1, NIndex2, NColumnIndex, i: integer;
+  NLine1, NIndex, NIndex1, NIndex2, NColumnIndex, i: integer;
   CaretX1, CaretY1, CaretX2, CaretY2: integer;
   bSel: boolean;
 begin
@@ -135,7 +135,7 @@ begin
 
   //paint full-width area of current visible area
   NIndex1:= Ed.ScrollVert.NPos;
-  NIndex2:= Min(NIndex1+Ed.GetVisibleLines, Ed.WrapInfo.Count-1);
+  NIndex2:= NIndex1+Ed.GetVisibleLines; //note: limiting this by Ed.WrapInfo.Count-1 causes issue #4718
   RectMark:= GetWrapItemRect(0, NIndex1, NIndex2, markFull);
   XColor.FromColor(GetAppColor(apclEdMicromapViewBg));
   ABitmap.FillRect(RectMark, XColor);
@@ -196,6 +196,7 @@ begin
   //paint bookmarks
   if Ed.OptMicromapBookmarks then
   begin
+    BoolArray:= nil;
     SetLength(BoolArray, St.Count);
     Bookmarks:= Ed.Strings.Bookmarks;
     for i:= 0 to Bookmarks.Count-1 do
@@ -217,6 +218,7 @@ begin
   end;
 
   //paint marks for plugins
+  PropArray:= nil;
   SetLength(PropArray, St.Count);
   for i:= 0 to Ed.Attribs.Count-1 do
   begin

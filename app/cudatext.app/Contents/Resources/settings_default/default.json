@@ -132,11 +132,11 @@
   //                   Unicode-spaces are: U+1680, U+2007, U+200B, U+202F, U+205F, U+2060, U+3000.
   //  if 'l' in value: On Windows: enable ligatures on line(s) with caret.
   //
-  //Note: default for Qt5 version is empty string, while for GTK2 it is "w".
+  //Note: default for Qt5/Qt6 version is different than for GTK version, it equals to macOS default.
   //Note: this option is global, not per-lexer.
-  "renderer_tweaks": "wo",
-  "renderer_tweaks__linux": "w",
-  "renderer_tweaks__mac": "",
+  "renderer_tweaks": "wos",
+  "renderer_tweaks__linux": "ws",
+  "renderer_tweaks__mac": "s",
 
   //Allows to use width of Unicode characters proportional to font.
   //Note: this option is global, not per-lexer.
@@ -198,7 +198,7 @@
   //  2: show if editor is modified
   "ui_notif_confirm": 1,
 
-  //[File/NonText]
+  //[File/Detection]
   //Non-text files: behaviour on opening such files.
   //  0: show confirmation with choices
   //  1: automatically open in editor
@@ -209,6 +209,16 @@
 
   //Non-text files: detection buffer size, Kb.
   "ui_non_text_buffer": 64,
+
+  //Encoding to use when auto-detection fails.
+  //One of supported encoding names, or one of special values "ansi", "oem".
+  //Value "ansi" means OS-dependant ANSI encoding:
+  //cp1250, cp1251, cp1252, cp1253, cp1254, cp1255, cp1256, cp1257, cp1258,
+  //cp874, shift-jis, gbk, uhc, big5.
+  //Value "oem" means OS-dependant OEM encoding: cp437, cp850, cp852, cp866,
+  //cp874, shift-jis, gbk, uhc, big5.
+  //UTF-8 / UTF-16 / UTF-32 variants are not allowed here.
+  "fallback_encoding": "ansi",
 
   //[File]
   //Reloading of file: if caret was on the last line, after reload put caret on new last line.
@@ -275,8 +285,8 @@
   "dim_unfocused": 0,
 
   //[Lexers]
-  //Enable caret-depending highlightings.
-  //For example, HTML/XML highlightes opening/closing tags when caret is inside tag.
+  //Enable dynamic (caret-depending) highlight.
+  //Feature is described in the Wiki topic "Dynamic highlight".
   "lexer_dynamic_hilite": false,
 
   //Max number of lines in editor, for which dynamic highlighting is enabled.
@@ -1009,13 +1019,6 @@
   //  2: CRLF (Windows)
   //  3: CR
   "newdoc_ends": 0,
-
-  //[File]
-  //When file opens, and cannot detect encoding, open it as ANSI (value=false)
-  //or UTF8 (value=true). [has suffix]
-  "def_encoding_utf8": false,
-  "def_encoding_utf8__linux": true,
-  "def_encoding_utf8__mac": true,
 
   //[Text/Indent]
   //On pressing Enter, make new line indented (like in previous line).

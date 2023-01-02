@@ -732,7 +732,7 @@ begin
   TAppMenuProps(mi.Tag).CommandCode:= cmd;
   mi.OnClick:= @MenuMainClick;
 
-  {$ifndef LCLQT5}
+  {$if not defined (LCLQt5) and not defined(LCLQt6)}
   //seems Qt5 version has slowdown because of MainMenu hotkeys?
 
   //if Copy/Paste/SelectAll hotkeys set in MainMenu, Qt5 version cannot handle them in Console/Find/Replace
@@ -1084,7 +1084,7 @@ var
   Ed: TATSynEdit;
   Ada: TATAdapterEControl;
   bLiteLexer: boolean;
-  Tick: QWord;
+  //Tick: QWord;
 begin
   Frame:= CurrentFrame;
   if Frame=nil then exit;
@@ -1195,32 +1195,47 @@ end;
 
 procedure TfmMain.UpdateMenuEnc(AMenu: TMenuItem);
   //
-  procedure DoAdd(AMenu: TMenuItem; Sub, SName: string; AReloadFile: boolean);
+  procedure DoAdd(AMenu: TMenuItem; const AGroup, AName: string; AReloadFile: boolean);
   var
     mi, miSub: TMenuItem;
+    GroupNice: string;
+    //enc: TEncConvId;
     n: integer;
   begin
     miSub:= nil;
-    if Sub='eu' then Sub:= msgEncEuropean else
-     if Sub='as' then Sub:= msgEncAsian else
-      if Sub='mi' then Sub:= msgEncMisc;
+    if AGroup='eu' then GroupNice:= msgEncEuropean else
+     if AGroup='as' then GroupNice:= msgEncAsian else
+      if AGroup='mi' then GroupNice:= msgEncMisc
+       else GroupNice:= AGroup;
 
-    if Sub<>'' then
+    if GroupNice<>'' then
     begin
-      n:= AMenu.IndexOfCaption(Sub);
+      n:= AMenu.IndexOfCaption(GroupNice);
       if n<0 then
       begin
         mi:= TMenuItem.Create(Self);
-        mi.Caption:= Sub;
+        mi.Caption:= GroupNice;
         AMenu.Add(mi);
-        n:= AMenu.IndexOfCaption(Sub);
+        n:= AMenu.IndexOfCaption(GroupNice);
       end;
       miSub:= AMenu.Items[n]
     end;
 
     if miSub=nil then miSub:= AMenu;
     mi:= TMenuItem.Create(Self);
-    mi.Caption:= SName;
+    mi.Caption:= AName;
+
+    {
+    //check availability of Asian encodings (others are always available)
+    if (AGroup='as') and (AName<>'') then
+    try
+      enc:= EncConvFindEncoding(AName, eidUTF8);
+      if enc=eidUTF8 then
+        mi.Enabled:= false;
+    except
+      mi.Enabled:= false;
+    end;
+    }
 
     if AReloadFile then
       mi.OnClick:= @MenuEncWithReloadClick

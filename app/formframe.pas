@@ -13,7 +13,7 @@ interface
 
 uses
   Classes, SysUtils, Graphics, Forms, Controls, Dialogs,
-  ExtCtrls, Menus, StdCtrls, StrUtils, ComCtrls, Clipbrd,
+  ExtCtrls, Menus, StrUtils, ComCtrls, Clipbrd,
   LCLIntf, LCLProc, LCLType, LazUTF8, LazFileUtils, FileUtil,
   IniFiles,
   ATTabs,
@@ -30,7 +30,6 @@ uses
   ATSynEdit_Carets,
   ATSynEdit_Gaps,
   ATSynEdit_Markers,
-  ATSynEdit_LineParts,
   ATSynEdit_Commands,
   ATSynEdit_Bookmarks,
   ATSynEdit_CanvasProc,
@@ -39,7 +38,6 @@ uses
   ATStringProc,
   ATStringProc_Separator,
   ATStringProc_HtmlColor,
-  ATCanvasPrimitives,
   ATButtons,
   ATBinHex,
   ATStreamSearch,
@@ -180,6 +178,7 @@ type
     FTabFontColor: TColor;
     FTabPinned: boolean;
     FTabSizeChanged: boolean;
+    FTabSpacesChanged: boolean;
     FTabKeyCollectMarkers: boolean;
     FInSession: boolean;
     FInHistory: boolean;
@@ -230,6 +229,7 @@ type
     procedure DoOnUpdateState;
     procedure DoOnUpdateZoom;
     procedure DoOnUpdateStatusbar;
+    procedure EditorContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
     procedure EditorClickEndSelect(Sender: TObject; APrevPnt, ANewPnt: TPoint);
     procedure EditorClickMoveCaret(Sender: TObject; APrevPnt, ANewPnt: TPoint);
     procedure EditorDrawMicromap(Sender: TObject; ACanvas: TCanvas; const ARect: TRect);
@@ -417,6 +417,7 @@ type
     property TabExtModified[EdIndex: integer]: boolean read GetTabExtModified write SetTabExtModified;
     property TabExtDeleted[EdIndex: integer]: boolean read GetTabExtDeleted write SetTabExtDeleted;
     property TabSizeChanged: boolean read FTabSizeChanged write FTabSizeChanged;
+    property TabSpacesChanged: boolean read FTabSpacesChanged write FTabSpacesChanged;
     property TabKeyCollectMarkers: boolean read GetTabKeyCollectMarkers write FTabKeyCollectMarkers;
     property InSession: boolean read FInSession write FInSession;
     property InHistory: boolean read FInHistory write FInHistory;
@@ -1865,23 +1866,24 @@ end;
 
 procedure TEditorFrame.EditorOnClickDouble(Sender: TObject; var AHandled: boolean);
 var
+  StateString: string;
   Res: TAppPyEventResult;
 begin
-  Res:= DoPyEvent(Sender as TATSynEdit, cEventOnClickDbl,
-    [
-    AppVariant(ConvertShiftStateToString(KeyboardStateToShiftState))
-    ]);
+  StateString:= ConvertShiftStateToString(KeyboardStateToShiftState);
+  Res:= DoPyEvent(Sender as TATSynEdit, cEventOnClickDbl, [AppVariant(StateString)]);
   AHandled:= Res.Val=evrFalse;
 end;
 
 procedure TEditorFrame.EditorOnClickLink(Sender: TObject; const ALink: string);
 var
+  StateString: string;
   Res: TAppPyEventResult;
   bHandled: boolean;
 begin
+  StateString:= ConvertShiftStateToString(KeyboardStateToShiftState);
   Res:= DoPyEvent(Sender as TATSynEdit, cEventOnClickLink,
     [
-    AppVariant(ConvertShiftStateToString(KeyboardStateToShiftState)),
+    AppVariant(StateString),
     AppVariant(ALink)
     ]);
   bHandled:= Res.Val=evrFalse;
@@ -2004,6 +2006,7 @@ begin
   ed.OnChangeState:= @EditorOnChangeState;
   ed.OnChangeZoom:= @EditorOnChangeZoom;
   ed.OnChangeBookmarks:= @EditorOnChangeBookmarks;
+  ed.OnContextPopup:= @EditorContextPopup;
   ed.OnCommand:= @EditorOnCommand;
   ed.OnCommandAfter:= @EditorOnCommandAfter;
   ed.OnClickGutter:= @EditorOnClickGutter;
@@ -2112,7 +2115,7 @@ begin
   Ed2.Strings.Endings:= Ed1.Strings.Endings;
 
   Ed1.Strings.ClearUndo;
-  Ed1.Strings.EncodingDetectDefaultUtf8:= UiOps.DefaultEncUtf8;
+  Ed1.Strings.EncodingDetectDefaultUtf8:= true; //UiOps.DefaultEncUtf8;
 
   Ed1.EncodingName:= AppEncodingShortnameToFullname(UiOps.NewdocEnc);
 
@@ -2122,11 +2125,7 @@ begin
 end;
 
 destructor TEditorFrame.Destroy;
-var
-  NTick1, NTick2: QWord;
 begin
-  NTick1:= GetTickCount64;
-
   if Assigned(FBin) then
   begin
     FBin.OpenStream(nil, False); //ARedraw=False to not paint on Win desktop with DC=0
@@ -3303,6 +3302,18 @@ begin
     FOnUpdateStatusbar(Self);
 end;
 
+procedure TEditorFrame.EditorContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
+var
+  Ed: TATSynEdit;
+  StateString: string;
+  Res: TAppPyEventResult;
+begin
+  Ed:= Sender as TATSynEdit;
+  StateString:= ConvertShiftStateToString(KeyboardStateToShiftState);
+  Res:= DoPyEvent(Ed, cEventOnClickRight, [AppVariant(StateString)]);
+  Handled:= Res.Val=evrFalse;
+end;
+
 procedure TEditorFrame.DoOnUpdateState;
 begin
   if Assigned(FOnUpdateState) then
@@ -3589,7 +3600,7 @@ begin
     begin
       CreateDir(dir);
       {$ifdef windows}
-      FileSetAttr(dir, faHidden);
+      FileSetAttr(dir, faHidden{%H-});
       {$endif}
     end;
     DoWriteStringToFile(fn, s);

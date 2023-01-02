@@ -66,7 +66,6 @@ uses
   ATSynEdit_LineParts,
   ATSynEdit_Adapter_EControl,
   ATSynEdit_Adapter_LiteLexer,
-  ATSynEdit_CharSizer,
   ATSynEdit_Export_HTML,
   ATSynEdit_Edits,
   ATSynEdit_Cmp_Form,
@@ -1226,7 +1225,6 @@ uses
   EmmetHelper,
   TreeHelpers_Base,
   TreeHelpers_Proc,
-  ATSynEdit_CharSizeArray,
   ATStringProc_HtmlColor;
 
 {$R *.lfm}
@@ -1322,7 +1320,7 @@ begin
        begin
          Result := Windows.DefWindowProc(AHWnd, uMsg, WParam, LParam);
 
-         FillChar(mbi, SizeOf(mbi), 0);
+         FillChar(mbi{%H-}, SizeOf(mbi), 0);
          mbi.cbSize := SizeOf(mbi);
          if not GetMenuBarInfo(AHWnd, OBJID_MENU, 0, @mbi) then
            exit;
@@ -2738,6 +2736,9 @@ procedure TfmMain.FormCreate(Sender: TObject);
 begin
   UpdateMenuTheming_WhiteLine;
 
+  //default "ui_scale":0 must be converted to Screen's DPI
+  ATEditorScalePercents:= Max(100, 100*Screen.PixelsPerInch div 96);
+
   OnEnter:= @FormEnter;
   TimerCmd.Interval:= UiOps.CommandTimerInterval;
   mnuHelpCheckUpd.Enabled:= UiOps.AllowProgramUpdates;
@@ -3382,6 +3383,7 @@ var
 begin
   if ACliModule<>'' then
   begin
+    Params:= nil;
     SetLength(Params, Length(ACliParams));
     for i:= 0 to High(ACliParams) do
       Params[i]:= AppVariant(ACliParams[i]);

@@ -92,11 +92,17 @@ You can copy JSON comments too. In the user config, include useful lines in the 
 Section "detect" in user.json. '''Specifies mapping from "file name" to "lexer name"'''.
 
 <syntaxhighlight lang="javascript">
+{
+  .....other settings
+  
   "detect": {
     "*.mht": "HTML",
     "myconfig.conf": "Nginx",
     ".profile": "Bash script",
   },
+  
+  .....other settings
+}
 </syntaxhighlight>
 
 * Key name: File mask. Must be full name without path, or extension with leading "*." like "*.ext", or double extension like "*.ext1.ext2". More complex masks are not yet supported.
@@ -109,11 +115,17 @@ Another method to specify this mapping is dialog "Lexer properties", in which yo
 Section "detect_line" in user.json. '''Allows to detect lexer by first line of file.'''
 
 <syntaxhighlight lang="javascript">
+{
+  .....other settings
+    
   "detect_line": {
     "<html.*": "HTML",
     "<!DOCTYPE.*": "HTML",
     "<\\?xml.*": "XML",
   },
+
+  .....other settings
+}
 </syntaxhighlight>
 
 * Key name: Reg-ex for the first file line. Case sensitive, but you can use (?i) modifier in reg-ex. Note that this is a reg-ex, using syntax similar to Perl reg-ex, so for example "#" char must be escaped with a backslash, and instead of file-mask "*" you must write ".*". Also note that current implemenation cannot handle forward slashes "/" good, so escape these slashes or use "." instead of them.
@@ -689,7 +701,7 @@ How to change styles in lite lexers? For example, "Log files ^" uses styles "Id"
 
 ==Differences in lexer support in CudaText/SynWrite==
 
-* SynWrite supports "lexer grammar", while CudaText 1.133+ does not support "grammar" anymore.
+* SynWrite supports "lexer grammar", while CudaText does not support "grammar" anymore.
 * SynWrite lexers need constructs like \x0D\x0A or \z (to catch any line-break: LF, CRLF, CR), while CudaText lexers are OK with simple \n (because internal buffer always has LF separator).
 * Some lexers need to find equal identifiers at begin/end of blocks: HTML, Bash, others. Bash lexer needs extended feature: to see NAME and 'NAME' and "NAME" as equal identifiers (word and quoted word). Only CudaText has this extended feature, not SynWrite.
 * For CudaText you must avoid "system colors" in lexer styles (e.g. "window background", "window text", "hint background"), because OS'es have different system colors.
@@ -769,9 +781,45 @@ Note about SQL blocks. CudaText has lexer preinstalled, it's lite lexer "SQL ^",
 
 '''Limitations:'''
 
-* Markdown standard tells that the beginning backticks must match the ending backticks, it must be the same amount of backticks. (And the same is valid for tildes.) This is currently not supported in CudaText version 1.151.
-* Python Markdown description tells that the lexer alias may be replaced with the curly-brackets construct like "{ .lang }" or "{ .lang .foo .bar }" or even "{ #someid .lang .foo .bar }". This is currently not supported in CudaText version 1.151.
+* Markdown standard tells that the beginning backticks must match the ending backticks, it must be the same amount of backticks. (And the same is valid for tildes.) This is currently not supported in CudaText.
+* Python Markdown description tells that the lexer alias may be replaced with the curly-brackets construct like "{ .lang }" or "{ .lang .foo .bar }" or even "{ #someid .lang .foo .bar }". This is currently not supported in CudaText.
 * The similar feature of the reStructuredText, as [https://pandemic-overview.readthedocs.io/en/latest/myGuides/reStructuredText-Source-Code.html documented here], is not supported. 
+
+==Dynamic highlight==
+
+Dynamic highlight is enabled by option '''"lexer_dynamic_hilite":true'''.
+Additional limitation option '''"lexer_dynamic_hilite_max_lines":2000''' allows the feature only in files which have not more than (option value) lines. This limitation is useful because dynamic highlight makes lexer parsing slower.
+
+Feature enables to highlight some lexer 'tokens' dynamically (with default greenish background color), when caret changes position. It is required that lexer utilizes this feature. These lexers in the CudaText distro utilize this feature:
+
+* HTML
+* PHP, because it copies lot of HTML configuration
+* XML
+* Lua
+* CSS: rule highlights {}-block with background color when caret is inside
+* JavaScript: rule highlights {} brackets when caret is inside (here it is the same as another feature: pair-bracket highlighting)
+
+Screenshot for HTML/XML/Lua:
+
+[[File:cudatext-dynamic-hi.png]]
+
+* On the HTML example editor, 2 fragments have dynamic highlighting (because of 2 multi-carets). First caret is placed inside tag 'h1' but before tag 'a'. Second caret is placed inside tag 'a'. So second caret enables dynamic highlight of angle brackets too, not only of a tag.
+* On the XML example editor, lexer highligts 'data' tag, surrounding the caret.
+* On the Lua example editor, lexer highlights 2 nested blocks, surrounding the caret: function/end and do/end.
+
+In old times, dynamic highlight was also utilized in Pascal lexer to highlight tokens begin/end when caret is inside begin/end block. Later Pascal lexer was simplified and setting was removed. Few other lexers from Addons Manager also utilize this feature.
+
+It is possible to detect if some lexer utilizes this feature. Look inside LexerName.lcf file, find there "DynHighlight" parameter. Two typical configurations allow dynamic highlight:
+
+HTML, PHP, JavaScript, Lua:
+
+      DynHighlight = dhBound
+      HighlightPos = cpRange
+
+CSS:
+
+      DynHighlight = dhRange
+      HighlightPos = cpRange
 
 =Folding=
 Folding is the feature allowing to collapse multi-line regions of code.
@@ -839,10 +887,12 @@ Possible encoding names for command-line usage:
 * cp865
 * cp866
 * cp874
-* cp932
-* cp936
-* cp949
-* cp950
+* shift-jis
+* gbk
+* uhc
+* big5
+* gb2312
+* euc-kr
 * iso-8859-1
 * iso-8859-2
 * iso-8859-3
@@ -870,7 +920,7 @@ Mixed line-ends (CR with LF with CR LF) in one document are supported. Because o
 Commands:
 
 * To change line-ends for all lines in the current document, click statusbar cell for line-ends, menu will appear. You need to save file then. Changed line-ends can be undone via "Undo". Also 3 commands are available in the Command Palette.
-* To change line-ends for individial lines (in CudaText 1.158.3+), use 3 commands in the Command Palette: "change line ends, for line(s) with caret: CR LF / LF / CR".
+* To change line-ends for individial lines, use 3 commands in the Command Palette: "change line ends, for line(s) with caret: CR LF / LF / CR".
 
 =Additional indentation on Enter=
 
@@ -1211,9 +1261,9 @@ Search engine has the feature, which is rarely implemented in text editors. When
 
 Second click on the "Search" sidebar button toggles dialog between Find and Replace modes.
 
-=Dialog "Go to"=
+="Go to line" and other "Go to" dialogs=
 
-Dialog allows to enter text in formats:
+'''Dialog "Go to line"''' (item in the "Search" menu) allows to enter text in formats:
 
 * 10 (decimal number): Jump to given line number (to line start).
 * 10:10 (two decimal numbers): Jump to given line and column numbers.
@@ -1222,7 +1272,19 @@ Dialog allows to enter text in formats:
 * xFF00 (hex number with leading "x"): Jump to absolute hex offset.
 * value with leading/trailing "+": Extend selection to this position. For example: if caret is at the 2:2 and you enter "4:10+", editor makes selection from 2:2 to 4:10. Entering "4+" makes selection until start of line 4.
 
-Also it is possible to show Go To dialog by clicking the statusbar's "caret information" cell (it is first cell by default).
+Also it is possible to call "Go to line" dialog by clicking the statusbar's "caret information" cell (it is the first cell by default).
+
+'''Other "Go to" dialogs.'''
+
+1) Menu item "Search / Go to bookmark". Shows list of all bookmarks, in all opened documents, allows to jump to chosen bookmark.
+
+2) Project Manager plugin. Menu item "Plugins / Project Manager / Go to file". Shows list of all files in the current project, allows to jump to chosen file in the Project treeview. If option is enabled in the Project Manager, command will also open the chosen file in the editor.
+
+3) In the "Command Palette" dialog, enter #-char, and tooltip will appear in the Command Palette lower part. It tells how to call via Command Palette:
+* List of all opened documents with filenames.
+* List of recently opened filenames.
+
+4) Plugin CudaExt. Gives the command "Code Tree: Symbols list". It shows dialog with list of all symbols from the code-tree for the current document. Note: option "lexer_folding_max_lines" limits the count of document lines, for which code-tree is created. Plugin CudaExt gives 2 additional commands for symbols list: "... (only 1 up level)", "... (only 2 up level)" - they only show symbols from 1-2 top levels of the code-tree. 
 
 =Sessions=
 
@@ -1624,7 +1686,7 @@ CudaText first looks at contexts of all carets. If at least one caret has "not s
 For caret with selection, context is considered as OK. And typed char will enclose the selection for that caret.
 
 ==Auto-deletion of pair brackets==
-In CudaText 1.176.5+, BackSpace key supports deletion of both brackets at once. Only for bracket chars listed in the "bracket_symbols" option. It is supported when all carets have the 'good situation', ie this (caret is shown by "|"):
+BackSpace key supports deletion of both brackets at once. Only for bracket chars listed in the "bracket_symbols" option. It is supported when all carets have the 'good situation', ie this (caret is shown by "|"):
 
 <pre>
  (|)
@@ -1909,7 +1971,7 @@ The plugin "Column Marks" adds more features:
 =Add-ons=
 
 ==How to disable plugins==
-Since CudaText 1.174.0: if file "plugin_disabled" (with any contents) exists in the plugin's folder (near install.inf), then plugin will be ignored.
+If file "plugin_disabled" (contents is ignored) exists in the plugin's folder (near install.inf), then plugin will be ignored.
 
 ==Entire plugins list==
 See the [https://github.com/halfbrained/cudatext_plugins_list GitHub repository]
@@ -2096,23 +2158,20 @@ Encoding detection works by this pseudo-code:
     return(UTF8)
 
   if encoding_saved_to_history_file(enc) then
-    // it returns the "enc" param
+    // function changes the "enc" param
     return(enc)
 
-  if option "def_encoding_utf8":true then
-    enc = UTF8
-  else
-    enc = ANSI // "ANSI" codepage is OS dependent
+  enc = UTF8
    
   detect = file_detect_utf8_content
   // it can get 3 values: 
-  //     UTF8_Unknown: only ASCII chars present
-  //     UTF8_ok: correct UTF8, non-ASCII, chars present
-  //     UTF8_broken: broken UTF8 chars present
-  if detect == UTF8_ok then
+  //     UTF8_ASCII: only ASCII chars present
+  //     UTF8_OK: correct UTF8, non-ASCII, chars present
+  //     UTF8_BROKEN: broken UTF8 chars present
+  if detect == UTF8_OK then
     return(UTF8)
-  if detect == UTF8_broken then
-    enc = ANSI
+  if detect == UTF8_BROKEN then
+    enc = fallback_encoding // from option "fallback_encoding"
 
   if file_detect_by_python_standard(detect) then
   // it returns detected encoding in "detect" param

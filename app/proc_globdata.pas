@@ -20,20 +20,22 @@ uses
   Classes, SysUtils, Forms, Controls, Menus, ExtCtrls,
   Dialogs, Graphics,
   StrUtils,
+  Math,
   syncobjs,
   gqueue,
-  Math,
   InterfaceBase,
   LclProc, LclType, LazFileUtils,
   FileUtil,
   IniFiles,
   Process,
+  EncConv,
   ATSynEdit,
   ATSynEdit_Globals,
   ATSynEdit_Keymap,
   ATSynEdit_Keymap_Init,
   ATSynEdit_Adapter_litelexer,
   ATSynEdit_Commands,
+  ATSynEdit_CharSizeArray,
   ATStringProc,
   ATStringProc_Separator,
   ATFlatThemes,
@@ -399,7 +401,6 @@ type
     NewdocEnc: string;
     NewdocEnds: integer;
 
-    DefaultEncUtf8: boolean;
     ViewerBinaryWidth: integer;
     ViewerNonPrintable: boolean;
 
@@ -770,6 +771,12 @@ procedure FixFormPositionToDesktop(F: TForm);
 procedure FixRectPositionToDesktop(var F: TRect);
 function IsColorDark(C: TColor): boolean;
 
+procedure AppApplyRendererTweaks(const s: string);
+procedure AppApplyScrollbarStyles(const s: string);
+procedure AppApplyUnprintedSymbolsScale(const s: string);
+procedure AppApplyFallbackEncoding(const s: string);
+procedure AppApplyAutoCopyToClipboard(const s: string);
+
 type
   { TKeymapHelper }
 
@@ -829,7 +836,7 @@ type
   end;
 
 const
-  AppEncodings: array[0..49] of TAppEncodingRecord = (
+  AppEncodings: array[0..52] of TAppEncodingRecord = (
     (Sub: ''; Name: cEncNameUtf8_NoBom; ShortName: 'utf8'),
     (Sub: ''; Name: cEncNameUtf8_WithBom; ShortName: 'utf8_bom'),
     (Sub: ''; Name: cEncNameUtf16LE_NoBom; ShortName: 'utf16le'),
@@ -874,11 +881,14 @@ const
     (Sub: 'mi'; Name: 'koi8r'; ShortName: 'koi8r'),
     (Sub: 'mi'; Name: 'koi8u'; ShortName: 'koi8u'),
     (Sub: 'mi'; Name: 'koi8ru'; ShortName: 'koi8ru'),
-    (Sub: 'as'; Name: 'cp874'; ShortName:  'cp874'),
-    (Sub: 'as'; Name: 'cp932'; ShortName:  'cp932'),
-    (Sub: 'as'; Name: 'cp936'; ShortName:  'cp936'),
-    (Sub: 'as'; Name: 'cp949'; ShortName:  'cp949'),
-    (Sub: 'as'; Name: 'cp950'; ShortName:  'cp950'),
+    (Sub: 'as'; Name: 'cp874'; ShortName: 'cp874'),
+    (Sub: 'as'; Name: 'shift-jis'; ShortName: 'shift-jis'),
+    (Sub: 'as'; Name: 'gbk'; ShortName: 'gbk'),
+    (Sub: 'as'; Name: 'cns'; ShortName: 'cns'),
+    (Sub: 'as'; Name: 'uhc'; ShortName: 'uhc'),
+    (Sub: 'as'; Name: 'big5'; ShortName: 'big5'),
+    (Sub: 'as'; Name: 'gb2312'; ShortName: 'gb2312'),
+    (Sub: 'as'; Name: 'euc-kr'; ShortName: 'euc-kr'),
     (Sub: 'as'; Name: 'cp1258'; ShortName: 'cp1258')
   );
 
@@ -906,6 +916,7 @@ type
     cEventOnClickGutter,
     cEventOnClickGap,
     cEventOnClickLink,
+    cEventOnClickRight,
     cEventOnState,
     cEventOnStateEd,
     cEventOnFocus,
@@ -966,6 +977,7 @@ const
     'on_click_gutter',
     'on_click_gap',
     'on_click_link',
+    'on_click_right',
     'on_state',
     'on_state_ed',
     'on_focus',
@@ -1253,7 +1265,7 @@ end;
 
 function InitPyLibraryPath: string;
 const
-  cMaxVersion = 11;
+  cMaxVersion = 12;
   cMinVersionUnix = 5;
   cMinVersionWindows = 4; //support Python 3.4 for WinXP
 {$ifdef windows}
@@ -2021,7 +2033,7 @@ begin
     TreeTimeFill:= 2000;
     //TreeTimeCaret:= 300;
     TreeShowIcons:= true;
-    TreeShowTooltips:= {$ifdef LCLQt5} false; {$else} true; {$endif} //solve issue #3642
+    TreeShowTooltips:= {$if defined(LCLQt5) or defined(LCLQt6)} false; {$else} true; {$endif} //solve issue #3642
     TreeFilterLayout:= 1;
     TreeSublexers:= false;
     TreeIconFilenames:= 'dir,st1,st2,st3,box,fx,ar1,ar2,';
@@ -2048,7 +2060,6 @@ begin
     NewdocEnc:= 'utf8';
     NewdocEnds:= 0;
 
-    DefaultEncUtf8:= {$ifdef windows} false {$else} true {$endif};
     ViewerBinaryWidth:= 100;
     ViewerNonPrintable:= false;
 
@@ -3391,8 +3402,8 @@ var
   bLazy: boolean;
 begin
   AEvents:= [];
-  FillChar(AEventsPrior, SizeOf(AEventsPrior), 0);
-  FillChar(AEventsLazy, SizeOf(AEventsLazy), 0);
+  FillChar(AEventsPrior{%H-}, SizeOf(AEventsPrior), 0);
+  FillChar(AEventsLazy{%H-}, SizeOf(AEventsLazy), 0);
 
   Sep.Init(AEventStr);
   while Sep.GetItemStr(S) do
@@ -3767,6 +3778,7 @@ begin
   WorkDir:= GetCurrentDirUTF8;
 
   N:= ParamCount;
+  AParams:= nil;
   SetLength(AParams, N);
 
   for i:= 1 to N do
@@ -3817,6 +3829,88 @@ begin
   //dummy
 end;
 {$endif}
+
+
+procedure AppApplyRendererTweaks(const s: string);
+const
+  cCharEllipsis = $2026;
+  cHexShow: array[boolean] of byte = (uw_space, uw_hexshow);
+var
+  bValue: boolean;
+begin
+  if Pos('e', s)>0 then
+    FixedSizes[cCharEllipsis]:= uw_normal
+  else
+    FixedSizes[cCharEllipsis]:= uw_fullwidth;
+
+  ATEditorOptions.PreciseCalculationOfCharWidth:= Pos('w', s)=0;
+  ATEditorOptions.TextoutNeedsOffsets:= Pos('o', s)>0;
+  ATEditorOptions.CaretTextOverInvertedRect:= Pos('c', s)>0;
+  ATEditorOptions.EnableLigaturesOnLineWithCaret:= Pos('l', s)>0;
+
+  bValue:= Pos('s', s)=0;
+  FixedSizes[$1680]:= cHexShow[bValue];
+  FixedSizes[$2007]:= cHexShow[bValue];
+  FixedSizes[$200B]:= cHexShow[bValue];
+  FixedSizes[$202F]:= cHexShow[bValue];
+  FixedSizes[$205F]:= cHexShow[bValue];
+  FixedSizes[$2060]:= cHexShow[bValue];
+  FixedSizes[$3000]:= cHexShow[bValue];
+end;
+
+procedure AppApplyScrollbarStyles(const s: string);
+var
+  Sep: TATStringSeparator;
+  N: integer;
+begin
+  Sep.Init(s);
+  if Sep.GetItemInt(N, -1) then
+    if (N>=0) and (N<=Ord(High(TATScrollbarArrowsStyle))) then
+      ATScrollbarTheme.ArrowStyleH:= TATScrollbarArrowsStyle(N);
+  if Sep.GetItemInt(N, -1) then
+    if (N>=0) and (N<=Ord(High(TATScrollbarArrowsStyle))) then
+      ATScrollbarTheme.ArrowStyleV:= TATScrollbarArrowsStyle(N);
+end;
+
+procedure AppApplyUnprintedSymbolsScale(const s: string);
+var
+  Sep: TATStringSeparator;
+begin
+  Sep.Init(s);
+  Sep.GetItemInt(ATEditorOptions.UnprintedSpaceDotScale, ATEditorOptions.UnprintedSpaceDotScale, 1, 100);
+  Sep.GetItemInt(ATEditorOptions.UnprintedEndDotScale, ATEditorOptions.UnprintedEndDotScale, 1, 100);
+  Sep.GetItemInt(ATEditorOptions.UnprintedEndFontScale, ATEditorOptions.UnprintedEndFontScale * 10 div 6, 5, 100);
+  ATEditorOptions.UnprintedPilcrowScale:= ATEditorOptions.UnprintedEndFontScale;
+  ATEditorOptions.UnprintedEndFontScale:= ATEditorOptions.UnprintedEndFontScale * 6 div 10;
+  Sep.GetItemInt(ATEditorOptions.UnprintedTabPointerScale, ATEditorOptions.UnprintedTabPointerScale, 0, 100);
+end;
+
+procedure AppApplyFallbackEncoding(const s: string);
+begin
+  case s of
+    'ansi':
+      ATEditorOptions.FallbackEncoding:= EncConvGetANSI;
+    'oem':
+      ATEditorOptions.FallbackEncoding:= EncConvGetOEM;
+    else
+      begin
+        ATEditorOptions.FallbackEncoding:= EncConvFindEncoding(s, eidCP1252);
+        if ATEditorOptions.FallbackEncoding<=eidLastUnicode then
+          ATEditorOptions.FallbackEncoding:= eidCP1252;
+      end;
+  end;
+end;
+
+procedure AppApplyAutoCopyToClipboard(const s: string);
+var
+  N: integer;
+begin
+  ATEditorOptions.AutoCopyToClipboard:= Pos('c', s)>0;
+  ATEditorOptions.AutoCopyToPrimarySel:= Pos('p', s)>0;
+  N:= SExtractNumberFromStringAfterChar(s, 'm', 0);
+  if N>=1000 then
+    ATEditorOptions.AutoCopyMaxTextSize:= N;
+end;
 
 
 initialization
@@ -3887,6 +3981,18 @@ initialization
   AppStatusbarMessages:= TStringList.Create;
   AppStatusbarMessages.TextLineBreakStyle:= tlbsLF;
   AppStatusbarMessages.TrailingLineBreak:= false;
+
+  AppApplyRendererTweaks(
+    {$if defined(darwin) or defined(LCLQt5) or defined(LCLQt6)}
+    's'
+    {$else}
+      {$ifdef windows}
+      'wos'
+      {$else}
+      'ws'
+      {$endif}
+    {$endif}
+    );
 
 finalization
 
