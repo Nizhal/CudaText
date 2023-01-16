@@ -873,15 +873,15 @@ type
     function DoDialogMenuApi(const AProps: TDlgMenuProps): integer;
     procedure DoDialogMenuTranslations;
     procedure DoDialogMenuThemes;
-    procedure DoFileExportHtml(F: TEditorFrame);
+    procedure DoFileExportHtml(Ed: TATSynEdit);
     function DoFileInstallZip(const fn: string; out DirTarget: string; ASilent: boolean): boolean;
     procedure DoFileCloseAndDelete(Ed: TATSynEdit);
     procedure DoFileNew;
     procedure DoFileNewMenu_ToolbarClick(Sender: TObject);
     procedure DoFileNewMenu(Sender: TObject; AInvoke: TATEditorCommandInvoke);
     procedure DoFileNewFrom(const fn: string);
-    procedure DoFileSave(Ed: TATSynEdit);
-    procedure DoFileSaveAs(Ed: TATSynEdit);
+    procedure DoFileSave(Frame: TEditorFrame; Ed: TATSynEdit);
+    procedure DoFileSaveAs(Frame: TEditorFrame; Ed: TATSynEdit);
     procedure DoFocusFrame(F: TEditorFrame);
     procedure DoFocusEditor(Ed: TATSynEdit);
     procedure DoSwitchTab(ANext: boolean);
@@ -1034,7 +1034,7 @@ type
     procedure DoFileOpenDialog(const AOptions: string='');
     procedure DoFileOpenDialog_NoPlugins;
     function DoFileSaveAll: boolean;
-    procedure DoFileReopen(Ed: TATSynEdit);
+    procedure DoFileReopen(F: TEditorFrame; Ed: TATSynEdit);
     procedure DoFileReopenRecent;
     procedure DoLoadCommandParams(const AParams: array of string; AOpenOptions: string);
     procedure DoLoadCommandLine;
@@ -2170,7 +2170,7 @@ end;
 procedure TfmMain.StatusPanelClick(Sender: TObject; AIndex: Integer);
 var
   Frame: TEditorFrame;
-  FrameKind: TATEditorFrameKind;
+  FrameKind: TAppFrameKind;
   Data: TATStatusData;
 begin
   Frame:= CurrentFrame;
@@ -2954,6 +2954,8 @@ begin
     //on_close are not fired automatically on app exit
     //(because we don't really close tabs on exit), so fire it here
     DoPyEvent(F.Ed1, cEventOnClose, []);
+    if not F.EditorsLinked then
+      DoPyEvent(F.Ed2, cEventOnClose, []);
   end;
 
   //after UpdateMenuRecent
@@ -3089,7 +3091,9 @@ begin
   for i:= 0 to FrameCount-1 do
   begin
     F:= Frames[i];
-    DoPyEvent(F.Editor, cEventOnCloseBefore, []);
+    DoPyEvent(F.Ed1, cEventOnCloseBefore, []);
+    if not F.EditorsLinked then
+      DoPyEvent(F.Ed2, cEventOnCloseBefore, []);
   end;
 
   if GetModifiedCount>0 then
@@ -3314,6 +3318,8 @@ begin
     else
     if bFindDockedAndVisible then
     begin
+      Ed:= Ctl as TATSynEdit;
+      EditorClearHiAllMarkers(Ed);
       fmFind.Hide;
       Key:= 0;
     end
@@ -3347,14 +3353,33 @@ begin
   if (Key=VK_TAB) and (Shift<>[]) then
   begin
     Ed:= CurrentEditor;
-    KeyArray.Clear;
     if Assigned(Ed) then
     begin
+      KeyArray.Clear;
       N:= Ed.Keymap.GetCommandFromShortcut(ShortCut(Key, Shift), KeyArray);
       if N>=0 then
         Ed.DoCommand(N, cInvokeHotkey);
     end;
     Key:= 0;
+    exit;
+  end;
+
+  //allow F12 keypress from Project Manager when main menu is hidden
+  //check Sender=nil to allow F-keys only when called from another form, to not block key-combos with F-keys
+  if (Key>=VK_F1) and (Key<=VK_F24) and (Sender=nil) then
+  begin
+    Ed:= CurrentEditor;
+    if Assigned(Ed) then //we may here check Ed.Focused to not block key-combos with F-keys
+    begin
+      KeyArray.Clear;
+      N:= Ed.Keymap.GetCommandFromShortcut(ShortCut(Key, Shift), KeyArray);
+      if N>=0 then
+      begin
+        Ed.DoCommand(N, cInvokeHotkey);
+        Key:= 0;
+      end;
+    end;
+    exit;
   end;
 end;
 
@@ -3664,6 +3689,7 @@ begin
     begin
       Ed:= Frame.Ed1;
       Frame.TabCaption:= msgWelcomeTabTitle;
+      Frame.TabCaptionReason:= tcrUnsavedSpecial;
       SText:= msgFirstStartInfo;
       if not AppPython.Inited then
         SText+= #10+msgCannotInitPython1+#10+msgCannotInitPython2+#10+msgCannotInitPython2b;
@@ -3835,7 +3861,8 @@ begin
             if Form.List.Checked[i] then
             begin
               F:= Form.List.Items.Objects[i] as TEditorFrame;
-              F.DoFileSave(false, true);
+              if not F.DoFileSave(false, true) then
+                exit(false);
             end;
         end;
     end;
@@ -5252,6 +5279,9 @@ begin
   Dirs:= Concat(Dirs, [AppDir_Py, AppDir_Py+DirectorySeparator+'sys']);
 
   AppPython.SetPath(Dirs, PathAppend);
+
+  AppPython.Exec('import os');
+  AppPython.Exec('for k in os.environ.keys():k.upper().startswith("GIT_") and os.environ.pop(k)');
 end;
 
 procedure TfmMain.InitPyEngine;
@@ -5791,14 +5821,12 @@ begin
   end;
 end;
 
-procedure TfmMain.DoFileReopen(Ed: TATSynEdit);
+procedure TfmMain.DoFileReopen(F: TEditorFrame; Ed: TATSynEdit);
 var
-  F: TEditorFrame;
   fn: string;
   bPrevRO, bChangedRO: boolean;
   PrevLexer: string;
 begin
-  F:= TGroupsHelper.GetEditorFrame(Ed);
   if F=nil then exit;
 
   fn:= F.GetFileName(Ed);
@@ -6027,13 +6055,23 @@ end;
 procedure TfmMain.DoToggleSidePanel;
 begin
   with AppPanels[cPaneSide] do
+  begin
     Visible:= not Visible;
+    if not Visible then
+      if ActiveControl=nil then
+        DoFocusEditor(CurrentEditor);
+  end;
 end;
 
 procedure TfmMain.DoToggleBottomPanel;
 begin
   with AppPanels[cPaneOut] do
+  begin
     Visible:= not Visible;
+    if not Visible then
+      if ActiveControl=nil then
+        DoFocusEditor(CurrentEditor);
+  end;
 end;
 
 procedure TfmMain.DoToggleSidebar;
@@ -6254,13 +6292,11 @@ begin
   UpdateStatusbar;
 end;
 
-procedure TfmMain.DoFileSave(Ed: TATSynEdit);
+procedure TfmMain.DoFileSave(Frame: TEditorFrame; Ed: TATSynEdit);
 var
-  Frame: TEditorFrame;
   bSaveAs, bUntitled, bFileExists: boolean;
   SFilename: string;
 begin
-  Frame:= TGroupsHelper.GetEditorFrame(Ed);
   if Frame=nil then exit;
 
   InitSaveDlg;
@@ -6284,11 +6320,8 @@ begin
     MsgStatus(msgStatusSaveIsIgnored);
 end;
 
-procedure TfmMain.DoFileSaveAs(Ed: TATSynEdit);
-var
-  Frame: TEditorFrame;
+procedure TfmMain.DoFileSaveAs(Frame: TEditorFrame; Ed: TATSynEdit);
 begin
-  Frame:= TGroupsHelper.GetEditorFrame(Ed);
   if Frame=nil then exit;
 
   InitSaveDlg;
@@ -6773,18 +6806,25 @@ begin
   CodeTree.Tree.FullExpand;
 end;
 
-procedure TfmMain.DoFileExportHtml(F: TEditorFrame);
+procedure TfmMain.DoFileExportHtml(Ed: TATSynEdit);
 var
-  Ed: TATSynEdit;
   Dlg: TSaveDialog;
+  List: TStringList;
+  Frame: TEditorFrame;
   SFileName, STitle: string;
-  NX, NY: integer;
+  SaveCarets: TATCarets;
 begin
-  Ed:= F.Editor;
+  if EditorIsEmpty(Ed) then exit;
 
-  STitle:= ExtractFileName(F.GetFileName(Ed));
+  STitle:= ExtractFileName(Ed.FileName);
   if STitle='' then
-    STitle:= msgUntitledTab;
+  begin
+    Frame:= TGroupsHelper.GetEditorFrame(Ed);
+    if Assigned(Frame) then
+      STitle:= Frame.TabCaption
+    else
+      STitle:= msgUntitledEnglish;
+  end;
 
   Dlg:= TSaveDialog.Create(Self);
   try
@@ -6800,34 +6840,43 @@ begin
   end;
 
   //hide caret, so HTML won't contain dynamic lexer highlights
-  NX:= 0;
-  NY:= 0;
-  if Ed.Carets.Count>0 then
-    with Ed.Carets[0] do
-    begin
-      NX:= PosX;
-      NY:= PosY;
-    end;
+  SaveCarets:= TATCarets.Create;
+  SaveCarets.Assign(Ed.Carets);
+
   Ed.DoCaretSingle(-1, -1);
   Ed.DoEventCarets;
   Ed.Update;
 
   //Application.ProcessMessages; //crashes, dont do it
 
-  DoEditorExportToHTML(Ed, SFileName, STitle,
-    UiOps.ExportHtmlFontName,
-    UiOps.ExportHtmlFontSize,
-    UiOps.ExportHtmlNumbers,
-    GetAppColor(apclExportHtmlBg),
-    GetAppColor(apclExportHtmlNumbers)
-    );
+  List:= TStringList.Create;
+  try
+    EditorExportToHTML(Ed,
+      List,
+      Point(0, 0),
+      Point(0, Ed.Strings.Count),
+      STitle,
+      UiOps.ExportHtmlFontName,
+      UiOps.ExportHtmlFontSize,
+      UiOps.ExportHtmlNumbers,
+      GetAppColor(apclExportHtmlBg),
+      GetAppColor(apclExportHtmlNumbers)
+      );
+    List.SaveToFile(SFileName);
+  finally
+    FreeAndNil(List);
+  end;
 
-  //restore caret
-  Ed.DoCaretSingle(NX, NY);
+  //restore carets
+  Ed.Carets.Assign(SaveCarets);
+  FreeAndNil(SaveCarets);
   Ed.DoEventCarets;
   Ed.Update;
-  UpdateFrameEx(F, true);
+  //UpdateFrameEx(F, true);
 
+  if not FileExists(SFileName) then
+    MsgBox(msgCannotSaveFile+#10+SFileName, MB_OK or MB_ICONERROR)
+  else
   if MsgBox(msgConfirmOpenCreatedDoc, MB_OKCANCEL or MB_ICONQUESTION)=ID_OK then
     OpenDocument(SFileName);
 end;

@@ -25,7 +25,7 @@
     <VersionInfo>
       <UseVersionInfo Value="True"/>
       <MajorVersionNr Value="1"/>
-      <MinorVersionNr Value="181"/>
+      <MinorVersionNr Value="182"/>
       <StringTable CompanyName="UVviewsoft" FileDescription="CudaText" InternalName="CudaText" LegalCopyright="(c) 2015-2023 Alexey Torgashin" OriginalFilename="cudatext.exe" ProductName="CudaText"/>
     </VersionInfo>
     <BuildModes Count="27">
@@ -1535,7 +1535,7 @@
     </Other>
   </CompilerOptions>
   <Debugging>
-    <Exceptions Count="15">
+    <Exceptions Count="16">
       <Item1>
         <Name Value="EAbort"/>
       </Item1>
@@ -1581,6 +1581,9 @@
       <Item15>
         <Name Value="EConvertError"/>
       </Item15>
+      <Item16>
+        <Name Value="EInvalidOperation"/>
+      </Item16>
     </Exceptions>
   </Debugging>
 </CONFIG>

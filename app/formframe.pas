@@ -68,9 +68,9 @@ uses
   math;
 
 type
-  TEditorFramePyEvent = function(AEd: TATSynEdit; AEvent: TAppPyEvent;
+  TAppFramePyEvent = function(AEd: TATSynEdit; AEvent: TAppPyEvent;
     const AParams: TAppVariantArray): TAppPyEventResult of object;
-  TEditorFrameStringEvent = procedure(Sender: TObject; const S: string) of object;
+  TAppFrameStringEvent = procedure(Sender: TObject; const S: string) of object;
 
 type
   TAppOpenMode = (
@@ -83,24 +83,39 @@ type
     cOpenModeViewUHex
     );
 
-  TATEditorFrameKind = (
+  TAppFrameKind = (
     efkEditor,
     efkBinaryViewer,
     efkImageViewer
     );
 
+  TAppTabCaptionReason = (
+    tcrUnsaved,
+    tcrUnsavedSpecial,
+    tcrFromFilename,
+    tcrFromPlugin
+    );
+
 const
-  cATEditorFrameKindStr: array[TATEditorFrameKind] of string = (
+  cAppTabCaptionReasonStr: array[TAppTabCaptionReason] of char = (
+    'u',
+    's',
+    'f',
+    'p'
+    );
+
+const
+  cAppFrameKindStr: array[TAppFrameKind] of string = (
     'text',
     'bin',
     'pic'
     );
 
 type
-  TFrameGetSaveDialog = procedure(var ASaveDlg: TSaveDialog) of object;
+  TAppGetSaveDialog = procedure(var ASaveDlg: TSaveDialog) of object;
 
 type
-  TFrameNotificationControls = record
+  TAppFrameNotificationControls = record
     Panel: TPanel;
     InfoPanel: TPanel;
     ButtonYes,
@@ -134,12 +149,12 @@ type
     Adapter2: TATAdapterEControl;
     PanelInfo: TPanel;
     PanelNoHilite: TPanel;
-    NotifReloadControls: array[0..cFrameMaxEdIndex] of TFrameNotificationControls;
-    NotifDeletedControls: array[0..cFrameMaxEdIndex] of TFrameNotificationControls;
+    NotifReloadControls: array[0..cFrameMaxEdIndex] of TAppFrameNotificationControls;
+    NotifDeletedControls: array[0..cFrameMaxEdIndex] of TAppFrameNotificationControls;
     FTabCaption: string;
     FTabCaptionAddon: string;
     FTabCaptionUntitled: string;
-    FTabCaptionFromApi: boolean;
+    FTabCaptionReason: TAppTabCaptionReason;
     FTabImageIndex: integer;
     FTabId: integer;
     FFileName: string;
@@ -165,9 +180,9 @@ type
     FOnEditorCommand: TATSynEditCommandEvent;
     FOnEditorChangeCaretPos: TNotifyEvent;
     FOnEditorScroll: TNotifyEvent;
-    FOnSaveFile: TEditorFrameStringEvent;
+    FOnSaveFile: TAppFrameStringEvent;
     FOnAddRecent: TNotifyEvent;
-    FOnPyEvent: TEditorFramePyEvent;
+    FOnPyEvent: TAppFramePyEvent;
     FOnInitAdapter: TNotifyEvent;
     FOnLexerChange: TATEditorEvent;
     FSplitPos: double;
@@ -205,7 +220,7 @@ type
     FBracketSymbols: string;
     FBracketMaxDistance: integer;
     FMicromapBmp: TBGRABitmap;
-    FOnGetSaveDialog: TFrameGetSaveDialog;
+    FOnGetSaveDialog: TAppGetSaveDialog;
     FOnAppClickLink: TATSynEditClickLinkEvent;
     FProgressForm: TForm;
     FProgressGauge: TATGauge;
@@ -289,13 +304,13 @@ type
     procedure InitEditor(var ed: TATSynEdit; const AName: string);
     procedure InitNotificationPanel(Index: integer;
       AIsDeleted: boolean;
-      var AControls: TFrameNotificationControls;
+      var AControls: TAppFrameNotificationControls;
       AClickYes, AClickNo, AClickStop: TNotifyEvent);
     procedure InitPanelInfo(var APanel: TPanel; const AText: string;
       AOnClick: TNotifyEvent; ARequirePython: boolean);
     procedure UpdateNotificationPanel(
       Index: integer;
-      var AControls: TFrameNotificationControls;
+      var AControls: TAppFrameNotificationControls;
       const ACaptionYes, ACaptionNo, ACaptionStop, ALabel: string);
     procedure PaintMicromap(Ed: TATSynEdit; ACanvas: TCanvas; const ARect: TRect);
     procedure PanelInfoClick(Sender: TObject);
@@ -374,8 +389,8 @@ type
     property TabCaption: string read FTabCaption write SetTabCaption;
     property TabCaptionAddon: string read FTabCaptionAddon write SetTabCaptionAddon;
     property TabCaptionUntitled: string read FTabCaptionUntitled write FTabCaptionUntitled;
+    property TabCaptionReason: TAppTabCaptionReason read FTabCaptionReason write FTabCaptionReason;
     property TabImageIndex: integer read FTabImageIndex write SetTabImageIndex;
-    property TabCaptionFromApi: boolean read FTabCaptionFromApi write FTabCaptionFromApi;
     property TabId: integer read FTabId;
     property TabIsPreview: boolean read GetIsPreview write SetIsPreview;
     property TabVisible: boolean read GetTabVisible write SetTabVisible;
@@ -433,7 +448,7 @@ type
     procedure LexerReparse;
     procedure ApplyTheme;
     function IsEditorFocused: boolean;
-    function FrameKind: TATEditorFrameKind;
+    function FrameKind: TAppFrameKind;
     procedure SetFocus; reintroduce;
     function PictureSizes: TPoint;
     property PictureScale: integer read GetPictureScale write SetPictureScale;
@@ -493,13 +508,13 @@ type
     procedure DoToggleFocusSplitEditors;
     procedure DoFocusNotificationPanel;
     procedure DoHideNotificationPanels;
-    procedure DoHideNotificationPanel(const AControls: TFrameNotificationControls);
+    procedure DoHideNotificationPanel(const AControls: TAppFrameNotificationControls);
     //macro
     procedure DoMacroStartOrStop;
     property MacroRecord: boolean read FMacroRecord;
 
     //events
-    property OnGetSaveDialog: TFrameGetSaveDialog read FOnGetSaveDialog write FOnGetSaveDialog;
+    property OnGetSaveDialog: TAppGetSaveDialog read FOnGetSaveDialog write FOnGetSaveDialog;
     property OnProgress: TATFinderProgress read FOnProgress write FOnProgress;
     property OnCheckFilenameOpened: TAppStringFunction read FCheckFilenameOpened write FCheckFilenameOpened;
     property OnMsgStatus: TAppStringEvent read FOnMsgStatus write FOnMsgStatus;
@@ -512,9 +527,9 @@ type
     property OnEditorCommand: TATSynEditCommandEvent read FOnEditorCommand write FOnEditorCommand;
     property OnEditorChangeCaretPos: TNotifyEvent read FOnEditorChangeCaretPos write FOnEditorChangeCaretPos;
     property OnEditorScroll: TNotifyEvent read FOnEditorScroll write FOnEditorScroll;
-    property OnSaveFile: TEditorFrameStringEvent read FOnSaveFile write FOnSaveFile;
+    property OnSaveFile: TAppFrameStringEvent read FOnSaveFile write FOnSaveFile;
     property OnAddRecent: TNotifyEvent read FOnAddRecent write FOnAddRecent;
-    property OnPyEvent: TEditorFramePyEvent read FOnPyEvent write FOnPyEvent;
+    property OnPyEvent: TAppFramePyEvent read FOnPyEvent write FOnPyEvent;
     property OnInitAdapter: TNotifyEvent read FOnInitAdapter write FOnInitAdapter;
     property OnLexerChange: TATEditorEvent read FOnLexerChange write FOnLexerChange;
     property OnAppClickLink: TATSynEditClickLinkEvent read FOnAppClickLink write FOnAppClickLink;
@@ -560,6 +575,7 @@ const
   cHistory_CodeTreeFilters = '/codetree_filters';
   cHistory_TabSplit    = '/split';
   cHistory_TabSplit_Mul = 1e5; //instead of float 0.6, save as int 0.6*1e5
+  cHistory_TabCaption  = '/cap';
 
 var
   FLastTabId: integer = 0;
@@ -650,7 +666,7 @@ var
   Name1, Name2, SFinalCaption: string;
 begin
   //avoid updating caption if API already had set it
-  if FTabCaptionFromApi then
+  if FTabCaptionReason in [tcrUnsavedSpecial, tcrFromPlugin] then
   begin
     DoOnChangeCaption; //remove 'modified' font color, repaint
     exit;
@@ -687,6 +703,7 @@ begin
   end;
 
   TabCaption:= SFinalCaption;
+  TabCaptionReason:= tcrFromFilename;
   UpdateTabTooltip;
 end;
 
@@ -2153,7 +2170,11 @@ begin
   end;
 
   if not Application.Terminated then //prevent crash on exit
+  begin
     DoPyEvent(Ed1, cEventOnClose, []);
+    if not EditorsLinked then
+      DoPyEvent(Ed2, cEventOnClose, []);
+  end;
 
   FreeAndNil(MacroStrings);
   FreeAndNil(FCodetreeFilterHistory);
@@ -2289,7 +2310,7 @@ begin
   Result:= Ed1.Focused or Ed2.Focused;
 end;
 
-function TEditorFrame.FrameKind: TATEditorFrameKind;
+function TEditorFrame.FrameKind: TAppFrameKind;
 begin
   if Assigned(FBin) and FBin.Visible then
     Result:= efkBinaryViewer
@@ -2792,8 +2813,9 @@ begin
   Result:= true;
   if not EditorsLinked and AAllEditors then
   begin
-    Result:= DoFileSave_Ex(Ed1, ASaveAs);
-    Result:= DoFileSave_Ex(Ed2, ASaveAs);
+    Result:=
+      DoFileSave_Ex(Ed1, ASaveAs) and
+      DoFileSave_Ex(Ed2, ASaveAs);
   end
   else
   begin
@@ -3505,6 +3527,11 @@ begin
       c.DeleteValue(path+cHistory_TabSplit);
   end;
 
+  if TabCaptionReason in [tcrUnsavedSpecial, tcrFromPlugin] then
+    c.SetValue(path+cHistory_TabCaption, TabCaption)
+  else
+    c.DeleteValue(path+cHistory_TabCaption);
+
   if UiOps.HistoryItems[ahhLexer] then
     c.SetDeleteValue(path+cHistory_Lexer, LexerName[Ed], '');
 
@@ -3738,6 +3765,13 @@ begin
   end;
 
   TabColor:= StringToColorDef(c.GetValue(path+cHistory_TabColor, ''), clNone);
+
+  str:= c.GetValue(path+cHistory_TabCaption, '');
+  if str<>'' then
+  begin
+    TabCaption:= str;
+    TabCaptionReason:= tcrUnsavedSpecial;
+  end;
 
   if not Ed.IsReadOnlyAutodetected then
     ReadOnly[Ed]:= c.GetValue(path+cHistory_ReadOnly, ReadOnly[Ed]);
@@ -4110,7 +4144,7 @@ end;
 
 procedure TEditorFrame.InitNotificationPanel(Index: integer;
   AIsDeleted: boolean;
-  var AControls: TFrameNotificationControls;
+  var AControls: TAppFrameNotificationControls;
   AClickYes, AClickNo, AClickStop: TNotifyEvent);
 var
   NPanelHeight, NBtnHeight, NBtnDistance: integer;
@@ -4181,7 +4215,7 @@ end;
 
 procedure TEditorFrame.UpdateNotificationPanel(
   Index: integer;
-  var AControls: TFrameNotificationControls;
+  var AControls: TAppFrameNotificationControls;
   const ACaptionYes, ACaptionNo, ACaptionStop, ALabel: string);
 begin
   AControls.ButtonYes.Caption:= ACaptionYes;
@@ -4483,7 +4517,7 @@ begin
         NotifReloadControls[i].ButtonYes.SetFocus;
 end;
 
-procedure TEditorFrame.DoHideNotificationPanel(const AControls: TFrameNotificationControls);
+procedure TEditorFrame.DoHideNotificationPanel(const AControls: TAppFrameNotificationControls);
 begin
   if Assigned(AControls.Panel) then
     if AControls.Panel.Visible then

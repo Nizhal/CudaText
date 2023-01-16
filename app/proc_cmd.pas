@@ -213,6 +213,7 @@ const
   cmd_CopyFilenameFull = 2651;
   cmd_CopyFilenameDir  = 2652;
   cmd_CopyFilenameName = 2653;
+  cmd_CopyAsHTML       = 2654;
 
   cmd_TabUsesSpaces_On    = 2655;
   cmd_TabUsesSpaces_Off   = 2656;
@@ -416,7 +417,7 @@ begin
   M.Add(cmd_FileCloseOtherAll, 'file: close other tabs (all groups)', [], []);
   M.Add(cmd_FileCloseAndDelete, 'file: close tab, delete file', [], []);
   M.Add(cmd_FileExit, 'file: quit program', [cXControl+'+Q'], []);
-  M.Add(cmd_FileExportHtml, 'file: export to html', [], []);
+  M.Add(cmd_FileExportHtml, 'file: export to HTML', [], []);
   M.Add(cmd_FileReopenRecent, 'file: reopen recent file', [], []);
   M.Add(cmd_OpenContainingFolder, 'file: open folder containing the current file', [], []);
   M.Add(cmd_OpenFileInDefaultApp, 'file: open file in default application', [], []);
@@ -519,6 +520,7 @@ begin
   M.Add(cmd_SelectExpandToText_Skip, 'selection: skip to next occurrence of selected text', [], []);
 
   M.Add(cmd_CopyLine, 'clipboard: copy current line', [], []);
+  M.Add(cmd_CopyAsHTML, 'clipboard: copy as HTML', [], []);
   M.Add(cmd_CopyFilenameFull, 'clipboard: copy full filepath', [], []);
   M.Add(cmd_CopyFilenameDir, 'clipboard: copy filepath only', [], []);
   M.Add(cmd_CopyFilenameName, 'clipboard: copy filename only', [], []);

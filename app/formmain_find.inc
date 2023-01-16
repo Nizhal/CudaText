@@ -134,7 +134,8 @@ begin
       StringsDeduplicate(Matches, FFinder.OptCase);
       Frame:= DoFileOpen('', '');
       if Frame=nil then exit;
-      Frame.TabCaptionUntitled:= msgFinderRegexMatchesNumbered;
+      Frame.TabCaption:= msgFinderRegexMatchesNumbered;
+      Frame.TabCaptionReason:= tcrUnsavedSpecial;
       Ed:= Frame.Ed1;
       Ed.Strings.LoadFromStrings(Matches, cEndUnix);
       Ed.UpdateWrapInfo(true, false); //AForceUpdate=True to fix #4609

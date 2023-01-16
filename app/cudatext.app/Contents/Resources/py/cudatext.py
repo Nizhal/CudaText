@@ -285,11 +285,11 @@ PROP_RECT_GUTTER      = 130
 PROP_RECT_MINIMAP     = 135
 PROP_RECT_MICROMAP    = 136
 PROP_RECT_RULER       = 137
-#PROP_RECT_SCROLL_HORZ = 138
-#PROP_RECT_SCROLL_VERT = 139
+
 PROP_V_WIDTH_HEX        = 140
 PROP_V_WIDTH_UHEX       = 141
 PROP_V_ENC              = 142
+
 PROP_MASKCHAR           = 150
 PROP_MASKCHAR_USED      = 151
 PROP_NUMBERS_ONLY       = 153
@@ -302,6 +302,7 @@ PROP_CARET_MULTI        = 159
 PROP_MINIMAP_CHAR_WIDTH = 160
 PROP_MINIMAP_AT_LEFT    = 161
 PROP_MINIMAP_SCALE      = 162
+PROP_TAB_TITLE_REASON   = 163
 
 SPLITTER_SIDE    = 0
 SPLITTER_BOTTOM  = 1
@@ -311,6 +312,7 @@ SPLITTER_G3      = 7
 SPLITTER_G4      = 8
 SPLITTER_G5      = 9
 
+PROC_SET_CLIP_HTML       = -2
 PROC_SET_CLIP_ALT        = -1
 PROC_GET_CLIP            = 0
 PROC_SET_CLIP            = 1
@@ -1193,7 +1195,7 @@ def to_str(v, escape=False):
         return ''
 
     if isinstance(v, str):
-        s = v
+        s = esc_z(v)
         if escape:
             s = s.replace(',', chr(2))
         return s
@@ -1276,12 +1278,7 @@ def finder_proc(id_finder, id_action, value="", setcaret=True):
 def esc_z(s):
     # temp solution for null chars, later replace it to full solution with app patch
     if chr(0) in s:
-        s = s.replace(chr(0), ' ')
-    '''
-    # by kvichans:
-    s = s.replace('\\', r'\\') if '\\' in s else s
-    s = s.replace(chr(0), r'\0') if chr(0) in s else s
-    '''
+        s = s.replace(chr(0), chr(20))
     return s
 
 #Editor

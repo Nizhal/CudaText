@@ -3,6 +3,23 @@
   - fixed
   * changed
 
+1.182.1 (2023/01)
+
+- fix: dialog "Save tabs": if user presses Cancel in "Save file as", don't quit (thanks @Andreas0602)
+- fix: some minor UI issues (thanks @veksha)
+
+1.182.0 (2023/01)
+
++ add: macOS: use latest Lazarus patches to fully support macOS IME
++ add: command "clipboard: copy as HTML"
++ add: allow plugin "Suggest Untitled Filename" to better detect which tabs it should update (thanks @Vivalzar)
++ add: Project Manager: command "Go to file" opens the file if project panel is not visible (thanks @rssguy2)
++ add: command "export to html": hide selection in export; preserve multi-carets
+- fix: deleting of a block until last line, could add line-break for last line (thanks @ThaiDat)
+- fix: regression in 1.158: plugin "Show Unsaved Changes" window became not resizable
+- fix: macOS: tab made by Command+N don't have caret (thanks @Andreas0602)
+- fix: F12='toggle side panel' doesn't run from Project Manager with hidden top menu (thanks @jczanfona)
+
 1.181.0 (2023/01)
 
 + add: support more encodings, but note: they require OS support (unlike old encodings):

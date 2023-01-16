@@ -122,13 +122,13 @@ begin
       DoFileOpenDialog_NoPlugins;
 
     cmd_FileReopen:
-      DoFileReopen(Ed);
+      DoFileReopen(Frame, Ed);
 
     cmd_FileSave:
-      DoFileSave(Ed);
+      DoFileSave(Frame, Ed);
 
     cmd_FileSaveAs:
-      DoFileSaveAs(Ed);
+      DoFileSaveAs(Frame, Ed);
 
     cmd_FileSaveAll:
       DoFileSaveAll;
@@ -138,8 +138,7 @@ begin
 
     cmd_FileExportHtml:
       begin
-        if Assigned(Frame) then
-          DoFileExportHtml(Frame);
+        DoFileExportHtml(Ed);
       end;
 
     cmd_FileReopenRecent:
@@ -534,6 +533,9 @@ begin
     cmd_CopyLine:
       EditorCopyLine(Ed);
 
+    cmd_CopyAsHTML:
+      EditorCopyAsHTML(Ed);
+
     cmd_CopyFilenameFull:
       begin
         if Assigned(Frame) then
@@ -778,7 +780,9 @@ begin
     cCommand_CancelKeepSel,
     cCommand_CancelKeepLastAndSel:
       begin
-        Ed.Markers.DeleteWithTag(UiOps.FindOccur_TagValue);
+        if Ed.Markers.DeleteWithTag(UiOps.FindOccur_TagValue) then
+          Ed.Update;
+        EditorClearHiAllMarkers(Ed);
         AHandled:= false;
       end;
 

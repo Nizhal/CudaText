@@ -21,6 +21,20 @@ var
 var
   AppEmmet: TEmmet = nil;
 
+function ConvertStringToTabCaptionReason(const S: string; out Value: TAppTabCaptionReason): boolean;
+var
+  r: TAppTabCaptionReason;
+begin
+  for r:= Low(TAppTabCaptionReason) to High(TAppTabCaptionReason) do
+    if S=cAppTabCaptionReasonStr[r] then
+    begin
+      Value:= r;
+      exit(true);
+    end;
+  Value:= tcrUnsaved;
+  Result:= false;
+end;
+
 function PyHelper_ObjectHandle(Obj: TObject): PPyObject; inline;
 begin
   Result:= AppPython.ObjectToPyInt(Obj);
@@ -3376,6 +3390,14 @@ begin
               Result:= ReturnNone;
           end;
 
+        PROP_TAB_TITLE_REASON:
+          begin
+            if Assigned(F) then
+              Result:= PyUnicodeFromString(cAppTabCaptionReasonStr[F.TabCaptionReason])
+            else
+              Result:= ReturnNone;
+          end;
+
         PROP_TAB_PINNED:
           begin
             if Assigned(F) then
@@ -3450,7 +3472,7 @@ begin
         PROP_KIND:
           begin
             if not Assigned(F) then exit(ReturnNone);
-            Str:= cATEditorFrameKindStr[F.FrameKind];
+            Str:= cAppFrameKindStr[F.FrameKind];
             Result:= PyUnicodeFromString(Str);
           end;
 
@@ -3971,6 +3993,7 @@ var
   Pages, PagesTo: TATPages;
   NLocalGroup, NGlobalGroup, NTab, NIndexNew, N1, N2: integer;
   LineEnd: TATLineEnds;
+  CaptionReason: TAppTabCaptionReason;
 begin
   with AppPython.Engine do
     if Bool(PyArg_ParseTuple(Args, 'Lis:set_prop', @H, @Id, @Ptr)) then
@@ -4136,15 +4159,28 @@ begin
             begin
               if Str<>'' then
               begin
-                F.TabCaptionFromApi:= true;
+                F.TabCaptionReason:= tcrFromPlugin;
                 F.TabCaption:= Str;
               end
               else
               begin
-                F.TabCaptionFromApi:= false;
+                if F.TabCaptionReason=tcrFromPlugin then
+                begin
+                  if F.FileName<>'' then
+                    F.TabCaptionReason:= tcrFromFilename
+                  else
+                    F.TabCaptionReason:= tcrUnsaved;
+                end;
                 F.UpdateCaptionFromFilename;
               end;
             end;
+          end;
+
+        PROP_TAB_TITLE_REASON:
+          begin
+            if Assigned(F) then
+              if ConvertStringToTabCaptionReason(Str, CaptionReason) then
+                F.TabCaptionReason:= CaptionReason;
           end;
 
         PROP_TAB_PINNED:
@@ -4880,7 +4916,12 @@ begin
           end;
         APP_PROC_SET_CLIP_ALT:
           begin
-            SClipboardCopy(Str, PrimarySelection); //for Linux
+            SClipboardCopy(Str, PrimarySelection); //for Unix
+            Result:= ReturnNone;
+          end;
+        APP_PROC_SET_CLIP_HTML:
+          begin
+            Clipboard.SetAsHtml(Str);
             Result:= ReturnNone;
           end;
 
@@ -8151,22 +8192,30 @@ begin
 end;
 
 
-function PyHelper_ExportHtml(Ed: TATSynEdit; const SParams: string): boolean;
+function PyHelper_ExportHtml(Ed: TATSynEdit; const SParams: string;
+  out AToMemory: boolean; out AMemory: string): boolean;
 var
+  List: TStringList;
   SItem, SKey, SValue: string;
   SFileName, STitle, SFontName: string;
   NFontSize: integer;
   bWithNums: boolean;
   NColorBg, NColorNums: TColor;
   Sep: TATStringSeparator;
+  PosBegin, PosEnd: TPoint;
 begin
+  AToMemory:= false;
+  AMemory:= '';
+
   SFileName:= '';
   STitle:= '';
-  SFontName:= '';
-  NFontSize:= 10;
-  bWithNums:= true;
-  NColorBg:= clWhite;
-  NColorNums:= clGray;
+  SFontName:= UiOps.ExportHtmlFontName;
+  NFontSize:= UiOps.ExportHtmlFontSize;
+  bWithNums:= UiOps.ExportHtmlNumbers;
+  NColorBg:= GetAppColor(apclExportHtmlBg);
+  NColorNums:= GetAppColor(apclExportHtmlNumbers);
+  PosBegin:= Point(0, 0);
+  PosEnd:= Point(0, Ed.Strings.Count);
 
   //text is '{key1:value1;key2:value2}' from to_str()
   Sep.Init(SDeleteCurlyBrackets(SParams), #1);
@@ -8183,23 +8232,47 @@ begin
       'with_numbers': bWithNums:= AppStrToBool(SValue);
       'color_back': NColorBg:= StrToIntDef(SValue, NColorBg);
       'color_numbers': NColorNums:= StrToIntDef(SValue, NColorNums);
+      'line_begin': PosBegin.Y:= StrToIntDef(SValue, PosBegin.Y);
+      'line_end': PosEnd.Y:= StrToIntDef(SValue, PosEnd.Y);
+      'col_begin': PosBegin.X:= StrToIntDef(SValue, PosBegin.X);
+      'col_end': PosEnd.X:= StrToIntDef(SValue, PosEnd.X);
     end;
   until false;
 
-  if SFileName='' then exit(false);
-  DeleteFileUTF8(SFileName);
+  if SFileName='' then
+    exit(false);
+  AToMemory:= SFileName='-';
+  if not AToMemory and FileExists(SFileName) then
+    DeleteFile(SFileName);
 
-  DoEditorExportToHTML(Ed,
-    SFileName,
-    STitle,
-    SFontName,
-    NFontSize,
-    bWithNums,
-    NColorBg,
-    NColorNums
-    );
+  List:= TStringList.Create;
+  try
+    List.TrailingLineBreak:= false;
+    EditorExportToHTML(Ed,
+      List,
+      PosBegin,
+      PosEnd,
+      STitle,
+      SFontName,
+      NFontSize,
+      bWithNums,
+      NColorBg,
+      NColorNums
+      );
 
-  Result:= FileExists(SFileName);
+    if AToMemory then
+    begin
+      AMemory:= List.Text;
+      Result:= true;
+    end
+    else
+    begin
+      List.SaveToFile(SFileName);
+      Result:= FileExists(SFileName);
+    end;
+  finally
+    FreeAndNil(List);
+  end;
 end;
 
 
@@ -8337,7 +8410,8 @@ var
   AllowedSymbols: string;
   Distance: integer;
   Obj: TObject;
-  Ok: boolean;
+  Ok, bToMemory: boolean;
+  StrMemory: string;
   NX, NY, N1, N2: integer;
 begin
   with AppPython.Engine do
@@ -8496,8 +8570,11 @@ begin
 
         EDACTION_EXPORT_HTML:
           begin
-            Ok:= PyHelper_ExportHtml(Ed, StrText1);
-            Result:= PyBool_FromLong(Ord(Ok));
+            Ok:= PyHelper_ExportHtml(Ed, StrText1, bToMemory, StrMemory);
+            if bToMemory then
+              Result:= PyUnicodeFromString(StrMemory)
+            else
+              Result:= PyBool_FromLong(Ord(Ok));
           end;
 
         else
