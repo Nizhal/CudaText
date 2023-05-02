@@ -17,6 +17,13 @@ import cudatext_cmd
 from cudax_lib import get_translation
 _   = get_translation(__file__)  # i18n
 
+ctypes = None
+if os.name=='nt':
+    try:
+        import ctypes
+    except (ImportError, ModuleNotFoundError):
+        pass
+
 IS_WIN = os.name == 'nt'
 PROJECT_EXTENSION = ".cuda-proj"
 PROJECT_DIALOG_FILTER = _("CudaText projects") + "|*" + PROJECT_EXTENSION
@@ -47,6 +54,12 @@ def _file_ext(fn):
             return ''
     return s
 
+def _file_editor(fn):
+    for h in ed_handles():
+        e = Editor(h)
+        if e.get_filename()==fn:
+            return e
+    return None
 
 # https://stackoverflow.com/questions/377017/test-if-executable-exists-in-python
 def which(program):
@@ -120,7 +133,8 @@ def is_mask_listed(s, masks):
 # only Py 3.5 supports os.stat(s).st_file_attributes
 # so this is to support Py 3.4
 def is_hidden_win32(s):
-    import ctypes # import here to avoid it on Unix
+    if not ctypes:
+        return False
     try:
         attrs = ctypes.windll.kernel32.GetFileAttributesW(s)
         assert attrs != -1
@@ -508,7 +522,9 @@ class Command:
 
         if suffix=='':
             #Windows
-            os.system('explorer.exe /select,'+fn)
+            #os.system('explorer.exe /select,'+fn)
+            import subprocess
+            subprocess.Popen(['explorer.exe', '/select,', fn], shell=True) # works better
         elif suffix=='__mac':
             #macOS
             fn = fn.replace(' ', '\\ ') #macOS cannot handle quoted filename
@@ -531,6 +547,14 @@ class Command:
 
     def action_rename(self):
         location = Path(self.get_location_by_index(self.selected))
+        e = _file_editor(str(location)) 
+        
+        # TODO: Support unsaved changes when API available       
+        if e is not None \
+        and e.get_prop(PROP_MODIFIED, '') == True \
+        and msg_box(_('The file you are renaming has unsaved changes. Would you like to save the changes first?'), MB_OKCANCEL+MB_ICONWARNING) != ID_OK:
+            return
+            
         result = dlg_input(_("Rename to"), str(location.name))
         if not result:
             return
@@ -538,11 +562,22 @@ class Command:
         new_location = location.parent / result
         if location == new_location:
             return
+        
+        if e is not None: 
+            e.save(str(new_location))
+            location.unlink(True)
+        else:
+            location.replace(new_location)
 
-        location.replace(new_location)
         if self.is_path_in_root(location):
             self.action_remove_node()
             self.add_node(str(new_location))
+
+        # fix filename of existing ui-tab
+        for h in ed_handles():
+            e = Editor(h)
+            if e.get_filename()==str(location):
+                e.save(str(new_location))
 
         self.action_refresh()
         self.jump_to_filename(str(new_location))
@@ -1308,6 +1343,9 @@ class Command:
             return
 
         files.sort()
+        for item in self.goto_history:
+            if item in files:
+                files.remove(item)
         files = self.goto_history + files
         files_nice = [os.path.basename(fn)+'\t'+collapse_filename(os.path.dirname(fn)) for fn in files]
 

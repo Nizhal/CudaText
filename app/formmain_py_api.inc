@@ -16,7 +16,8 @@ const
 var
   PyEscapeFlag: boolean = false; //Esc key was pressed in application
   PyEditorMaybeDeleted: boolean = false; //command plugin maybe deleted the editor, e.g. 'close file' command does it
-  PyCurrentFolder: string = ''; //currently opened folder in Project Manager
+  PyCurrentProject: string = ''; //full path of active Project Manager project (*.cuda-proj)
+  PyCurrentProjectFolder: string = ''; //currently opened folder in Project Manager
 
 var
   AppEmmet: TEmmet = nil;
@@ -880,6 +881,27 @@ begin
         else
           Result:= PyUnicodeFromString('');
       end
+      else
+        Result:= ReturnNone;
+    end
+  else
+    Result:= ReturnNone;
+end;
+
+function api_ed_get_line_len(Self, Args: PPyObject): PPyObject; cdecl;
+var
+  H: Int64;
+  Index: Integer;
+  Ed: TATSynEdit;
+  Strs: TATStrings;
+begin
+  with AppPython.Engine do
+    if Bool(PyArg_ParseTuple(Args, 'Li:get_line_len', @H, @Index)) then
+    begin
+      Ed:= PyHelper_EditorFromHandle(H);
+      Strs:= Ed.Strings;
+      if Strs.IsIndexValid(Index) then
+        Result:= PyLong_FromLong(Strs.LinesLen[Index])
       else
         Result:= ReturnNone;
     end
@@ -2402,6 +2424,12 @@ begin
     end;
 end;
 
+procedure TfmMain.TimerConsoleCompletionTick(Sender: TObject);
+begin
+  TimerConsoleCmp.Enabled:= false;
+  DoPyEvent(nil, cEventOnConsoleComplete, []);
+end;
+
 procedure TfmMain.PyCompletionOnGetProp(Sender: TObject; AContent: TStringList;
   out ACharsLeft, ACharsRight: integer);
 var
@@ -2419,13 +2447,28 @@ begin
   Caret:= Ed.Carets[0];
 
   //if caret moved by 1 char: repeat auto-complete
-  if (Abs(Caret.PosX-FPyCompletionProps.CaretPos.X)=1) and
+  if (Caret.PosX<>FPyCompletionProps.CaretPos.X) and
      (Caret.PosY=FPyCompletionProps.CaretPos.Y) then
   begin
     PrevCharsLeft:= FPyCompletionProps.CharsLeft;
 
     AppAutocompleteInvoke:= 'r';
-    DoPyEvent(Ed, cEventOnComplete, []);
+
+    if Assigned(fmConsole) and (Ed=fmConsole.EdInput) then
+    begin
+      if TimerConsoleCmp=nil then
+      begin
+        TimerConsoleCmp:= TTimer.Create(Self);
+        TimerConsoleCmp.Enabled:= false;
+        TimerConsoleCmp.Interval:= CompletionOps.ClosingTimerInverval+50;
+        TimerConsoleCmp.OnTimer:= @TimerConsoleCompletionTick;
+      end;
+      TimerConsoleCmp.Enabled:= false;
+      TimerConsoleCmp.Enabled:= true;
+      exit;
+    end
+    else
+      DoPyEvent(Ed, cEventOnComplete, []);
 
     //this check- to close listbox when no more matches after typing too much
     //MsgStatus(Format('prev %d now %d', [PrevCharsLeft, FPyComplete_CharsLeft]));
@@ -3266,6 +3309,9 @@ begin
         PROP_TAB_SIZE:
           Result:= PyLong_FromLong(Ed.OptTabSize);
 
+        PROP_TAB_SMART:
+          Result:= PyBool_FromLong(Ord(Ed.OptTabSmart));
+
         PROP_MARGIN:
           Result:= PyLong_FromLong(Ed.OptMarginRight);
 
@@ -3897,6 +3943,9 @@ begin
         PROP_CARET_MULTI:
           Result:= PyBool_FromLong(Ord(Ed.OptCaretManyAllowed));
 
+        PROP_RULER_TEXT:
+          Result:= PyUnicodeFromString(Ed.OptRulerText);
+
         PROP_V_MODE:
           begin
             if Assigned(F) and (F.FrameKind=efkBinaryViewer) then
@@ -4050,6 +4099,11 @@ begin
             Ed.OptTabSize:= ValueInt;
             if Assigned(F) then
               F.TabSizeChanged:= true;
+          end;
+
+        PROP_TAB_SMART:
+          begin
+            Ed.OptTabSmart:= ValueBool;
           end;
 
         PROP_MARGIN:
@@ -4570,6 +4624,9 @@ begin
         PROP_CARET_MULTI:
           Ed.OptCaretManyAllowed:= ValueBool;
 
+        PROP_RULER_TEXT:
+          Ed.OptRulerText:= Str;
+
         PROP_V_MODE:
           begin
             if not Assigned(F) then exit(ReturnNone);
@@ -5019,7 +5076,7 @@ begin
 
         APP_PROC_SET_FOLDER:
           begin
-            PyCurrentFolder:= Str;
+            PyCurrentProjectFolder:= Str;
             Result:= ReturnNone;
           end;
 
@@ -5542,7 +5599,11 @@ begin
 
         APP_PROC_SET_PROJECT:
           begin
-            fmMain.SetProjectPath(Str);
+            if PyCurrentProject<>Str then
+            begin
+              PyCurrentProject:= Str;
+              fmMain.DoPyEvent_AppState(APPSTATE_PROJECT);
+            end;
             Result:= ReturnNone;
           end;
 
@@ -5569,7 +5630,7 @@ begin
 
         APP_PROC_GET_AUTOCOMPLETION_INVOKE:
           begin
-            Result:= PyUnicodeFromString(AppAutocompleteInvoke);
+            Result:= PyUnicodeFromString(string(AppAutocompleteInvoke));
           end;
 
         APP_PROC_SEND_MESSAGE:
@@ -5609,6 +5670,21 @@ begin
         APP_PROC_THEME_SYNTAX_DICT_GET:
           begin
             Result:= PyHelper_GetThemeDict_Syntax;
+          end;
+
+        APP_PROC_GET_WINDOW_STATE:
+          begin
+            if fmMain.ShowDistractionFree then
+              i:= WND_FULLSCREEN2
+            else if fmMain.ShowFullscreen then
+              i:= WND_FULLSCREEN
+            else if fmMain.WindowState=wsMaximized then
+              i:= WND_MAXIMIZED
+            else if fmMain.WindowState=wsMinimized then
+              i:= WND_MINIMIZED
+            else
+              i:= WND_NORMAL;
+            Result:= PyLong_FromLong(Ord(i));
           end;
 
         APP_PROC_CONFIG_NEWDOC_EOL_GET:
@@ -5971,6 +6047,7 @@ var
   StrValue: string;
   StrTemp: UnicodeString;
   Pnt: TPoint;
+  PntCoord: TATPoint;
   Details: TATEditorPosDetails;
 begin
   with AppPython.Engine do
@@ -6019,7 +6096,7 @@ begin
 
         CONVERT_PIXELS_TO_CARET:
           begin
-            Pnt:= Ed.ClientPosToCaretPos(Point(X, Y), Details);
+            Pnt:= Ed.ClientPosToCaretPos(ATPoint(X, Y), Details);
             if Pnt.Y<0 then
               exit(ReturnNone);
 
@@ -6031,11 +6108,11 @@ begin
             if (X<0) or (not Strs.IsIndexValid(Y)) then
               exit(ReturnNone);
 
-            Pnt:= Ed.CaretPosToClientPos(Point(X, Y));
-            if Pnt.Y<0 then
+            PntCoord:= Ed.CaretPosToClientPos(Point(X, Y));
+            if PntCoord.Y<0 then
               exit(ReturnNone);
 
-            Result:= Py_BuildValue('(ii)', Pnt.X, Pnt.Y);
+            Result:= Py_BuildValue('(LL)', PntCoord.X, PntCoord.Y);
           end;
 
         CONVERT_OFFSET_TO_CARET:
@@ -6343,6 +6420,22 @@ begin
             if Assigned(PopupItem) then
               PopupItem.ImageIndex:= NIndex;
             fmMain.FNeedAppState_MenuChange:= true;
+            Result:= ReturnNone;
+          end;
+
+        MENU_SET_AUTO_HOTKEY:
+          begin
+            PopupItem:= PyHelper_MenuItemFromId(StrMenu);
+            if Assigned(PopupItem) then
+              fmMain.UpdateMenuItem_SetShortcutFromProps(PopupItem);
+            Result:= ReturnNone;
+          end;
+
+        MENU_SET_AUTO_HOTKEY_DEEP:
+          begin
+            PopupItem:= PyHelper_MenuItemFromId(StrMenu);
+            if Assigned(PopupItem) then
+              fmMain.UpdateMenuItem_SetShortcutsRecursively(PopupItem, StrToIntDef(StrCmd, 1));
             Result:= ReturnNone;
           end;
 
@@ -7030,7 +7123,7 @@ begin
   begin
     Obj:= TObject(PtrInt(IdCanvas));
     if not (Obj is TCanvas) then
-      Result:= nil
+      Result:= nil //caller will see Nil and will show console message about wrong IdCanvas class
     else
       Result:= TCanvas(Obj);
   end;
@@ -8796,6 +8889,7 @@ end;
 function api_timer_proc(Self, Args: PPyObject): PPyObject; cdecl;
 const
   cMinInterval = 10;
+  cTimerStopString: array[boolean] of string = ('TIMER_STOP', 'TIMER_DELETE');
 var
   NIdAction, NInterval, N: integer;
   PtrCallback, PtrTag: PChar;
@@ -8870,9 +8964,19 @@ begin
               if N>=0 then
               begin
                 Obj:= AppListTimers.Objects[N];
-                if Assigned(Obj) then
-                  Obj.Free;
                 AppListTimers.Delete(N);
+                try
+                  if Obj<>nil then
+                  begin
+                    if Obj.ClassName<>'TTimer' then
+                      begin end;
+                      //MsgLogConsole(Format('ERROR: timer_proc(%s, ...) must get TTimer class, but it is: %s', [cTimerStopString[NIdAction=TIMER_DELETE], Obj.ClassName]));
+                    Obj.Free;
+                  end;
+                except
+                  on E: Exception do
+                    MsgLogConsole(Format('ERROR: Exception in timer_proc(%s, ...): %s', [cTimerStopString[NIdAction=TIMER_DELETE], E.Message]));
+                end;
               end;
             end;
 
@@ -9646,9 +9750,11 @@ begin
 
         DLG_SHOW_MODAL:
           begin
+            CloseFormAutoCompletion;
             //don't do ShowModal for docked forms, this hangs the app
             if Form.Parent=nil then
             begin
+              FormPutToVisibleArea(Form);
               Form.DoEmulatedModalShow;
               Form.ShowInTaskBar:= Form.ShowInTaskbar_Pending; //after xxShow, for #4456
             end
@@ -9659,6 +9765,8 @@ begin
 
         DLG_SHOW_NONMODAL:
           begin
+            CloseFormAutoCompletion;
+            FormPutToVisibleArea(Form);
             Form.Show;
             Form.ShowInTaskBar:= Form.ShowInTaskbar_Pending; //after Show, for #4456
             Result:= ReturnNone;
@@ -10281,6 +10389,7 @@ begin
     Addmethod('ed_get_text_line', @api_ed_get_text_line, '');
     Addmethod('ed_set_text_line', @api_ed_set_text_line, '');
     Addmethod('ed_get_text_substr', @api_ed_get_text_substr, '');
+    Addmethod('ed_get_line_len', @api_ed_get_line_len, '');
     Addmethod('ed_get_line_count', @api_ed_get_line_count, '');
     AddMethod('ed_delete', @api_ed_delete, '');
     AddMethod('ed_insert', @api_ed_insert, '');

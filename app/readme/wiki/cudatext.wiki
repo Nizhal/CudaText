@@ -2,17 +2,17 @@
 
 CudaText is a cross-platform text editor, written in Lazarus.
 
-* Syntax highlighting for a lot of languages: [[#List_of_lexers|270+ lexers]]
+* Syntax highlighting for a lot of languages: [[#List_of_lexers|300+ lexers]]
+* Multi-carets, multi-selections
 * Code folding
 * Code-tree (list of functions/classes/etc, if lexer supports this)
-* Multi-carets, multi-selections
 * Search/replace with regular expressions
 * Support for many encodings
-* Extendable by Python add-ons
 * Command palette
 * Configs in JSON files
-* Interface and syntax themes
+* Interface- and syntax-themes
 * Based on the [[ATSynEdit]] engine
+* Extendable by Python plugins, e.g. supports Language Server Protocol (LSP) via plugin
 
 Features for HTML/CSS coding:
 
@@ -66,10 +66,8 @@ See also additional wiki pages:
 = Download =
 
 * Homepage: http://cudatext.github.io/
-* Downloads:
-** For Windows: https://www.fosshub.com/CudaText.html . If you cannot see builds for some OS'es in the new release, search for it in the "Older versions": https://www.fosshub.com/CudaText-old.html
-** For non-Windows: https://sourceforge.net/projects/cudatext/files/release/
-* Main GitHub repository: https://github.com/Alexey-T/CudaText . Account https://github.com/Alexey-T contains other packages needed to compile the app.
+* Downloads: https://sourceforge.net/projects/cudatext/files/release/
+* Main GitHub repository: https://github.com/Alexey-T/CudaText . Account https://github.com/Alexey-T contains other required Lazarus packages.
 
 = Configs =
 
@@ -259,6 +257,7 @@ Misc:
 * Shift+ scroll mouse wheel - Scroll text horizontally.
 * Ctrl+ scroll mouse wheel (with option "mouse_wheel_zoom":true) - Zoom text in/out.
 * Ctrl+ scroll mouse wheel (in the picture viewer) - Zoom picture in/out.
+* Shift+click on gutter line number - Select lines, from 1st caret position to the index of clicked line.
 
 Drag-drop of selected text block:
 
@@ -354,6 +353,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Amazon Ion
 * AMPL
 * AngelScript
+* ANSYS APDL
 * ANTLR
 * Apache config
 * Apache Hive
@@ -436,10 +436,12 @@ Most of them are located in the Addons Manager "Install" list.
 * Factor
 * Falcon
 * Fish
+* FIX Message (Financial Information eXchange)
 * Forth
 * Fortran
 * FoxPro
 * FreeBASIC
+* Futhark
 * G-code
 * GAMS
 * GDScript
@@ -482,6 +484,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Inno Setup
 * Intel HEX
 * Jade
+* Janet
 * Jasmine JVM Assembler
 * Java
 * Java Velocity
@@ -493,6 +496,7 @@ Most of them are located in the Addons Manager "Install" list.
 * JSON
 * Jsonnet
 * Julia
+* Just
 * Kivy
 * KiXtart
 * Koka
@@ -626,7 +630,9 @@ Most of them are located in the Addons Manager "Install" list.
 * Virgil
 * Visual Basic
 * Visual dBase
+* VRML
 * Vue
+* WGSL
 * WikidPad
 * WinBuilder script
 * Windows Resource Script
@@ -895,6 +901,7 @@ Possible encoding names for command-line usage:
 * cp874
 * shift-jis
 * gbk
+* cns
 * uhc
 * big5
 * gb2312
@@ -912,6 +919,9 @@ Possible encoding names for command-line usage:
 * iso-8859-15
 * iso-8859-16
 * mac
+* koi8r
+* koi8u
+* koi8ru
 
 =Line ends=
 
@@ -1063,7 +1073,7 @@ Auto-completion behaviour for this case is described in the
 
 = Code-Tree =
 
-Code-tree is treeview UI control which shows structure of classes/functions/etc, structure info from lexer (if lexer supports this).
+Code-tree is treeview UI control which shows structure of classes/functions/etc, structure info from lexer (only if lexer supports this).
 To show code-tree, activate side-panel (default hotkey: F12). Many lexers support code-tree: most C-based, HTML, XML, CSS, JS etc. Example of tree for Pascal:
 
 [[File:atsynedit_tree.png]]
@@ -1072,15 +1082,15 @@ To show code-tree, activate side-panel (default hotkey: F12). Many lexers suppor
 * Tree is filled after few seconds after file opening (search for options ui_tree* to change this pause).
 * When you move caret, tree shows tree node for caret position, after a pause (search for options ui_tree* to change this).
 
-Tree has the "filter" input field: when not empty, tree shows only items containing the filter string. Button X near the input clears the filter. Last entered filter strings are saved/restored to/from sessions.
+Code-tree has the "filter" input field: when not empty, tree shows only items containing the filter string. Button X near the input - clears the filter. Shift+Enter press in the filter field - adds current filter string to the drop-down combobox history. Last entered filter strings are saved/restored to/from sessions.
 
-Tree has the context menu with items:
+Code-tree has the context menu with items:
 * "Fold all"
 * "Unfold all"
 * "Fold level", 2 to 9
 * "Sorted": to toggle the alphabetical sorted mode of the tree
 
-Tree for CSS lexer has additional feature: in the "Colors" node, it shows colored preview-squares.
+Code-tree for CSS lexer has additional feature: in the "Colors" node, it shows colored preview-squares for HTML color-tokens - #AABBCC / #ABC / rgb(...) / rgba(...) / hsl(...) / hsla(...).
 
 [[File:cudatext-tree-css-colors.png]]
 
@@ -1193,19 +1203,20 @@ These panels have hotkeys:
 
 =Dialog Find/Replace=
 
-Find/Replace dialog has hotkeys, which work only when this dialog is focused. Hotkeys can be customized via options "find_hotkey_nnnn".
+Find/Replace dialog has hotkeys, which work only when this dialog is focused. Hotkeys can be customized via options "find_hotkey_xxxx".
 
 * Alt+Enter: Find first
-* Enter: Find next/ Replace next (depends of focused input)
+* Enter: Find next / Replace next (depends of focused input)
 * Shift+Enter: Find previous
 * Ctrl+Enter: Add new line in multi-line input (multi-line mode is activated by "+" button)
-* Alt+Z: Replace, and find next
-* Ctrl+Alt+Z: Replace, and don't find next
-* Alt+A: Replace all
-* Alt+O: Count all
-* Alt+E: Select all
-* Alt+K: Mark all
-* Alt+Q: Extract
+* Ctrl+Alt+Z: Replace and find next
+* Ctrl+Alt+Shift+Z: Replace and don't find next
+* Ctrl+Alt+A: Replace all occurrences
+* Ctrl+Alt+O: Count all occurrences
+* Ctrl+Alt+E: Select all occurrences
+* Ctrl+Alt+K: Mark all occurrences (with markers)
+* Ctrl+Alt+Q: Extract all RegEx matches
+* and hotkeys to toggle search/replace options (case sensitive, reg.ex., whole words etc)
 
 [[File:cudatext-find-dlg.png]]
 
@@ -1238,7 +1249,20 @@ Toggle-buttons for "replace" mode:
 * \l: lower case of one char
 * \L: lower case of all text
 * \u: upper case of one char
-* \U: upper case of all text  
+* \U: upper case of all text
+
+;Toggle-button "AB": Preserve case on replacement. Mimics logic in VS Code program:
+* If the original string contains only upper-case or only lower-case characters, the result will be either all upper-case or all lower-case characters:
+** "ABCDE" -> replace with "xyz" -> "XYZ" (preserving all upper-case);
+** "abcde" -> replace with "xYz" -> "xyz" (preserving all lower-case).
+* The case of the first character in the original string is always preserved:
+** if it is upper-case, the first character in the result will be upper-case;
+** if it is lower-case, the first character in the result will be lower-case.
+** "Abcde" -> replace with "xyz" -> "Xyz" (preserving the first upper-case);
+** "abcde" -> replace with "Xyz" -> "xyz" (preserving the first lower-case).
+* In case of a mixed-case original string, the result follows the case of characters in the replacing string, excluding the very first character of the original string that always preserves its original case.
+** "ABcde" -> replace with "xyZ" -> "XyZ" (preserving the first upper-case);
+** "abCDE" -> replace with "XYz" -> "xYz" (preserving the first lower-case).
 
 Action buttons in dialog:
 
@@ -1304,7 +1328,7 @@ CudaText sessions are stored in JSON files with .json and .cuda-session extensio
 Default session file name is "history session.json" in the "settings" folder.
 CudaText shows name of current session in its window title like "filename.txt {session_name} - CudaText".
 
-Program has options:
+CudaText has options:
 
 * "ui_reopen_session": Save last session on closing, and restore it on start.
 * "ui_reopen_session_cmdline": Allow to restore last session even if some file/folder was passed in the command line (or from the Windows Shell Extension). Note, this gives weird behaviour: N program instances will reopen the same last session + passed command-line file. So this option is mainly for the single instance mode.
@@ -1317,7 +1341,9 @@ Session file contains data:
 
 * List of named documents (file names), and unnamed documents
 * For each document:
-** kind of document: text in editor, picture file, text in viewer (and viewer mode: text/binary/hex/unicode)
+** kind of the document: text editor / picture viewer / text viewer (and viewer mode: text/binary/hex/unicode)
+** text of the document, if document is modified
+** undo/redo data, if document is modified
 ** read-only state
 ** first caret position
 ** encoding
@@ -1337,6 +1363,7 @@ Session file contains data:
 ** modified state
 ** code-tree filter string and history of last filters
 ** splitting to 2 editors: on/off, vertical/horizontal, percents of size
+** column of vertical "margin" line, if it's not default
 * For each modified document: date of modification, full document text
 * Layout/sizes of side panel and bottom panel
 * Layout/sizes of editor groups
@@ -1413,11 +1440,10 @@ Micromap visible state is not restored from history for files, which have line c
 
 = Paste with middle-button-click =
 
-To paste like in Linux, with middle-click, you need:
+To paste like in Linux/Unix, with middle-click, you need:
 
-* Step 1. Set option "mouse_middle_click" to value 2 (in the user.json).
-* Step 2 before CudaText 1.171.5. Install plugin "Auto-Copy to Clipboard".
-* Step 2 after CudaText 1.171.5. Set option "auto_copy_clp". Option replaces old plugin and supports one-line input fields (Find/Replace, Console, Code-Tree filter).
+* Set option "mouse_middle_click" to value 2 (in the user.json).
+* Set option "auto_copy_clp". Option supports pasting to usual editors (inside UI-tabs) and also to one-line input fields (Find/Replace, Console, Code-Tree filter).
 
 =Full-screen mode=
 
@@ -1487,7 +1513,7 @@ Typical value for Solaris 11.4 x86:
     "pylib__solaris" : "/usr/lib/amd64/libpython3.5m.so",
 
 ==Python on macOS==
-On macOS you must install Python 3, from official site python.org. Versions 3.6...3.9 are ok. CudaText will detect this Python. CudaText has option "pylib__mac" with such default value (actual version number is auto-detected):
+On macOS you must install Python 3, from official site python.org. Versions 3.6...3.12 are OK. CudaText will detect this Python. CudaText has option "pylib__mac" with such default value (actual version number is auto-detected):
 
    "pylib__mac": "/Library/Frameworks/Python.framework/Versions/3.5/lib/libpython3.5.dylib",
 
@@ -2082,23 +2108,26 @@ homepage=https://github.com/nnnn/pppp
 * Test zip file: open zip file in CudaText, confirm installation.
 * Publish file at forum or https://github.com/Alexey-T/CudaText/issues
 
-==How to see all UI theme items==
+==Meaning of UI-theme elements==
 
-* "editor, font" - color of font when no lexer is active. Click statusbar field with lexer-name, call "none".
-* "editor, disabled state, font/bg" - editor shown with this bg-color when Replace dialog runs action, with option "confirm on replace" (during confirm message editor is disabled), if no lexer active
-* "statusbar alt" - shown on 2nd statusbar, run in console: <syntaxhighlight lang="python">msg_status_alt('dd', 8)</syntaxhighlight>
-* "search progressbar" - to see it, call Replace dlg, with regex, with confirmation (2 options in Replace dlg), replace "." (any char) to "www"
+* "editor, font" - Color of editor font, when no lexer is active. To deactivate lexer in current editor ui-tab: click statusbar cell with lexer name, call item "(none)" in the menu.
+* "editor, disabled state, font/BG" - Editor is shown as disabled when Replace dialog runs 'Replace all' action, with option "Confirm on replace" (when the confirmation message is shown, editor is disabled). Too see the "..., font" color applied, deactivate the editor lexer.
 
-* "editor, marked range bg" - shows for marked-range, to set marked range from line 5 to 10 use console: <syntaxhighlight lang="python">ed.set_prop(PROP_MARKED_RANGE, '5,10')</syntaxhighlight>
+* "statusbar alt" - Color is used on alternative statusbar. Too see this statusbar, enter in the Console input field: <syntaxhighlight lang="python">msg_status_alt('d'*100, 8)</syntaxhighlight>.
+* "search progressbar" - To see it, call Replace dialog, with RegEx option on, with Confirmation option on (2 options in the Replace dialog), and do the mass replacement of RegEx "." with "www".
 
-* "editor, markers" - to see markers, call Commands dlg (F1), command "drop marker at caret".
-* "editor, separator lines" - lines show eg for lexer Pascal, above "function"/"procedure".
+* "editor, marked range BG" - Color is shown for marked range. To set marked range from line 5 to 10, enter in the Console: <syntaxhighlight lang="python">ed.set_prop(PROP_MARKED_RANGE, '5,10')</syntaxhighlight>.
 
-* "listbox, ..." - call Commands dlg (F1 key)
-* "listbox, ..., auto-complete..." - call C or Pascal lexer, then press Ctrl+Space to call auto-completion (listbox has 3 columns, 3rd shows not for all items)
+* "editor, markers" - To see editor markers, call Command Palette, command "drop marker at caret".
+* "editor, horizontal folding line" - This line is painted below the folded block, when option "fold_style" is 4, and you fold (collapse) some folding-range (with some lexer active).
 
-* "splitters, main" - shown near Sidebar (vertical) and above Bottom panel (horizontal)
-* "splitters, groups" - shown between groups (vert/horz), activate 2-3 groups using "View" menu
+* "side-toolbar, button badges font/BG" - Color of text badges. To see a badge on sidebar, write to Console input field: <syntaxhighlight lang="python">print("ERROR: aaa")</syntaxhighlight>. The line "ERROR: aaa" will appear in the Console log, and sidebar will show badge "1", meaning you have 1 error line.
+
+* "listbox, ..." - Colors of Command Palette dialog, Go To dialog, and similar menu-like dialogs.
+* "listbox, ..., auto-complete..." - Colors of auto-completion listbox. To see the auto-completion listbox, activate e.g. Pascal lexer, write the incomplete word "Wr" and press Ctrl+Space to call auto-completion. Listbox has 3 columns, 3rd column is shown not for all items.
+
+* "splitters, main" - Color is shown on (vertical) splitter near sidebar and above (horizontal) splitter near bottom panel.
+* "splitters, groups" - Color is shown on splitters between groups (vertical and horizontal). To see these splitters, activate e.g. 2 or 3 groups using "=" top menu item.
 
 ==Meaning of syntax-theme elements==
 
@@ -2235,17 +2264,13 @@ Seems the term "instance" is not known very good, people cannot find this option
 
 ==How to compile CudaText==
 
-Install FPC and Lazarus:
+First, install FPC and Lazarus:
 
 * [https://github.com/newpascal/fpcupdeluxe/releases download FpcUpDeluxe]. On Windows, you must unlock .exe file in the Windows Explorer dialog. 
 * in FpcUpDeluxe, choose FPC 3.0.4 or 3.2.0, install it first.
 * in FpcUpDeluxe, choose Lazarus 2.0 or "trunk", install it next.
 
-Modern way for app sources.
-
-There is [https://github.com/Alexey-T/CudaText_up Linux script CudaText_up] - it downloads sources to ~/cudatext_up, then calls Lazarus to compile them. You can use it with FPC cross-compilers, installed from FpcUpDeluxe, script will compile CudaText for any of available platforms. Without cross-compilers, script makes CudaText only for the current platform. It puts result to ~/cudatext_up/bin.
-
-Old way for app sources.
+'''Classic way to compile'''
 
 * download GitHub repos:
 ** https://github.com/bgrabitmap/bgrabitmap (install first)
@@ -2266,7 +2291,11 @@ Old way for app sources.
 ** "Python" tab: several items
 * in Lazarus, open "cudatext.lpi" project, compile it
 
-'''GTK2 error on ATSynEdit compiling regarding IME.'''
+'''CudaText_up way to compile'''
+
+There is [https://github.com/Alexey-T/CudaText_up Linux script CudaText_up] - it downloads sources to ~/cudatext_up, then calls Lazarus to compile them. You can use it with FPC cross-compilers, installed from FpcUpDeluxe, script will compile CudaText for any of available platforms. Without cross-compilers, script makes CudaText only for the current platform. It puts result to ~/cudatext_up/bin.
+
+'''GTK2 error on ATSynEdit compiling regarding IME'''
 
 To fix this error, edit the file atsynedit/atsynedit_package.lpk and remove this block there:
 <syntaxhighlight lang="xml">
@@ -2277,6 +2306,24 @@ To fix this error, edit the file atsynedit/atsynedit_package.lpk and remove this
         </OtherDefines>
       </Other>
 </syntaxhighlight>
+
+'''CudaText_up on Windows'''
+
+Few tricks are required to build CudaText via CudaText_up. Retrieve https://github.com/Alexey-T/CudaText_up using "git clone". Use Git Bash to run the cudaup.sh:
+
+ cd /C/Prj/Pas/CudaText_up
+ ./cudaup.sh
+
+The command "./cudaup.sh --get" did not succeed from the first attempt, because Git under Windows downloads text files with CRLF line endings, whereas the cudaup.sh expects the files "cudaup.packets" and "cudaup.repos" to have LF line endings. So open these two files in text editor and change the line endings to LF. After that, "./cudaup.sh --get" succeded. Then run
+
+ ./cudaup.sh --lazdir /C/fpcupdeluxe/lazarus --packs
+
+specifying the path where FpcUpDeluxe was previously installed.
+Finally run
+
+ ./cudaup.sh --lazdir /C/fpcupdeluxe/lazarus --make --os win64
+
+where the part "--os win64" was absolutely essential because without it the project tried to be compiled under Linux (that obviously failed on a Windows machine).
 
 ==How to install plugins from GitHub==
 
@@ -2347,7 +2394,7 @@ ItemTwo=local name of item
 SubMenu=local name of menu
 </syntaxhighlight>
 
-To distribute those translation(s), make zip file like "langmenu.MyPlugin.zip", which must have "install.inf" and folder "cuda_nnn" (you can put more folders, for several plugins, if you want so). Install.inf contents:
+To distribute those translation(s), make zip file like "langmenu.MyPlugin.zip", which must have "install.inf" and folder "cuda_nnn" (you can put more folders, for several plugins, if you want so). "install.inf" contents:
 
 <syntaxhighlight lang="ini">
 [info]
@@ -2356,7 +2403,7 @@ type=cudatext-data
 subdir=langmenu
 </syntaxhighlight>
 
-Submit that zip file to CudaText GutHub page, or post it to the forum.
+Look at example ZIP packages [https://sourceforge.net/projects/cudatext/files/addons/plugintranslation/ at SourceForge page].
 
 ==How to copy word under caret to clipboard==
 
@@ -2606,6 +2653,38 @@ This can be done in CudaText like this:
 * Install plugin "Config Toolbar".
 * Call config dialog via "Plugins / Config Toolbar / Configure buttons". In that dialog, add a button. In the button properties, choose your recorded macro command ("Choose command" button). This will add toolbar button for your macro. Customize this button as you wish (any icon, caption, tooltip).
 
+==How command "Paste and indent" works==
+Command "Edit / Paste and indent" should mimic the Sublime Text command with the same name. How it works? For single line clipboard text, it does the same as usual "Paste".
+For multi-line clipboard text (let's name it "block"), it aligns all lines of the "block", so that lines 2,3,4,... of the "block" will have the same indentation as the first "block" line. If lines had different indents in the clipboard, '''relative indents''' will be kept.
+
+Example: clipboard "block" is:
+
+ aaaaaaaaaaaaaaaa
+ aaaaaaaaaaaaaaaa
+   bbbbbbbbbbbbbb
+   bbbbbbbbbbbbbb
+     cccccccccccc
+     cccccccccccc
+ dddddddddddddddd
+
+And caret ("|" symbol) is located here:
+
+          some file text
+          some file text
+          |
+
+"Paste and indent" with such caret position will give this:
+
+          some file text
+          some file text
+          aaaaaaaaaaaaaaaa
+          aaaaaaaaaaaaaaaa
+            bbbbbbbbbbbbbb
+            bbbbbbbbbbbbbb
+              cccccccccccc
+              cccccccccccc
+          dddddddddddddddd
+
 ==Why XML document is not fully highlighted by XML lexer==
 
 Sometimes, you can see the poor syntax highlighting in XML documents.
@@ -2622,6 +2701,17 @@ Also note that CudaText has the "lite" lexer "XML ^", which is activated for too
  "ui_max_size_lexer": 2
 
 With the active "lite" lexer (when statusbar shows "XML ^"), syntax highlight is also not very rich, and there is no folding.
+
+==How to check the rendering speed==
+There is hidden option in user.json:
+
+ "log_timing": true
+
+It shows the additional label in the editor corner, with red font. Label shows the time of the last rendered frame in milliseconds. Label also shows the counter of rendered frames, so developers can check if editor does redundant repaints.
+
+For text editing commands (e.g. typing of text), counter may increase by 3 on each command. Why? 3rd repaint is from "bracket_highlight":true (occurs in IdleTimer after a small delay), 2nd repaint is from lexer parser - parser makes the repaint when full document is parsed or the current screen is parsed. 1st repaint is the main immediate repaint.
+
+For caret moving commands, counter may increase by 2 on each command. 2nd repaint is from "bracket_highlight":true. 2nd repaint may occur also from the auto-showing of the horizontal scrollbar.
 
 =Troubleshooting the Windows shell extension for CudaText=
 

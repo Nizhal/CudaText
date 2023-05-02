@@ -79,7 +79,7 @@ def do_install_from_github():
     if os.path.isfile(fn_history):
         history = open(fn_history).read().splitlines()
 
-    def save_history():
+    def save_history(url):
 
         global history
         #move new url to 1st item
@@ -93,7 +93,8 @@ def do_install_from_github():
     url = dialog_github_install(history)
     if not url: return
     if '://' not in url: return
-    save_history()
+    url = url.strip()
+    save_history(url)
 
     branch = get_branch(url)
     if not branch: return

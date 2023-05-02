@@ -21,7 +21,8 @@ uses
   ATListbox,
   ATButtons,
   proc_globdata,
-  proc_colors;
+  proc_colors,
+  Math;
 
 type
   TAppListSelectEvent = procedure(AIndex: integer; const AStr: string) of object;
@@ -166,40 +167,63 @@ end;
 procedure TfmMenuList.FormKeyDown(Sender: TObject; var Key: Word;
   Shift: TShiftState);
 begin
-  if (Key=VK_DOWN) or (Key=VK_TAB) or ((key=VK_J) and (Shift=[ssCtrl])) then
+  if (Key=VK_DOWN) or
+    ((Key=VK_TAB) and (Shift=[ssCtrl])) or
+    ((Key=VK_J) and (Shift=[ssCtrl])) then
   begin
     if List.ItemIndex=List.ItemCount-1 then
       List.ItemIndex:= 0
     else
       List.ItemIndex:= List.ItemIndex+1;
     key:= 0;
+    exit;
   end;
 
-  if (Key=VK_UP) or ((key=VK_K) and (Shift=[ssCtrl])) then
+  if (Key=VK_UP) or
+   ((Key=VK_TAB) and (Shift=[ssCtrl, ssShift])) or
+   ((Key=VK_K) and (Shift=[ssCtrl])) then
   begin
     if List.ItemIndex=0 then
       List.ItemIndex:= List.ItemCount-1
     else
       List.ItemIndex:= List.ItemIndex-1;
     key:= 0;
+    exit;
   end;
 
   if (key=VK_HOME) and (Shift=[ssCtrl]) then
   begin
     List.ItemIndex:= 0;
     key:= 0;
+    exit;
   end;
 
   if (key=VK_END) and (Shift=[ssCtrl]) then
   begin
     List.ItemIndex:= List.ItemCount-1;
     key:= 0;
+    exit;
+  end;
+
+  if (key=VK_PRIOR) and (Shift=[]) then
+  begin
+    List.ItemIndex:= Max(0, List.ItemIndex-List.VisibleItems);
+    key:= 0;
+    exit;
+  end;
+
+  if (key=VK_NEXT) and (Shift=[]) then
+  begin
+    List.ItemIndex:= Min(List.ItemCount-1, List.ItemIndex+List.VisibleItems);
+    key:= 0;
+    exit;
   end;
 
   if key=VK_ESCAPE then
   begin
     Close;
     key:= 0;
+    exit;
   end;
 
   if key=VK_RETURN then
@@ -210,6 +234,7 @@ begin
       Close;
     end;
     key:= 0;
+    exit;
   end;
 end;
 

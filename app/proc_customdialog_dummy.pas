@@ -127,6 +127,7 @@ type
     FEventOnFormState: string;
     TagString: string;
     PrevForms: TFPList;
+    PrevActiveForm: TForm;
     PrevBorderStyle: TFormBorderStyle;
     BlockedOnChange: boolean;
     BlockedOnSelect_Listview: boolean;
@@ -169,7 +170,7 @@ type
     procedure DoOnEditorScroll(Sender: TObject);
     procedure DoOnEditorKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure DoOnEditorKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
-    procedure DoOnEditorClickGutter(Sender: TObject; ABand, ALine: integer);
+    procedure DoOnEditorClickGutter(Sender: TObject; ABand, ALine: integer; var AHandled: boolean);
     procedure DoOnEditorClickGap(Sender: TObject; AGapItem: TATGapItem; APos: TPoint);
     procedure DoOnEditorClickLink(Sender: TObject; const ALink: string);
     procedure DoOnEditorPaste(Sender: TObject; var AHandled: boolean; AKeepCaret, ASelectThen: boolean);
@@ -976,6 +977,8 @@ var
   F: TForm;
   i: integer;
 begin
+  PrevActiveForm:= Screen.ActiveForm;
+
   for i:= 0 to Screen.FormCount-1 do
   begin
     F:= Screen.Forms[i];
@@ -1005,6 +1008,14 @@ begin
     TForm(PrevForms[i]).Enabled:= true;
   PrevForms.Clear;
   IsDlgModalEmulated:= false;
+
+  //fix issue #4965: if we show 'emulated modal' dialog, do Alt+Tab to another app and back,
+  //and close dialog - another app gets focus (Win10/Win11)
+  if PrevActiveForm<>nil then
+  begin
+    PrevActiveForm.SetFocus;
+    PrevActiveForm:= nil;
+  end;
 end;
 
 procedure TFormDummy.DoOnTreeviewChange(Sender: TObject; Node: TTreeNode);
@@ -1178,7 +1189,8 @@ begin
 end;
 
 
-procedure TFormDummy.DoOnEditorClickGutter(Sender: TObject; ABand, ALine: integer);
+procedure TFormDummy.DoOnEditorClickGutter(Sender: TObject; ABand, ALine: integer;
+  var AHandled: boolean);
 var
   Props: TAppControlProps;
   IdControl: integer;
@@ -1206,7 +1218,8 @@ begin
   Data.Items[2].Typ:= avdInt;
   Data.Items[2].Int:= ABand;
 
-  DoEvent(IdControl, Callback, Data);
+  if not DoEvent(IdControl, Callback, Data) then
+    AHandled:= true;
 end;
 
 procedure TFormDummy.DoOnEditorClickGap(Sender: TObject; AGapItem: TATGapItem; APos: TPoint);

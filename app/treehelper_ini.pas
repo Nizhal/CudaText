@@ -33,21 +33,28 @@ var
   DataItem: TATTreeHelperRecord;
   St: TATStrings;
   S: UnicodeString;
-  iLine, iSymbol: integer;
+  iLine, NFirst, NSymbol, NLen: integer;
 begin
   Data.Clear;
   St:= Ed.Strings;
   for iLine:= 0 to St.Count-1 do
   begin
     S:= St.Lines[iLine];
-    if S='' then Continue;
-    if S[1]=';' then Continue;
-    if S[1]='#' then Continue;
-    if (Length(S)>=3) and (S[1]='[') and (S[Length(S)]=']') then
+    NLen:= Length(S);
+    if NLen=0 then Continue;
+
+    //skip commented lines
+    NFirst:= 1;
+    while (NFirst<=NLen) and (S[NFirst]=' ') do
+      Inc(NFirst);
+    if NFirst>NLen then Continue;
+    if S[NFirst] in [';', '#', '='] then Continue;
+
+    if (NLen>=3) and (S[1]='[') and (S[NLen]=']') then
     begin
       DataItem.X1:= 0;
       DataItem.Y1:= iLine;
-      DataItem.X2:= Length(S);
+      DataItem.X2:= NLen;
       DataItem.Y2:= iLine;
       DataItem.Level:= 1;
       DataItem.Title:= S;
@@ -56,15 +63,15 @@ begin
     end
     else
     begin
-      iSymbol:= Pos('=', S);
-      if iSymbol>0 then
+      NSymbol:= Pos('=', S);
+      if NSymbol>0 then
       begin
         DataItem.X1:= 0;
         DataItem.Y1:= iLine;
-        DataItem.X2:= Length(S);
+        DataItem.X2:= NLen;
         DataItem.Y2:= iLine;
         DataItem.Level:= 2;
-        DataItem.Title:= Copy(S, 1, iSymbol-1);
+        DataItem.Title:= Copy(S, NFirst, NSymbol-NFirst);
         DataItem.Icon:= cIconArrow;
         Data.Add(DataItem);
       end;

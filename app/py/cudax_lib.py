@@ -11,7 +11,7 @@ Duplicate:
 Authors:
     Andrey Kvichansky    (kvichans on github)
 Version:
-    '0.6.10 2020-10-14'
+    '0.6.11 2023-04-06'
 Wiki: github.com/kvichans/cudax_lib/wiki
 ToDo: (see end of file)
 """
@@ -55,6 +55,7 @@ OPT2PROP            = dict(
     ,ruler_show                 = app.PROP_RULER
     ,tab_size                   = app.PROP_TAB_SIZE
     ,tab_spaces                 = app.PROP_TAB_SPACES
+    ,tab_smart                  = app.PROP_TAB_SMART
     ,unprinted_ends             = app.PROP_UNPRINTED_ENDS
     ,unprinted_end_details      = app.PROP_UNPRINTED_END_DETAILS
     ,unprinted_show             = app.PROP_UNPRINTED_SHOW
@@ -373,7 +374,7 @@ def set_opt(path, value, lev=CONFIG_LEV_USER, ed_cfg=ed, lexer='', user_json='us
                     del node[key]                       # Remove pair
                     remove_empty_nodes(body_js, keys)
                 else:
-                    log(_('Warning: section is overwrited with simple key.\n\tfile={}\n\tpath={}').format(
+                    log(_('Warning: section is overwritten with simple key.\n\tfile={}\n\tpath={}').format(
                             cfg_json, '/'.join(keys[:ikey+1]), node[key])) \
                         if key in node and isinstance(node[key], dict) else 0
                     if node.get(key)==value:
@@ -385,7 +386,7 @@ def set_opt(path, value, lev=CONFIG_LEV_USER, ed_cfg=ed, lexer='', user_json='us
                 elif isinstance(node[key], dict):
                     node    = node[key]                 # Step down
                 else:                                   # key is not for section
-                    log(_('Warning: simple key is overwrited with section.\n\tfile={}\n\tpath={}\n\told value={}').format(
+                    log(_('Warning: simple key is overwritten with section.\n\tfile={}\n\tpath={}\n\told value={}').format(
                             cfg_json, '/'.join(keys[:ikey+1]), node[key]))
                     node[key]   = {}
                     node    = node[key]                 # Step down

@@ -50,6 +50,7 @@ Event handlers (Command.on_nnnnn methods) return-value is ignored is many cases,
 * on_change(self, ed_self): Called after editor text is changed.
 * on_change_slow(self, ed_self): Called after editor text is changed, and small pause is passed (CudaText option "py_change_slow"), and application "idle" event happens (no keyboard/mouse input for 1-2sec).
 * on_caret(self, ed_self): Called after caret position/selection is changed.
+* on_caret_line(self, ed_self): Called after first caret's line-index is changed.
 * on_caret_slow(self, ed_self): Called after caret position/selection is changed, and small pause is passed. Pause is CudaText option "py_caret_slow".
 * on_insert(self, ed_self, text): Called before inserting a text. Method can return False to disable insertion, other return value is ignored.
 * on_key(self, ed_self, key, state): Called when user presses a key in editor. Param "key" is int key code; values are listed in the module cudatext_keys. Param "state" is string of chars: "a" if Alt pressed, "c" if Ctrl pressed, "s" if Shift pressed, "m" if Meta (Windows-key) pressed. Method can return False to disable key processing, other return value is ignored.
@@ -82,20 +83,24 @@ Constants in on_state:
 * APPSTATE_LANG: Changed UI translation.
 * APPSTATE_THEME_UI: Changed UI-theme.
 * APPSTATE_THEME_SYNTAX: Changed syntax-theme.
-* APPSTATE_GROUPS: Changed tab-grouping mode (see top menu item "=").
+* APPSTATE_GROUPS: Changed UI-tab grouping mode (see top menu item "=").
 * APPSTATE_CONFIG_REREAD: App config file is re-read and applied.
 * APPSTATE_SESSION_LOAD_BEGIN: Session loading begins.
 * APPSTATE_SESSION_LOAD: Session loading completes (after APPSTATE_SESSION_LOAD_BEGIN).
 * APPSTATE_SESSION_LOAD_FAIL: Session loading fails (after APPSTATE_SESSION_LOAD_BEGIN).
 * APPSTATE_PROJECT: Current project in the Project Manager is changed.
+
 * APPSTATE_API_SUBCOMMANDS: API call app_proc(PROC_SET_SUBCOMMANDS, ...).
 * APPSTATE_API_MENU_ADD: API menu_proc() added some menu item.
 * APPSTATE_API_MENU_REMOVE: API menu_proc() removed some menu item.
 * APPSTATE_API_MENU_CHANGE: API menu_proc() changed some menu item.
+
 * APPSTATE_CODETREE_CLEAR: Code-Tree: content is cleared.
 * APPSTATE_CODETREE_BEFORE_FILL: Code-Tree: before filling the content.
 * APPSTATE_CODETREE_AFTER_FILL: Code-Tree: after filling the content.
 * APPSTATE_CODETREE_SET_SELECTION: Code-Tree double-click changed scroll pos, or app sync'ed Code-Tree with caret pos.
+
+* APPSTATE_WINDOW: Changed state of the main window. Read current state via app_proc(PROC_GET_WINDOW_STATE, '').
 
 Constants in on_state_ed:
 
@@ -120,6 +125,7 @@ Constants in on_state_ed:
 * on_console_nav(self, ed_self, text): Called for Console panel events. Param "ed_self" is None here.
 ** Called on double-clicking lines, or calling context menu item "Navigate", in the Console's memo-field. Param "text" is line with caret.
 ** Called also when Console input-field is first changed. Param "text" value is "(console_input_change)".
+* on_console_complete(self, ed_self): Called when user presses hotkey of "auto-complete" in the Console input. Param "ed_self" is None here. True return value means that plugin handled the event, don't call other plugins.
 * on_output_nav(self, ed_self, text, tag): Called on clicking line, or pressing Enter, in the Output or Validate panel. Param "text" is clicked line, param "tag" is int value associated with line. Event is called only if app cannot parse output line by itself using given regex, or regex is not set. Param "ed_self" is None here.
 * on_sidebar_popup(self, ed_self, caption): Called on right-click on sidebar/bottombar buttons. Param "ed_self" is None here. Param "caption" is button caption.
 
@@ -245,6 +251,13 @@ Parameter "text" is usually string, but can be of other types (bool, int, float,
 
 * PROC_PARSE_COMMAND_LINE: Parses/handles the text as the program command line. Separator of params is space, double-quoted params are supported. Here you may pass, for example, several filenames, including project and session filenames (.cuda-proj and .cuda-session extensions).
 
+* PROC_GET_WINDOW_STATE: Gets state of application window, one of int constants:
+** WND_NORMAL: Window is normal
+** WND_MAXIMIZED: Window is maximized
+** WND_MINIMIZED: Window is minimized
+** WND_FULLSCREEN: Full-screen mode
+** WND_FULLSCREEN2: Full-screen + Distraction-free mode
+
 ====app_proc - Search properties====
 
 Actions work with props of Find/Replace dialog, and props of low-level search engine. When user runs some search command in the dialog, dialog applies its props to the search engine. So most of the time, props of dialog and search engine are sync'ed. But they aren't sync'ed if user just typed new text in the dialog. They also aren't sync'ed if user runs some search command via Command Palette or hotkey (e.g. "find current word, previous").
@@ -266,6 +279,7 @@ Actions work with props of Find/Replace dialog, and props of low-level search en
 ** "op_back": option "backward search" (low level) of search engine
 ** "op_fromcaret": option "search from caret" (low level) of search engine
 ** "op_tokens": option "allowed syntax elements" of search engine (int)
+** "op_prescase": option "preserve case on replacement" of search engine
 ** "op_case_d": option "case sensitive" of dialog, None if dialog not inited
 ** "op_word_d": option "whole words" of dialog, None if dialog not inited
 ** "op_regex_d": option "reg.ex." of dialog, None if dialog not inited
@@ -275,6 +289,7 @@ Actions work with props of Find/Replace dialog, and props of low-level search en
 ** "op_wrap_d": option "wrapped search" of dialog, None if dialog not inited
 ** "op_mulline_d": option "multi-line input fields" of dialog, None if dialog not inited
 ** "op_tokens_d": option "allowed syntax elements" of dialog (int), None if dialog not inited
+** "op_prescase_d": option "preserve case on replacement" of dialog, None if dialog not inited
 ** "op_hi_d": option "highlight all matches" of dialog, None if dialog not inited
 
 * PROC_SET_FINDER_PROP: Sets properties of Find/Replace dialog and search engine. Param "text" must be dict, with all or some keys listed in PROC_GET_FINDER_PROP. Values types: str (for text fields), bool (for flags), int (for choices).
@@ -1866,6 +1881,9 @@ Possible values of "id_action":
 * MENU_SET_IMAGELIST: Changes imagelist object of menu, which contains menu item. Param "command" must be imagelist handle.
 * MENU_SET_IMAGEINDEX: Changes icon index of menu item (index in imagelist). Param "index" must be icon index.
 
+* MENU_SET_AUTO_HOTKEY: Sets the hotkey of menu item according to this item's command code (which must be already set). It skips some special commands: "Clipboard copy", "Clipboard paste", "Clipboard cut", "Select all", "Undo", "Redo" (because for example Ctrl+C hotkey in the top menu overrides the Ctrl+C pressing in the Console / Code-Tree filter / docked plugin dialogs). And it skips some special hotkeys: Esc, Shift+Tab.
+* MENU_SET_AUTO_HOTKEY_DEEP: Performs the action MENU_SET_AUTO_HOTKEY for all menu items nested in the given submenu. The deepness of the recusion (0-based) must be given in the param "command" as str(int_value).
+
 ====menu_proc - Example====
 
 Example adds item "Misc" to the main menu, and sub-items: "About", separator, "Rename file" (from CudaExt plugin):
@@ -2175,12 +2193,20 @@ Notes:
 * Function cannot work with read-only editor (see Editor.get_prop, Editor.set_prop and PROP_RO).
 * Function looses Undo information. To support Undo, use another API to set text, e.g. Editor.replace().
 
+===Editor.get_line_len===
+
+ get_line_len(index)
+
+Returns length of internal line UTF-16 (without BOM) representation.
+It is not the same as len(ed.get_text_line(index)), if internal UTF-16 representation has surrogate-pairs.
+Returns None if index is incorrect.
+
 ===Editor.get_text_line===
 
  get_text_line(index, max_len=0)
 
 Returns single line (str) with given index (0-based). Without ending line-break char(s).
-Returns None if index incorrect.
+Returns None if index is incorrect.
 
 If param "max_len" is non-zero, and UTF-8 length of given line is greater than "max_len", function returns empty str. This allows to skip huge lines.
 
@@ -2200,17 +2226,19 @@ Special "index" values:
  get_text_substr(x1, y1, x2, y2)
 
 Returns substring from position (x1, y1) to bigger position (x2, y2).
+Coordinates x1 / x2 are in the UTF-16 internal representation of line.
 
 ===Editor.delete===
 
  delete(x1, y1, x2, y2)
 
 Deletes range from position (x1, y1) to bigger position (x2, y2).
+Coordinates x1 / x2 are in the UTF-16 internal representation of line.
 
 * Too big x1/x2 are allowed (after line-end)
 * Too big y2 means delete to end of file
 
-Note: don't pass tuple from get_carets()[0], this tuple has not sorted pos=(x1, y1), end=(x2, y2), you need to sort them (first sort by y, then by x).
+Note: don't pass tuple from get_carets()[0], this tuple has not sorted positions (x1, y1) and (x2, y2), you need to sort them (first sort by y, then by x).
 
 Example replaces selection of 1st caret with text:
 
@@ -2228,8 +2256,9 @@ Example replaces selection of 1st caret with text:
 
  insert(x, y, text)
 
-Inserts given text at position (x, y). If y too big, appends block to end (even to final line w/out line-end).
-Text can be multi-line, all CR LF are converted to currently used line-breaks.
+Inserts given text at position (x, y). If y is too big, appends block to the end (even to final line without line-ending).
+Coordinate x is in the UTF-16 internal representation of line.
+Text can be multi-line, all CR LF will be converted to currently used line-breaks.
 
 Returns 2-tuple (x, y) of position after inserted text. It is on the same line, if text is single line. Returns None if cannot insert.
 
@@ -2238,6 +2267,7 @@ Returns 2-tuple (x, y) of position after inserted text. It is on the same line, 
  replace(x1, y1, x2, y2, text)
 
 Replaces range from position (x1, y1) to bigger position (x2, y2), with new text.
+Coordinates x1 / x2 are in the UTF-16 internal representation of line.
 
 * Too big x1/x2 are allowed (after line-end)
 * Too big y2 means delete to end of file
@@ -2305,12 +2335,12 @@ Returns number of lines.
 
  get_filename(options="")
 
-Returns filename (str) of the editor.
+Returns filename (string) of the editor.
 
 * Returns empty string for untitled tab.
-* Returns string "?" if tab contains not normal text editor. See: get_prop(PROP_KIND).
+* Returns string "?" if ui-tab contains not normal text editor, but picture viewer or binary viewer. You can detect the kind of ui-tab: Editor.get_prop(PROP_KIND).
 
-If param "options" contains char "*", the real file name is always returned, even in hex/picture viewer mode.
+If param "options" contains char "*", the real file name is always returned, even in picture/binary viewer mode.
 
 ===Editor.get_prop===
 
@@ -2336,7 +2366,8 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"). Possi
 * PROP_INSERT: bool: insert/overwrite mode.
 * PROP_MODIFIED: bool: editor is modified.
 * PROP_MODIFIED_VERSION: int: counter which is incremented on each text change.
-* PROP_RULER: bool: horz ruler is shown.
+* PROP_RULER: bool: show 'ruler' horizontal band.
+* PROP_RULER_TEXT: str: text of one line or several "\n"-separated lines, which is rendered on 'ruler' band. [[#HTML formatting]] is allowed if "&lt;html&gt;" prefix is used. 
 
 * PROP_LINE_STATE: int: state of the line with given index. One of LINESTATE_nnn values.
 * PROP_LINE_STATES: list of int: list of line states (LINESTATE_nnn values) for all lines.
@@ -2395,6 +2426,7 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"). Possi
 * PROP_IN_HISTORY: bool: document history was loaded from history file (history embedded to "session" or main history file).
 * PROP_TAB_SPACES: bool: tab-key inserts spaces, not tab-char.
 * PROP_TAB_SIZE: int: size of tab-char.
+* PROP_TAB_SMART: bool: smart-tabs option, known from many text editors.
 * PROP_TAB_COLLECT_MARKERS: bool: tab-key collects (jumps to and deletes) markers (if markers placed).
 * PROP_TAB_TITLE: str: custom title of ui-tab; setting to empty string removes the custom title.
 * PROP_TAB_TITLE_REASON: str (1 char): reason of current ui-tab title.
@@ -2483,6 +2515,7 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"). Possi
 *** Special codes: value cmd_PluginRun means 'plugin started', value cmd_PluginEnd means 'plugin returned'. For these codes, "text" key has the value "py:module,method," or "py:module,method,param".
 ** "invoke": String, how the command was invoked. One of values:
 *** "int": Internal calling from core components.
+*** "int_ime": Internal calling via OS IME dialog.
 *** "key": Calling via some hotkey.
 *** "menu_ctx": Calling from some context menu.
 *** "menu_main": Calling from the main menu.
@@ -2531,7 +2564,9 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"), tuple
 * PROP_MARGIN_STRING: str: space-separated user-margins columns.
 * PROP_INSERT: bool: insert/overwrite mode.
 * PROP_MODIFIED: bool: editor is modified.
-* PROP_RULER: bool: show ruler.
+* PROP_RULER: bool: show 'ruler' horizontal band.
+* PROP_RULER_TEXT: str: text of one line or several "\n"-separated lines, which is rendered on 'ruler' band. [[#HTML formatting]] is allowed if "&lt;html&gt;" prefix is used. 
+
 * PROP_COLOR: color property, value must be 2-tuple (COLOR_ID_nnnn, int_color_value).
 * PROP_LINE_TOP: int: index of line visible at the editor top.
 ** Note: If you set PROP_LINE_TOP immediately after file_open(), it may not work, you need to call app_idle(True) first.
@@ -2576,6 +2611,7 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"), tuple
 * PROP_LINKS_CLICKS: int: how mouse clicks activate hyperlinks. 0: disabled, 1: single click, 2: double click.
 * PROP_TAB_SPACES: bool: tab-key inserts spaces, not tab-char.
 * PROP_TAB_SIZE: int: size of tab-char.
+* PROP_TAB_SMART: bool: smart-tabs option, known from many text editors.
 * PROP_TAB_COLLECT_MARKERS: bool: tab-key collects (jumps to and deletes) markers.
 * PROP_TAB_COLOR: int: color of ui-tab title background, integer RGB value (e.g. 0x00FF00 is green); COLOR_NONE if not set.
 * PROP_TAB_COLOR_FONT: int: color of ui-tab title font, integer RGB value (e.g. 0x00FF00 is green); COLOR_NONE if not set.
@@ -3045,14 +3081,7 @@ Function returns None and listbox stays open. When user chooses listbox item, it
 Note:
 * Listbox disappears if you move caret or type text, unlike usual auto-completion listboxes (they can recalculate items for new caret pos).
 
-If an item begins with "&lt;html&gt;", HTML tags are allowed in this item:
-<pre>
-<b>bold</b>
-<i>italic</i>
-<u>underline</u>
-<s>strikeout</s>
-<font color="#AABBCC">colored</font>
-</pre>
+If an item begins with "&lt;html&gt;", [[#HTML formatting]] is allowed in this item.
 
 ===Editor.complete_alt===
 
@@ -3077,8 +3106,7 @@ After user has chosen some item in the completion listbox, event "on_snippet" wi
 * Param "snippet_id": Value from complete_alt() call.
 * Param "snippet_text": Text of chosen snippet.
 
-If an item begins with "&lt;html&gt;", HTML tags are allowed in this item.
-Supported tags are listed in [[#Editor.complete]].
+If an item begins with "&lt;html&gt;", [[#HTML formatting]] is allowed in this item.
 
 ===Editor.gap===
 
@@ -3227,6 +3255,18 @@ Controls editor's micromap. Possible values of "id":
 ** "param3": RGB color of column background, or COLOR_NONE for default themed color.
 
 * MICROMAP_DELETE: Delete micromap column by its tag. Param "param1": tag. Returns bool: column was found and deleted.
+
+=HTML formatting=
+Several APIs support rendering of HTML-formatted strings. Small subset of HTML tags is supported:
+
+<pre>
+<b>bold style</b>
+<i>italic style</i>
+<u>underline style</u>
+<s>strikeout style</s>
+<font color="#AABBCC">colored font</font>
+<font color="#ABC">colored font</font>
+</pre>
 
 =TreeHelpers=
 
@@ -3880,7 +3920,7 @@ It provides:
 * add: app_proc: PROC_THEME_SYNTAX_DATA_GET
 
 1.0.220 (app 1.38.2)
-* add: on_state event aslo called with new constants APPSTATE_nnnn
+* add: on_state supports new constants APPSTATE_nnnn
 
 1.0.221 (app 1.38.3)
 * add: Editor.get_prop/set_prop: PROP_INDENT_SIZE, PROP_INDENT_KEEP_ALIGN, PROP_INDENT_AUTO, PROP_INDENT_KIND
@@ -4105,8 +4145,8 @@ It provides:
 * add: dlg_commands: add "title" param
 
 1.0.267 (app 1.70.3)
-* add: on_state: add APPSTATE_CONFIG_REREAD
-* add: on_state: add APPSTATE_SESSION_LOAD
+* add: on_state supports also APPSTATE_CONFIG_REREAD
+* add: on_state supports also APPSTATE_SESSION_LOAD
 
 1.0.268 (app 1.71.5)
 * add: event on_save_naming
@@ -4595,7 +4635,7 @@ It provides:
 
 1.0.381 (app 1.131.1)
 * change: app_log: param "tag" is now ignored
-* add: on_state: add APPSTATE_SESSION_LOAD_BEGIN, APPSTATE_SESSION_LOAD_FAIL
+* add: on_state supports also APPSTATE_SESSION_LOAD_BEGIN, APPSTATE_SESSION_LOAD_FAIL
 
 1.0.383 (app 1.132.0)
 * add: msg_status_alt: added params "pos", "x", "y"
@@ -4603,8 +4643,8 @@ It provides:
 
 1.0.385 (app 1.132.0)
 * add: app_proc: PROC_SET_PROJECT
-* add: on_state: APPSTATE_PROJECT
-* add: on_console_nav: also it's called when Console input is changed
+* add: event on_state supports also APPSTATE_PROJECT
+* add: event on_console_nav: also it's called when Console input is changed
 
 1.0.388 (app 1.132.9)
 * add: dlg_proc: control "splitter" supports property "color"
@@ -4623,7 +4663,7 @@ It provides:
 * add: tree_proc: TREE_ITEM_SELECT with id_item=0 removes the selection
 
 1.0.392 (app 1.133.2)
-* add: on_state: add values APPSTATE_CODETREE_*
+* add: event on_state supports also APPSTATE_CODETREE_*
 * add: app_proc: PROC_SIDEPANEL_ENUM_ALL/PROC_BOTTOMPANEL_ENUM_ALL gets also button handles
 
 1.0.393 (app 1.133.6)
@@ -4694,7 +4734,7 @@ It provides:
 
 1.0.410 (app 1.142.1)
 * deprecate: option CARET_OPTION_UNFOLD (it's always On now)
-* add: event "on_state" is now fired with more states: APPSTATE_API_SUBCOMMANDS, APPSTATE_API_MENU_xxxx
+* add: event on_state supports also APPSTATE_API_SUBCOMMANDS, APPSTATE_API_MENU_xxxx
 
 1.0.411 (app 1.145.1)
 * add: callbacks (e.g. in toolbar buttons) can have form "exec=command_line_here"
@@ -4805,5 +4845,29 @@ It provides:
 * add: Editor.action: EDACTION_EXPORT_HTML: allow to export to memory by specifying "file_name" as "-"
 * add: app_proc: PROC_SET_CLIP_HTML
 * add: Editor.get_prop/set_prop: PROP_TAB_TITLE_REASON
+
+1.0.439 (app 1.184.0)
+* add: Editor.get_prop/set_prop: PROP_RULER_TEXT (it allows HTML formatting too)
+
+1.0.441 (app 1.185.5)
+* add: app_proc: PROC_GET_FINDER_PROP/PROC_SET_FINDER_PROP support new keys "op_prescase", "op_prescase_d"
+* add: menu_proc: MENU_SET_AUTO_HOTKEY, MENU_SET_AUTO_HOTKEY_DEEP
+
+1.0.442 (app 1.186.1)
+* add: event on_caret_line
+* add: Editor.get_line_len()
+
+1.0.443 (app 1.186.5)
+* add: app_proc: PROC_GET_WINDOW_STATE
+* add: event on_state supports also APPSTATE_WINDOW
+* fix: event on_click_gutter was not called for gutter bands "line numbers" and "folding"
+* add: event on_click_gutter was not able to block default processing
+
+1.0.444 (app 1.189.0)
+* add: event on_console_complete
+* add: Editor(h).cmd(cmd_FileClose) now closes the handle's ui-tab (before it closed the active tab)
+
+1.0.445 (app 1.190.1)
+* add: Editor.get_prop/set_prop: PROP_TAB_SMART
 
 [[Category:CudaText]]

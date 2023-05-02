@@ -14,10 +14,10 @@ begin
   F.OnChangeSlow:= @FrameOnChangeSlow;
   F.OnUpdateStatusbar:= @FrameOnUpdateStatusbar;
   F.OnUpdateState:= @FrameOnUpdateState;
-  F.OnUpdateZoom:= @FrameOnUpdateZoom;
   F.OnEditorCommand:= @FrameOnEditorCommand;
   F.OnEditorChangeCaretPos:= @FrameOnEditorChangeCaretPos;
   F.OnEditorScroll:= @FrameOnEditorScroll;
+  F.OnEditorPaint:= @FrameOnEditorPaint;
   F.OnSaveFile:= @FrameOnSaveFile;
   F.OnAddRecent:= @FrameAddRecent;
   F.OnPyEvent:= @DoPyEvent;
@@ -108,6 +108,7 @@ var
   Pages: TATPages;
   Data: TATTabData;
 begin
+  CloseFormAutoCompletion;
   DoTooltipHide;
 
   if IsTooManyTabsOpened then exit;
@@ -129,6 +130,7 @@ begin
   D:= Tabs.GetTabData(Tabs.TabIndex);
   if D=nil then exit;
 
+  CloseFormAutoCompletion;
   DoTooltipHide;
 
   F:= D.TabObject as TEditorFrame;
@@ -259,18 +261,19 @@ procedure TfmMain.DoOnTabClose(Sender: TObject; ATabIndex: Integer;
 var
   D: TATTabData;
   Frame: TEditorFrame;
-  Btn, Res: Integer;
-  Msg: string;
-  bNeedTreeUpd, bSavedOk: boolean;
-  bModified: boolean;
+  bNeedTreeUpd, bSavedOk, bModified: boolean;
   Adapter: TATAdapterEControl;
+  Msg: string;
+  Btn, Res: Integer;
 begin
   D:= (Sender as TATTabs).GetTabData(ATabIndex);
   if D=nil then exit;
-  Frame:= (D.TabObject as TEditorFrame);
+  if D.TabObject=nil then exit;
+  Frame:= D.TabObject as TEditorFrame;
   bNeedTreeUpd:= Frame.Visible;
   bSavedOk:= true;
 
+  CloseFormAutoCompletion;
   DoTooltipHide;
 
   if Frame.Editor.IsLocked then
@@ -281,10 +284,23 @@ begin
 
   while Frame.IsParsingBusy do
   begin
-    Sleep(50);
+    Sleep(70);
     Application.ProcessMessages;
+
+    //frame may be deallocated due to Application.ProcessMessages
+    D:= (Sender as TATTabs).GetTabData(ATabIndex);
+    if D=nil then exit;
+    if D.TabObject=nil then exit;
+    Frame:= D.TabObject as TEditorFrame;
+    try
+      if Frame.ClassName='' then exit;
+    except
+      exit;
+    end;
   end;
+
   {
+  //old and simpler code, but not good for user
   if Frame.IsParsingBusy then
   begin
     ACanClose:= false;
@@ -497,19 +513,19 @@ begin
         //Form:= nil;
         PagesTo:= Groups.Pages[AGroupIndex];
       end;
-    6:
+    High(TATGroupsNums)+1:
       begin
         //Form:= FFormFloatGroups1;
         ShowFloatGroup1:= true;
         PagesTo:= GroupsF1.Pages1;
       end;
-    7:
+    High(TATGroupsNums)+2:
       begin
         //Form:= FFormFloatGroups2;
         ShowFloatGroup2:= true;
         PagesTo:= GroupsF2.Pages1;
       end;
-    8:
+    High(TATGroupsNums)+3:
       begin
         //Form:= FFormFloatGroups3;
         ShowFloatGroup3:= true;
@@ -518,6 +534,11 @@ begin
     else
       exit;
   end;
+
+  if GroupsCtx=nil then
+    UpdateGroupsOfContextMenu;
+  if GroupsCtx=nil then
+    raise Exception.Create('GroupsCtx=nil');
 
   GroupsCtx.MoveTab(Pages, NTabIndex, PagesTo, -1, true);
 end;

@@ -13,6 +13,7 @@ interface
 
 uses
   Classes, SysUtils,
+  LCLType,
   ATSynEdit_Keymap;
 
 procedure Keymap_AddCudatextItems(M: TATKeymap);
@@ -144,6 +145,7 @@ const
   cmd_DialogFind       = 2584;
   cmd_DialogReplace    = 2585;
   cmd_DialogFind_Hide  = 2586;
+  cmd_DialogUnprinted  = 2587;
 
   cmd_FindFirst        = 2589;
   cmd_FindNext         = 2590;
@@ -264,86 +266,6 @@ const
   cmd_HelpIssues    = 2706;
   cmd_HelpCheckUpdates = 2708;
 
-  cmd_Encoding_utf8bom_NoReload   = 2711;
-  cmd_Encoding_utf8nobom_NoReload = 2712;
-  cmd_Encoding_utf16le_NoReload   = 2713;
-  cmd_Encoding_utf16be_NoReload   = 2714;
-  cmd_Encoding_cp1250_NoReload    = 2715;
-  cmd_Encoding_cp1251_NoReload    = 2716;
-  cmd_Encoding_cp1252_NoReload    = 2717;
-  cmd_Encoding_cp1253_NoReload    = 2718;
-  cmd_Encoding_cp1254_NoReload    = 2719;
-  cmd_Encoding_cp1255_NoReload    = 2720;
-  cmd_Encoding_cp1256_NoReload    = 2721;
-  cmd_Encoding_cp1257_NoReload    = 2722;
-  cmd_Encoding_cp1258_NoReload    = 2723;
-  cmd_Encoding_mac_NoReload       = 2724;
-  cmd_Encoding_iso1_NoReload      = 2725;
-  cmd_Encoding_iso2_NoReload      = 2726;
-  cmd_Encoding_iso15_NoReload     = 2727;
-  cmd_Encoding_iso16_NoReload     = 2728;
-  cmd_Encoding_cp865_NoReload     = 2729;
-  cmd_Encoding_cp437_NoReload     = 2730;
-  cmd_Encoding_cp850_NoReload     = 2731;
-  cmd_Encoding_cp852_NoReload     = 2732;
-  cmd_Encoding_cp866_NoReload     = 2733;
-  cmd_Encoding_cp874_NoReload     = 2734;
-  cmd_Encoding_cp932_NoReload     = 2735;
-  cmd_Encoding_cp936_NoReload     = 2736;
-  cmd_Encoding_cp949_NoReload     = 2737;
-  cmd_Encoding_cp950_NoReload     = 2738;
-  cmd_Encoding_utf32le_NoReload   = 2739;
-  cmd_Encoding_utf32be_NoReload   = 2740;
-  cmd_Encoding_iso9_NoReload      = 2741;
-  cmd_Encoding_iso14_NoReload     = 2742;
-  cmd_Encoding_iso5_NoReload      = 2743;
-  cmd_Encoding_iso10_NoReload     = 2744;
-  cmd_Encoding_iso13_NoReload     = 2745;
-  cmd_Encoding_iso7_NoReload      = 2746;
-  cmd_Encoding_iso3_NoReload      = 2747;
-  cmd_Encoding_iso4_NoReload      = 2748;
-  cmd_Encoding_cp861_NoReload     = 2749;
-
-  cmd_Encoding_utf8bom_Reload   = 2751;
-  cmd_Encoding_utf8nobom_Reload = 2752;
-  cmd_Encoding_utf16le_Reload   = 2753;
-  cmd_Encoding_utf16be_Reload   = 2754;
-  cmd_Encoding_cp1250_Reload    = 2755;
-  cmd_Encoding_cp1251_Reload    = 2756;
-  cmd_Encoding_cp1252_Reload    = 2757;
-  cmd_Encoding_cp1253_Reload    = 2758;
-  cmd_Encoding_cp1254_Reload    = 2759;
-  cmd_Encoding_cp1255_Reload    = 2760;
-  cmd_Encoding_cp1256_Reload    = 2761;
-  cmd_Encoding_cp1257_Reload    = 2762;
-  cmd_Encoding_cp1258_Reload    = 2763;
-  cmd_Encoding_mac_Reload       = 2764;
-  cmd_Encoding_iso1_Reload      = 2765;
-  cmd_Encoding_iso2_Reload      = 2766;
-  cmd_Encoding_iso15_Reload     = 2767;
-  cmd_Encoding_iso16_Reload     = 2768;
-  cmd_Encoding_cp865_Reload     = 2769;
-  cmd_Encoding_cp437_Reload     = 2770;
-  cmd_Encoding_cp850_Reload     = 2771;
-  cmd_Encoding_cp852_Reload     = 2772;
-  cmd_Encoding_cp866_Reload     = 2773;
-  cmd_Encoding_cp874_Reload     = 2774;
-  cmd_Encoding_cp932_Reload     = 2775;
-  cmd_Encoding_cp936_Reload     = 2776;
-  cmd_Encoding_cp949_Reload     = 2777;
-  cmd_Encoding_cp950_Reload     = 2778;
-  cmd_Encoding_utf32le_Reload   = 2779;
-  cmd_Encoding_utf32be_Reload   = 2780;
-  cmd_Encoding_iso9_Reload      = 2781;
-  cmd_Encoding_iso14_Reload     = 2782;
-  cmd_Encoding_iso5_Reload      = 2783;
-  cmd_Encoding_iso10_Reload     = 2784;
-  cmd_Encoding_iso13_Reload     = 2785;
-  cmd_Encoding_iso7_Reload      = 2786;
-  cmd_Encoding_iso3_Reload      = 2787;
-  cmd_Encoding_iso4_Reload      = 2788;
-  cmd_Encoding_cp861_Reload     = 2789;
-
   cmd_Markers_SelectToCaret      = 2798;
   cmd_Markers_DeleteToCaret      = 2799;
   cmd_Markers_DropAtCaret        = 2800;
@@ -392,31 +314,137 @@ const
   cmd_GroupActivateFloat2        = 2911;
   cmd_GroupActivateFloat3        = 2912;
 
-implementation
+  //encoding without reload
+  cmd_Encoding_utf8bom_NoReload     = 3000;
+  cmd_Encoding_utf8nobom_NoReload   = 3001;
+  cmd_Encoding_utf16LE_NoReload     = 3002;
+  cmd_Encoding_utf16BE_NoReload     = 3003;
+  cmd_Encoding_utf16LEbom_NoReload  = 3004;
+  cmd_Encoding_utf16BEbom_NoReload  = 3005;
+  cmd_Encoding_utf32LE_NoReload     = 3006;
+  cmd_Encoding_utf32BE_NoReload     = 3007;
+  cmd_Encoding_utf32LEbom_NoReload  = 3008;
+  cmd_Encoding_utf32BEbom_NoReload  = 3009;
 
-const
-  cXControl = {$ifdef darwin} 'Meta' {$else} 'Ctrl' {$endif};
+  cmd_Encoding_cp1250_NoReload    = 3020;
+  cmd_Encoding_cp1251_NoReload    = 3021;
+  cmd_Encoding_cp1252_NoReload    = 3022;
+  cmd_Encoding_cp1253_NoReload    = 3023;
+  cmd_Encoding_cp1254_NoReload    = 3024;
+  cmd_Encoding_cp1255_NoReload    = 3025;
+  cmd_Encoding_cp1256_NoReload    = 3026;
+  cmd_Encoding_cp1257_NoReload    = 3027;
+  cmd_Encoding_cp1258_NoReload    = 3028;
+
+  cmd_Encoding_iso1_NoReload      = 3031;
+  cmd_Encoding_iso2_NoReload      = 3032;
+  cmd_Encoding_iso3_NoReload      = 3033;
+  cmd_Encoding_iso4_NoReload      = 3034;
+  cmd_Encoding_iso5_NoReload      = 3035;
+  cmd_Encoding_iso7_NoReload      = 3037;
+  cmd_Encoding_iso9_NoReload      = 3039;
+  cmd_Encoding_iso10_NoReload     = 3040;
+  cmd_Encoding_iso13_NoReload     = 3043;
+  cmd_Encoding_iso14_NoReload     = 3044;
+  cmd_Encoding_iso15_NoReload     = 3045;
+  cmd_Encoding_iso16_NoReload     = 3046;
+
+  cmd_Encoding_cp437_NoReload     = 3050;
+  cmd_Encoding_cp850_NoReload     = 3055;
+  cmd_Encoding_cp852_NoReload     = 3056;
+  cmd_Encoding_cp861_NoReload     = 3057;
+  cmd_Encoding_cp865_NoReload     = 3058;
+  cmd_Encoding_cp866_NoReload     = 3059;
+  cmd_Encoding_cp874_NoReload     = 3060;
+  cmd_Encoding_cp932_NoReload     = 3070;
+  cmd_Encoding_cp936_NoReload     = 3071;
+  cmd_Encoding_cp949_NoReload     = 3072;
+  cmd_Encoding_cp950_NoReload     = 3073;
+  cmd_Encoding_cns_NoReload       = 3074;
+  cmd_Encoding_gb2312_NoReload    = 3075;
+  cmd_Encoding_euckr_NoReload     = 3076;
+
+  cmd_Encoding_mac_NoReload       = 3080;
+  cmd_Encoding_koi8r_NoReload     = 3081;
+  cmd_Encoding_koi8u_NoReload     = 3082;
+
+  //encoding with reload
+  cmd_Encoding_utf8bom_Reload     = 3100;
+  cmd_Encoding_utf8nobom_Reload   = 3101;
+  cmd_Encoding_utf16LE_Reload     = 3102;
+  cmd_Encoding_utf16BE_Reload     = 3103;
+  cmd_Encoding_utf16LEbom_Reload  = 3104;
+  cmd_Encoding_utf16BEbom_Reload  = 3105;
+  cmd_Encoding_utf32LE_Reload     = 3106;
+  cmd_Encoding_utf32BE_Reload     = 3107;
+  cmd_Encoding_utf32LEbom_Reload  = 3108;
+  cmd_Encoding_utf32BEbom_Reload  = 3109;
+
+  cmd_Encoding_cp1250_Reload    = 3120;
+  cmd_Encoding_cp1251_Reload    = 3121;
+  cmd_Encoding_cp1252_Reload    = 3122;
+  cmd_Encoding_cp1253_Reload    = 3123;
+  cmd_Encoding_cp1254_Reload    = 3124;
+  cmd_Encoding_cp1255_Reload    = 3125;
+  cmd_Encoding_cp1256_Reload    = 3126;
+  cmd_Encoding_cp1257_Reload    = 3127;
+  cmd_Encoding_cp1258_Reload    = 3128;
+
+  cmd_Encoding_iso1_Reload      = 3131;
+  cmd_Encoding_iso2_Reload      = 3132;
+  cmd_Encoding_iso3_Reload      = 3133;
+  cmd_Encoding_iso4_Reload      = 3134;
+  cmd_Encoding_iso5_Reload      = 3135;
+  cmd_Encoding_iso7_Reload      = 3137;
+  cmd_Encoding_iso9_Reload      = 3139;
+  cmd_Encoding_iso10_Reload     = 3140;
+  cmd_Encoding_iso13_Reload     = 3143;
+  cmd_Encoding_iso14_Reload     = 3144;
+  cmd_Encoding_iso15_Reload     = 3145;
+  cmd_Encoding_iso16_Reload     = 3146;
+
+  cmd_Encoding_cp437_Reload     = 3150;
+  cmd_Encoding_cp850_Reload     = 3155;
+  cmd_Encoding_cp852_Reload     = 3156;
+  cmd_Encoding_cp861_Reload     = 3157;
+  cmd_Encoding_cp865_Reload     = 3158;
+  cmd_Encoding_cp866_Reload     = 3159;
+  cmd_Encoding_cp874_Reload     = 3160;
+  cmd_Encoding_cp932_Reload     = 3170;
+  cmd_Encoding_cp936_Reload     = 3171;
+  cmd_Encoding_cp949_Reload     = 3172;
+  cmd_Encoding_cp950_Reload     = 3173;
+  cmd_Encoding_cns_Reload       = 3174;
+  cmd_Encoding_gb2312_Reload    = 3175;
+  cmd_Encoding_euckr_Reload     = 3176;
+
+  cmd_Encoding_mac_Reload       = 3180;
+  cmd_Encoding_koi8r_Reload     = 3181;
+  cmd_Encoding_koi8u_Reload     = 3182;
+
+
+implementation
 
 procedure Keymap_AddCudatextItems(M: TATKeymap);
 begin
   M.Add(cmd_RepaintEditor, 'repaint editor', [], []);
-  M.Add(cmd_FileNew, 'file: new file', [cXControl+'+N'], []);
+  M.Add(cmd_FileNew, 'file: new file', [scXControl+VK_N], []);
   M.Add(cmd_FileNewMenu, 'file: new file, from template', [], []);
-  M.Add(cmd_FileOpen, 'file: open file', [cXControl+'+O'], []);
+  M.Add(cmd_FileOpen, 'file: open file', [scXControl+VK_O], []);
   M.Add(cmd_FileOpen_NoPlugins, 'file: open file, ignore plugins', [], []);
   M.Add(cmd_FileOpen_TextViewer, 'file: open file, in text viewer', [], []);
   M.Add(cmd_FileOpen_HexViewer, 'file: open file, in hex viewer', [], []);
   M.Add(cmd_FileOpen_UnicodeViewer, 'file: open file, in unicode viewer', [], []);
-  M.Add(cmd_FileSave, 'file: save file', [cXControl+'+S'], []);
+  M.Add(cmd_FileSave, 'file: save file', [scXControl+VK_S], []);
   M.Add(cmd_FileSaveAs, 'file: save file as', [], []);
   M.Add(cmd_FileSaveAll, 'file: save all tabs', [], []);
-  M.Add(cmd_FileReopen, 'file: reopen', [], []);
-  M.Add(cmd_FileClose, 'file: close tab', [cXControl+'+W'], []);
+  M.Add(cmd_FileReopen, 'file: reload', [], []);
+  M.Add(cmd_FileClose, 'file: close tab', [scXControl+VK_W], []);
   M.Add(cmd_FileCloseAll, 'file: close all tabs', [], []);
   M.Add(cmd_FileCloseOtherThis, 'file: close other tabs (this group)', [], []);
   M.Add(cmd_FileCloseOtherAll, 'file: close other tabs (all groups)', [], []);
   M.Add(cmd_FileCloseAndDelete, 'file: close tab, delete file', [], []);
-  M.Add(cmd_FileExit, 'file: quit program', [cXControl+'+Q'], []);
+  M.Add(cmd_FileExit, 'file: quit program', [scXControl+VK_Q], []);
   M.Add(cmd_FileExportHtml, 'file: export to HTML', [], []);
   M.Add(cmd_FileReopenRecent, 'file: reopen recent file', [], []);
   M.Add(cmd_OpenContainingFolder, 'file: open folder containing the current file', [], []);
@@ -444,9 +472,9 @@ begin
   M.Add(cmd_RescanPythonPluginsInfFiles, 'plugins: rescan python plugins inf-files', [], []);
   M.Add(cmd_FindPythonLib, 'plugins: find python library in OS', [], []);
 
-  M.Add(cmd_ToggleFullScreen, 'ui: toggle full-screen mode', [{$ifndef darwin}'F11'{$else}'Ctrl+Meta+F'{$endif}], []);
-  M.Add(cmd_ToggleDistractionFree, 'ui: toggle distraction-free mode', [{$ifndef darwin}'Alt+F11'{$else}'Ctrl+Meta+G'{$endif}], []);
-  M.Add(cmd_ToggleSidePanel, 'ui: toggle side panel', [{$ifndef darwin}'F12'{$endif}], []);
+  M.Add(cmd_ToggleFullScreen, 'ui: toggle full-screen mode', [{$ifndef darwin}VK_F11{$else}scCtrl+scMeta+VK_F{$endif}], []);
+  M.Add(cmd_ToggleDistractionFree, 'ui: toggle distraction-free mode', [{$ifndef darwin}scAlt+VK_F11{$else}scCtrl+scMeta+VK_G{$endif}], []);
+  M.Add(cmd_ToggleSidePanel, 'ui: toggle side panel', [{$ifndef darwin}VK_F12{$endif}], []);
   M.Add(cmd_ToggleSidePanelAndSyntaxTree, 'ui: toggle side panel / code tree', [], []);
   M.Add(cmd_ToggleBottomPanel, 'ui: toggle bottom panel', [], []);
   M.Add(cmd_ToggleSidebar, 'ui: toggle sidebar', [], []);
@@ -466,7 +494,7 @@ begin
   M.Add(cmd_ShowPanelConsole,          'ui: show bottom panel / console', [], []);
   M.Add(cmd_ShowPanelOutput,           'ui: show bottom panel / output', [], []);
   M.Add(cmd_ShowPanelValidate,         'ui: show bottom panel / validate', [], []);
-  M.Add(cmd_ShowPanelConsole_AndFocus, 'ui: show+focus bottom panel / console', ['Ctrl+`'], []);
+  M.Add(cmd_ShowPanelConsole_AndFocus, 'ui: show+focus bottom panel / console', [scCtrl+VK_LCL_TILDE], []);
   M.Add(cmd_ShowPanelOutput_AndFocus,  'ui: show+focus bottom panel / output', [], []);
   M.Add(cmd_ShowPanelValidate_AndFocus, 'ui: show+focus bottom panel / validate', [], []);
 
@@ -476,8 +504,8 @@ begin
   M.Add(cmd_HideNotificationPanels, 'ui: hide editor notification panel(s)', [], []);
   M.Add(cmd_ToggleFileNotifications, 'ui: toggle file-change notifications', [], []);
 
-  M.Add(cmd_SwitchTab_HotkeyNext, 'ui: switch tab, to next', ['Ctrl+Tab'], []);
-  M.Add(cmd_SwitchTab_HotkeyPrev, 'ui: switch tab, to previous', ['Ctrl+Shift+Tab'], []);
+  M.Add(cmd_SwitchTab_HotkeyNext, 'ui: switch tab, to next', [scCtrl+VK_TAB], []);
+  M.Add(cmd_SwitchTab_HotkeyPrev, 'ui: switch tab, to previous', [scCtrl+scShift+VK_TAB], []);
   M.Add(cmd_SwitchTab_SimpleNext, 'ui: switch tab, simply to next', [], []);
   M.Add(cmd_SwitchTab_SimplePrev, 'ui: switch tab, simply to previous', [], []);
   M.Add(cmd_SwitchTab_Dialog, 'ui: switch tab, dialog', [], []);
@@ -485,9 +513,9 @@ begin
 
   M.Add(cmd_ShowMainMenuAsPopup, 'ui: show main menu as popup', [], []);
   M.Add(cmd_DialogSaveTabs, 'dialog: save tabs', [], []);
-  M.Add(cmd_DialogCommands, 'dialog: command palette', [cXControl+'+Shift+P'], ['F1']);
-  M.Add(cmd_DialogGoto, 'dialog: go to line', [cXControl+'+G'], []);
-  M.Add(cmd_DialogGotoBookmark, 'dialog: go to bookmark', [cXControl+'+B'], []);
+  M.Add(cmd_DialogCommands, 'dialog: command palette', [scXControl+scShift+VK_P], [VK_F1]);
+  M.Add(cmd_DialogGoto, 'dialog: go to line', [scXControl+VK_G], []);
+  M.Add(cmd_DialogGotoBookmark, 'dialog: go to bookmark', [scXControl+VK_B], []);
   M.Add(cmd_DialogLexerProp, 'dialog: lexer properties', [], []);
   M.Add(cmd_DialogLexerLib, 'dialog: lexer library', [], []);
   M.Add(cmd_DialogLexerStyleMap, 'dialog: lexer styles mapping', [], []);
@@ -495,16 +523,17 @@ begin
   M.Add(cmd_DialogThemeSyntax, 'dialog: configure syntax-theme', [], []);
   M.Add(cmd_DialogCharMap, 'dialog: char map', [], []);
 
-  M.Add(cmd_DialogFind, 'dialog: find: show dialog', [cXControl+'+F'], []);
+  M.Add(cmd_DialogFind, 'dialog: find: show dialog', [scXControl+VK_F], []);
   M.Add(cmd_DialogFind_Hide, 'dialog: find: hide dialog', [], []);
   M.Add(cmd_ToggleFindDialog, 'dialog: find: toggle dialog', [], []);
   M.Add(cmd_ToggleFindDialog_AndFocus, 'dialog: find: toggle+focus dialog', [], []);
-  M.Add(cmd_DialogReplace, 'dialog: replace: show dialog', [cXControl+'+R'], []);
+  M.Add(cmd_DialogReplace, 'dialog: replace: show dialog', [scXControl+VK_R], []);
   M.Add(cmd_ToggleReplaceDialog, 'dialog: replace: toggle dialog', [], []);
+  M.Add(cmd_DialogUnprinted, 'dialog: unprinted chars', [], []);
 
   M.Add(cmd_FindFirst, 'find, first', [], []);
-  M.Add(cmd_FindNext, 'find, next', ['F3'], []);
-  M.Add(cmd_FindPrev, 'find, previous', ['Shift+F3'], []);
+  M.Add(cmd_FindNext, 'find, next', [VK_F3], []);
+  M.Add(cmd_FindPrev, 'find, previous', [scShift+VK_F3], []);
   M.Add(cmd_FindAllAndSelect, 'find all, and select', [], []);
   M.Add(cmd_FindAllAndMarkers, 'find all, and place markers', [], []);
   M.Add(cmd_FindAllAndBookmarks, 'find all, and place bookmarks', [], []);
@@ -514,7 +543,7 @@ begin
   M.Add(cmd_FindCurSelPrev, 'find current selection, previous', [], []);
   M.Add(cmd_GotoLastEditingPos, 'go to last editing pos', [], []);
 
-  M.Add(cmd_SelectExpandToWord, 'selection: add next occurrence of selected word', [cXControl+'+Shift+D'], []);
+  M.Add(cmd_SelectExpandToWord, 'selection: add next occurrence of selected word', [scXControl+scShift+VK_D], []);
   M.Add(cmd_SelectExpandToText, 'selection: add next occurrence of selected text (not whole-word)', [], []);
   M.Add(cmd_SelectExpandToWord_Skip, 'selection: skip to next occurrence of selected word', [], []);
   M.Add(cmd_SelectExpandToText_Skip, 'selection: skip to next occurrence of selected text', [], []);
@@ -612,26 +641,30 @@ begin
 
   M.Add(cmd_MenuEnc, 'menu: encodings', [], []);
   M.Add(cmd_MenuEnds, 'menu: line ends', [], []);
-  M.Add(cmd_MenuLexers, 'menu: lexers (popup)', [], []);
-  M.Add(cmd_DialogLexerMenu, 'menu: lexers (dialog)', [], []);
+  M.Add(cmd_MenuLexers, 'menu: lexers', [], []);
 
   M.Add(cmd_ChooseTranslation, 'menu: translations', [], []);
   M.Add(cmd_ChooseThemeUI, 'menu: themes', [], []);
 
-  M.Add(cmd_AutoComplete, 'code: auto-completion menu', ['Ctrl+Space'], []);
+  //on macOS 10.11, Ctrl+Space on author's PC is reserved to toggle keyboard layout, so use e.g. Alt+Space
+  M.Add(cmd_AutoComplete, 'code: auto-completion menu', [{$ifdef darwin}scAlt+VK_SPACE{$else}scCtrl+VK_SPACE{$endif}], []);
   M.Add(cmd_GotoDefinition, 'code: go to definition', [], []);
-  M.Add(cmd_ShowFunctionHint, 'code: show function-hint', ['Ctrl+Shift+Space'], []);
+  M.Add(cmd_ShowFunctionHint, 'code: show function-hint', [scCtrl+scShift+VK_SPACE], []);
 
   M.Add(cmd_FoldingEnable, 'folding: enable folding functionality', [], []);
   M.Add(cmd_FoldingDisable, 'folding: disable folding functionality', [], []);
   M.Add(cmd_DeleteNewColorAttrs, 'clear custom color attributes (added in plugins)', [], []);
 
-  M.Add(cmd_Encoding_utf8bom_NoReload, 'change encoding, no reload: utf8 bom', [], []);
-  M.Add(cmd_Encoding_utf8nobom_NoReload, 'change encoding, no reload: utf8 no bom', [], []);
-  M.Add(cmd_Encoding_utf16le_NoReload, 'change encoding, no reload: utf16 le', [], []);
-  M.Add(cmd_Encoding_utf16be_NoReload, 'change encoding, no reload: utf16 be', [], []);
-  M.Add(cmd_Encoding_utf32le_NoReload, 'change encoding, no reload: utf32 le', [], []);
-  M.Add(cmd_Encoding_utf32be_NoReload, 'change encoding, no reload: utf32 be', [], []);
+  M.Add(cmd_Encoding_utf8bom_NoReload, 'change encoding, no reload: utf-8 BOM', [], []);
+  M.Add(cmd_Encoding_utf8nobom_NoReload, 'change encoding, no reload: utf-8 no BOM', [], []);
+  M.Add(cmd_Encoding_utf16LE_NoReload, 'change encoding, no reload: utf-16 LE no BOM', [], []);
+  M.Add(cmd_Encoding_utf16BE_NoReload, 'change encoding, no reload: utf-16 BE no BOM', [], []);
+  M.Add(cmd_Encoding_utf16LEbom_NoReload, 'change encoding, no reload: utf-16 LE BOM', [], []);
+  M.Add(cmd_Encoding_utf16BEbom_NoReload, 'change encoding, no reload: utf-16 BE BOM', [], []);
+  M.Add(cmd_Encoding_utf32LE_NoReload, 'change encoding, no reload: utf-32 LE no BOM', [], []);
+  M.Add(cmd_Encoding_utf32BE_NoReload, 'change encoding, no reload: utf-32 BE no BOM', [], []);
+  M.Add(cmd_Encoding_utf32LEbom_NoReload, 'change encoding, no reload: utf-32 LE BOM', [], []);
+  M.Add(cmd_Encoding_utf32BEbom_NoReload, 'change encoding, no reload: utf-32 BE BOM', [], []);
   M.Add(cmd_Encoding_cp1250_NoReload, 'change encoding, no reload: cp1250', [], []);
   M.Add(cmd_Encoding_cp1251_NoReload, 'change encoding, no reload: cp1251', [], []);
   M.Add(cmd_Encoding_cp1252_NoReload, 'change encoding, no reload: cp1252', [], []);
@@ -642,6 +675,8 @@ begin
   M.Add(cmd_Encoding_cp1257_NoReload, 'change encoding, no reload: cp1257', [], []);
   M.Add(cmd_Encoding_cp1258_NoReload, 'change encoding, no reload: cp1258', [], []);
   M.Add(cmd_Encoding_mac_NoReload, 'change encoding, no reload: mac', [], []);
+  M.Add(cmd_Encoding_koi8r_NoReload, 'change encoding, no reload: koi8r', [], []);
+  M.Add(cmd_Encoding_koi8u_NoReload, 'change encoding, no reload: koi8u', [], []);
   M.Add(cmd_Encoding_iso1_NoReload, 'change encoding, no reload: iso-8859-1', [], []);
   M.Add(cmd_Encoding_iso2_NoReload, 'change encoding, no reload: iso-8859-2', [], []);
   M.Add(cmd_Encoding_iso3_NoReload, 'change encoding, no reload: iso-8859-3', [], []);
@@ -661,17 +696,24 @@ begin
   M.Add(cmd_Encoding_cp865_NoReload, 'change encoding, no reload: cp865', [], []);
   M.Add(cmd_Encoding_cp866_NoReload, 'change encoding, no reload: cp866', [], []);
   M.Add(cmd_Encoding_cp874_NoReload, 'change encoding, no reload: cp874', [], []);
-  M.Add(cmd_Encoding_cp932_NoReload, 'change encoding, no reload: cp932', [], []);
-  M.Add(cmd_Encoding_cp936_NoReload, 'change encoding, no reload: cp936', [], []);
-  M.Add(cmd_Encoding_cp949_NoReload, 'change encoding, no reload: cp949', [], []);
-  M.Add(cmd_Encoding_cp950_NoReload, 'change encoding, no reload: cp950', [], []);
+  M.Add(cmd_Encoding_cp932_NoReload, 'change encoding, no reload: shift-jis', [], []);
+  M.Add(cmd_Encoding_cp936_NoReload, 'change encoding, no reload: gbk', [], []);
+  M.Add(cmd_Encoding_cp949_NoReload, 'change encoding, no reload: uhc', [], []);
+  M.Add(cmd_Encoding_cp950_NoReload, 'change encoding, no reload: big5', [], []);
+  M.Add(cmd_Encoding_cns_NoReload, 'change encoding, no reload: cns', [], []);
+  M.Add(cmd_Encoding_gb2312_NoReload, 'change encoding, no reload: gb2312', [], []);
+  M.Add(cmd_Encoding_euckr_NoReload, 'change encoding, no reload: euc-kr', [], []);
 
-  M.Add(cmd_Encoding_utf8bom_Reload, 'change encoding, reload: utf8 bom', [], []);
-  M.Add(cmd_Encoding_utf8nobom_Reload, 'change encoding, reload: utf8 no bom', [], []);
-  M.Add(cmd_Encoding_utf16le_Reload, 'change encoding, reload: utf16 le', [], []);
-  M.Add(cmd_Encoding_utf16be_Reload, 'change encoding, reload: utf16 be', [], []);
-  M.Add(cmd_Encoding_utf32le_Reload, 'change encoding, reload: utf32 le', [], []);
-  M.Add(cmd_Encoding_utf32be_Reload, 'change encoding, reload: utf32 be', [], []);
+  M.Add(cmd_Encoding_utf8bom_Reload, 'change encoding, reload: utf-8 BOM', [], []);
+  M.Add(cmd_Encoding_utf8nobom_Reload, 'change encoding, reload: utf-8 no BOM', [], []);
+  M.Add(cmd_Encoding_utf16LE_Reload, 'change encoding, reload: utf-16 LE no BOM', [], []);
+  M.Add(cmd_Encoding_utf16BE_Reload, 'change encoding, reload: utf-16 BE no BOM', [], []);
+  M.Add(cmd_Encoding_utf16LEbom_Reload, 'change encoding, reload: utf-16 LE BOM', [], []);
+  M.Add(cmd_Encoding_utf16BEbom_Reload, 'change encoding, reload: utf-16 BE BOM', [], []);
+  M.Add(cmd_Encoding_utf32LE_Reload, 'change encoding, reload: utf-32 LE no BOM', [], []);
+  M.Add(cmd_Encoding_utf32BE_Reload, 'change encoding, reload: utf-32 BE no BOM', [], []);
+  M.Add(cmd_Encoding_utf32LEbom_Reload, 'change encoding, reload: utf-32 LE BOM', [], []);
+  M.Add(cmd_Encoding_utf32BEbom_Reload, 'change encoding, reload: utf-32 BE BOM', [], []);
   M.Add(cmd_Encoding_cp1250_Reload, 'change encoding, reload: cp1250', [], []);
   M.Add(cmd_Encoding_cp1251_Reload, 'change encoding, reload: cp1251', [], []);
   M.Add(cmd_Encoding_cp1252_Reload, 'change encoding, reload: cp1252', [], []);
@@ -682,6 +724,8 @@ begin
   M.Add(cmd_Encoding_cp1257_Reload, 'change encoding, reload: cp1257', [], []);
   M.Add(cmd_Encoding_cp1258_Reload, 'change encoding, reload: cp1258', [], []);
   M.Add(cmd_Encoding_mac_Reload, 'change encoding, reload: mac', [], []);
+  M.Add(cmd_Encoding_koi8r_Reload, 'change encoding, reload: koi8r', [], []);
+  M.Add(cmd_Encoding_koi8u_Reload, 'change encoding, reload: koi8u', [], []);
   M.Add(cmd_Encoding_iso1_Reload, 'change encoding, reload: iso-8859-1', [], []);
   M.Add(cmd_Encoding_iso2_Reload, 'change encoding, reload: iso-8859-2', [], []);
   M.Add(cmd_Encoding_iso3_Reload, 'change encoding, reload: iso-8859-3', [], []);
@@ -701,10 +745,13 @@ begin
   M.Add(cmd_Encoding_cp865_Reload, 'change encoding, reload: cp865', [], []);
   M.Add(cmd_Encoding_cp866_Reload, 'change encoding, reload: cp866', [], []);
   M.Add(cmd_Encoding_cp874_Reload, 'change encoding, reload: cp874', [], []);
-  M.Add(cmd_Encoding_cp932_Reload, 'change encoding, reload: cp932', [], []);
-  M.Add(cmd_Encoding_cp936_Reload, 'change encoding, reload: cp936', [], []);
-  M.Add(cmd_Encoding_cp949_Reload, 'change encoding, reload: cp949', [], []);
-  M.Add(cmd_Encoding_cp950_Reload, 'change encoding, reload: cp950', [], []);
+  M.Add(cmd_Encoding_cp932_Reload, 'change encoding, reload: shift-jis', [], []);
+  M.Add(cmd_Encoding_cp936_Reload, 'change encoding, reload: gbk', [], []);
+  M.Add(cmd_Encoding_cp949_Reload, 'change encoding, reload: uhc', [], []);
+  M.Add(cmd_Encoding_cp950_Reload, 'change encoding, reload: big5', [], []);
+  M.Add(cmd_Encoding_cns_Reload, 'change encoding, reload: cns', [], []);
+  M.Add(cmd_Encoding_gb2312_Reload, 'change encoding, reload: gb2312', [], []);
+  M.Add(cmd_Encoding_euckr_Reload, 'change encoding, reload: euc-kr', [], []);
 
   M.Add(cmd_Markers_DropAtCaret       , 'markers: drop marker at caret', [], []);
   M.Add(cmd_Markers_GotoLastNoDelete  , 'markers: go to last marker (don''t delete)', [], []);

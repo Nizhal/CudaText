@@ -36,6 +36,7 @@ uses
   ATSynEdit_Adapter_litelexer,
   ATSynEdit_Commands,
   ATSynEdit_CharSizeArray,
+  ATSynEdit_ClipRecents,
   ATStringProc,
   ATStringProc_Separator,
   ATFlatThemes,
@@ -51,17 +52,6 @@ uses
   ec_SyntAnal;
 
 type
-
-  { TAppFileProps }
-
-  TAppFileProps = record
-    Inited: boolean;
-    Exists: boolean;
-    Size: Int64;
-    Age: LongInt;
-    class operator =(const a, b: TAppFileProps): boolean;
-  end;
-
   TAppConsoleQueue = specialize TQueue<UnicodeString>;
 
   TAppCommandDelayed = record
@@ -137,12 +127,15 @@ type
     ahhMarkers,
     ahhTabColor,
     ahhCodeTreeFilter,
-    ahhTabSplit
+    ahhTabSplit,
+    ahhMargin,
+    ahhUndoRedo
     );
 
 const
   cAppHistoryElementChar: array[TAppHistoryElement] of char =
-    'tchsTeblwMmrunSfkCFi';
+    ('t', 'c', 'h', 's', 'T', 'e', 'b', 'l', 'w', 'M', 'm', 'r', 'u', 'n',
+     'S', 'f', 'k', 'C', 'F', 'i', 'I', 'U');
 
 const
   cAppSessionDefaultBase = 'history session';
@@ -237,6 +230,8 @@ type
     PyOutputCopyToStdout: boolean;
 
     MaxLineLenForEditingKeepingLexer: integer;
+    MaxSizeForSession: integer;
+    MaxLinesForMicromapPaint: integer;
     InfoAboutOptionsEditor: boolean;
     AllowRunPkExec: boolean;
     AllowCheckConfigsForNullBytes: boolean;
@@ -274,6 +269,7 @@ type
     MaxFileSizeForLexer: integer;
     MaxFileSizeWithoutProgressForm: integer;
     MaxStatusbarMessages: integer;
+    MaxUndoSizeForSessionFile: integer;
 
     AutocompleteAcpFiles: boolean;
     AutocompleteHtml: boolean;
@@ -285,14 +281,15 @@ type
     AutocompleteInComments: boolean;
     AutocompleteInCommentsHTML: boolean;
     AutocompleteInStrings: boolean;
+    AutocompleteClosingDelay: integer;
 
     HtmlBackgroundColorPair: array[boolean] of TColor;
 
     ListboxCentered: boolean;
     ListboxSizeX: integer;
     ListboxSizeY: integer;
-    ListboxCompleteSizeX: integer;
-    ListboxCompleteSizeY: integer;
+    ListboxAutoCompleteWidth: integer;
+    ListboxAutoCompleteMaxItems: integer;
     ListboxFuzzySearch: boolean;
     ListboxHotkeyFontSizeDelta: integer;
     ListboxTopItemIndent: integer;
@@ -360,6 +357,7 @@ type
     FindShow_HiAll: boolean;
     FindShow_ConfirmRep: boolean;
     FindShow_RegexSubst: boolean;
+    FindShow_PreserveCase: boolean;
 
     FindIndentVert: integer;
     FindIndentHorz: integer;
@@ -373,6 +371,7 @@ type
     AllowProgramUpdates: boolean;
     EscapeClose: boolean;
     EscapeCloseConsole: boolean;
+    EscapeCloseFinder: boolean;
     ConsoleWordWrap: boolean;
     InputHeight: integer;
     InitialDir: string;
@@ -426,6 +425,7 @@ type
     ShowStatusbar: boolean;
     ShowToolbar: boolean;
     ShowTitlePath: boolean;
+    ShowSidebarMenuButton: integer;
 
     ReopenSession: boolean;
     ReopenSessionWithCmdLine: boolean;
@@ -486,7 +486,8 @@ type
     HotkeyToggleMultiline,
     HotkeyToggleConfirmRep,
     HotkeyToggleTokens,
-    HotkeyToggleHiAll
+    HotkeyToggleHiAll,
+    HotkeyTogglePresCase
       : string;
   end;
 var
@@ -524,6 +525,7 @@ type
     OpSpacingY: integer;
     OpTabSize: integer;
     OpTabSpaces: boolean;
+    OpTabSmart: boolean;
 
     OpMaxLineLenForBracketFinder: integer;
     OpMaxLineLenToTokenize: integer;
@@ -569,6 +571,7 @@ type
     OpRulerShow: boolean;
     OpRulerNumeration: integer;
     OpRulerMarkCaret: integer;
+    OpRulerHeight: integer;
 
     OpMinimapShow: boolean;
     OpMinimapShowSelAlways: boolean;
@@ -577,8 +580,9 @@ type
     OpMinimapAtLeft: boolean;
     OpMinimapScale: integer;
     OpMinimapTooltipShow: boolean;
-    OpMinimapTooltipLineCount: integer;
+    OpMinimapTooltipHeight: integer;
     OpMinimapTooltipWidth: integer;
+    OpMinimapTooltipFontSize: integer;
     OpMinimapDragImmediately: boolean;
 
     OpMicromapShow: boolean;
@@ -712,6 +716,10 @@ var
   EditorOps: TEditorOps;
 
 var
+  EditorOps_CenteringWidth: TStringList;
+  EditorOps_CenteringDistFree: TStringList;
+
+var
   AppUserName: string = '';
   AppDir_Home: string = '';
   AppDir_Settings: string = '';
@@ -763,7 +771,6 @@ procedure MsgOldApi(const s: string);
 procedure MsgFileFromSessionNotFound(const fn: string);
 
 function AppListboxItemHeight(AScale, ADoubleHeight: boolean): integer;
-procedure AppGetFileProps(const FileName: string; out P: TAppFileProps);
 procedure AppUpdateWatcherFrames(AMaxWorkTime: integer = 500);
 procedure AppStopListTimers;
 
@@ -776,6 +783,9 @@ procedure AppApplyScrollbarStyles(const s: string);
 procedure AppApplyUnprintedSymbolsScale(const s: string);
 procedure AppApplyFallbackEncoding(const s: string);
 procedure AppApplyAutoCopyToClipboard(const s: string);
+
+function AppOption_LoadFromStringlist(L: TStringList; const AKey: string; ADefault: integer): integer;
+procedure AppOption_SaveToStringlist(L: TStringList; const AKey: string; AValue: integer);
 
 type
   { TKeymapHelper }
@@ -830,66 +840,61 @@ type
 
 type
   TAppEncodingRecord = record
-    Sub,
     Name,
     ShortName: string;
   end;
 
 const
-  AppEncodings: array[0..52] of TAppEncodingRecord = (
-    (Sub: ''; Name: cEncNameUtf8_NoBom; ShortName: 'utf8'),
-    (Sub: ''; Name: cEncNameUtf8_WithBom; ShortName: 'utf8_bom'),
-    (Sub: ''; Name: cEncNameUtf16LE_NoBom; ShortName: 'utf16le'),
-    (Sub: ''; Name: cEncNameUtf16LE_WithBom; ShortName: 'utf16le_bom'),
-    (Sub: ''; Name: cEncNameUtf16BE_NoBom; ShortName: 'utf16be'),
-    (Sub: ''; Name: cEncNameUtf16BE_WithBom; ShortName: 'utf16be_bom'),
-    (Sub: ''; Name: cEncNameUtf32LE_NoBom; ShortName: 'utf32le'),
-    (Sub: ''; Name: cEncNameUtf32LE_WithBom; ShortName: 'utf32le_bom'),
-    (Sub: ''; Name: cEncNameUtf32BE_NoBom; ShortName: 'utf32be'),
-    (Sub: ''; Name: cEncNameUtf32BE_WithBom; ShortName: 'utf32be_bom'),
-    (Sub: ''; Name: '-'; ShortName: ''),
-    (Sub: 'eu'; Name: 'cp1250'; ShortName: 'cp1250'),
-    (Sub: 'eu'; Name: 'cp1251'; ShortName: 'cp1251'),
-    (Sub: 'eu'; Name: 'cp1252'; ShortName: 'cp1252'),
-    (Sub: 'eu'; Name: 'cp1253'; ShortName: 'cp1253'),
-    (Sub: 'eu'; Name: 'cp1254'; ShortName: 'cp1254'),
-    (Sub: 'eu'; Name: 'cp1257'; ShortName: 'cp1257'),
-    (Sub: 'eu'; Name: '-'; ShortName: ''),
-    (Sub: 'eu'; Name: 'cp437'; ShortName: 'cp437'),
-    (Sub: 'eu'; Name: 'cp850'; ShortName: 'cp850'),
-    (Sub: 'eu'; Name: 'cp852'; ShortName: 'cp852'),
-    (Sub: 'eu'; Name: 'cp861'; ShortName: 'cp861'),
-    (Sub: 'eu'; Name: 'cp865'; ShortName: 'cp865'),
-    (Sub: 'eu'; Name: 'cp866'; ShortName: 'cp866'),
-    (Sub: 'eu'; Name: '-'; ShortName: ''),
-    (Sub: 'eu'; Name: 'iso-8859-1'; ShortName: 'iso-8859-1'),
-    (Sub: 'eu'; Name: 'iso-8859-2'; ShortName: 'iso-8859-2'),
-    (Sub: 'eu'; Name: 'iso-8859-3'; ShortName: 'iso-8859-3'),
-    (Sub: 'eu'; Name: 'iso-8859-4'; ShortName: 'iso-8859-4'),
-    (Sub: 'eu'; Name: 'iso-8859-5'; ShortName: 'iso-8859-5'),
-    (Sub: 'eu'; Name: 'iso-8859-7'; ShortName: 'iso-8859-7'),
-    (Sub: 'eu'; Name: 'iso-8859-9'; ShortName: 'iso-8859-9'),
-    (Sub: 'eu'; Name: 'iso-8859-10'; ShortName: 'iso-8859-10'),
-    (Sub: 'eu'; Name: 'iso-8859-13'; ShortName: 'iso-8859-13'),
-    (Sub: 'eu'; Name: 'iso-8859-14'; ShortName: 'iso-8859-14'),
-    (Sub: 'eu'; Name: 'iso-8859-15'; ShortName: 'iso-8859-15'),
-    (Sub: 'eu'; Name: 'iso-8859-16'; ShortName: 'iso-8859-16'),
-    (Sub: 'eu'; Name: 'mac'; ShortName: 'mac'),
-    (Sub: 'mi'; Name: 'cp1255'; ShortName: 'cp1255'),
-    (Sub: 'mi'; Name: 'cp1256'; ShortName: 'cp1256'),
-    (Sub: 'mi'; Name: '-'; ShortName: ''),
-    (Sub: 'mi'; Name: 'koi8r'; ShortName: 'koi8r'),
-    (Sub: 'mi'; Name: 'koi8u'; ShortName: 'koi8u'),
-    (Sub: 'mi'; Name: 'koi8ru'; ShortName: 'koi8ru'),
-    (Sub: 'as'; Name: 'cp874'; ShortName: 'cp874'),
-    (Sub: 'as'; Name: 'shift-jis'; ShortName: 'shift-jis'),
-    (Sub: 'as'; Name: 'gbk'; ShortName: 'gbk'),
-    (Sub: 'as'; Name: 'cns'; ShortName: 'cns'),
-    (Sub: 'as'; Name: 'uhc'; ShortName: 'uhc'),
-    (Sub: 'as'; Name: 'big5'; ShortName: 'big5'),
-    (Sub: 'as'; Name: 'gb2312'; ShortName: 'gb2312'),
-    (Sub: 'as'; Name: 'euc-kr'; ShortName: 'euc-kr'),
-    (Sub: 'as'; Name: 'cp1258'; ShortName: 'cp1258')
+  AppEncodings: array[0..48] of TAppEncodingRecord = (
+    (Name: cEncNameUtf8_NoBom; ShortName: 'utf8'),
+    (Name: cEncNameUtf8_WithBom; ShortName: 'utf8_bom'),
+    (Name: cEncNameUtf16LE_NoBom; ShortName: 'utf16le'),
+    (Name: cEncNameUtf16LE_WithBom; ShortName: 'utf16le_bom'),
+    (Name: cEncNameUtf16BE_NoBom; ShortName: 'utf16be'),
+    (Name: cEncNameUtf16BE_WithBom; ShortName: 'utf16be_bom'),
+    (Name: cEncNameUtf32LE_NoBom; ShortName: 'utf32le'),
+    (Name: cEncNameUtf32LE_WithBom; ShortName: 'utf32le_bom'),
+    (Name: cEncNameUtf32BE_NoBom; ShortName: 'utf32be'),
+    (Name: cEncNameUtf32BE_WithBom; ShortName: 'utf32be_bom'),
+    (Name: 'cp1250'; ShortName: 'cp1250'),
+    (Name: 'cp1251'; ShortName: 'cp1251'),
+    (Name: 'cp1252'; ShortName: 'cp1252'),
+    (Name: 'cp1253'; ShortName: 'cp1253'),
+    (Name: 'cp1254'; ShortName: 'cp1254'),
+    (Name: 'cp1255'; ShortName: 'cp1255'),
+    (Name: 'cp1256'; ShortName: 'cp1256'),
+    (Name: 'cp1257'; ShortName: 'cp1257'),
+    (Name: 'cp1258'; ShortName: 'cp1258'),
+    (Name: 'cp437'; ShortName: 'cp437'),
+    (Name: 'cp850'; ShortName: 'cp850'),
+    (Name: 'cp852'; ShortName: 'cp852'),
+    (Name: 'cp861'; ShortName: 'cp861'),
+    (Name: 'cp865'; ShortName: 'cp865'),
+    (Name: 'cp866'; ShortName: 'cp866'),
+    (Name: 'iso-8859-1'; ShortName: 'iso-8859-1'),
+    (Name: 'iso-8859-2'; ShortName: 'iso-8859-2'),
+    (Name: 'iso-8859-3'; ShortName: 'iso-8859-3'),
+    (Name: 'iso-8859-4'; ShortName: 'iso-8859-4'),
+    (Name: 'iso-8859-5'; ShortName: 'iso-8859-5'),
+    (Name: 'iso-8859-7'; ShortName: 'iso-8859-7'),
+    (Name: 'iso-8859-9'; ShortName: 'iso-8859-9'),
+    (Name: 'iso-8859-10'; ShortName: 'iso-8859-10'),
+    (Name: 'iso-8859-13'; ShortName: 'iso-8859-13'),
+    (Name: 'iso-8859-14'; ShortName: 'iso-8859-14'),
+    (Name: 'iso-8859-15'; ShortName: 'iso-8859-15'),
+    (Name: 'iso-8859-16'; ShortName: 'iso-8859-16'),
+    (Name: 'mac'; ShortName: 'mac'),
+    (Name: 'koi8r'; ShortName: 'koi8r'),
+    (Name: 'koi8u'; ShortName: 'koi8u'),
+    (Name: 'koi8ru'; ShortName: 'koi8ru'),
+    (Name: 'cp874'; ShortName: 'cp874'),
+    (Name: 'shift-jis'; ShortName: 'shift-jis'),
+    (Name: 'gbk'; ShortName: 'gbk'),
+    (Name: 'cns'; ShortName: 'cns'),
+    (Name: 'uhc'; ShortName: 'uhc'),
+    (Name: 'big5'; ShortName: 'big5'),
+    (Name: 'gb2312'; ShortName: 'gb2312'),
+    (Name: 'euc-kr'; ShortName: 'euc-kr')
   );
 
 type
@@ -909,6 +914,7 @@ type
     cEventOnChangeSlow,
     cEventOnCaret,
     cEventOnCaretSlow,
+    cEventOnCaretLine,
     cEventOnScroll,
     cEventOnMouseStop,
     cEventOnClick,
@@ -942,6 +948,7 @@ type
     cEventOnPaste,
     cEventOnMessage,
     cEventOnConsoleNav,
+    cEventOnConsoleComplete,
     cEventOnOutputNav,
     cEventOnSnippet,
     cEventOnMacro,
@@ -970,6 +977,7 @@ const
     'on_change_slow',
     'on_caret',
     'on_caret_slow',
+    'on_caret_line',
     'on_scroll',
     'on_mouse_stop',
     'on_click',
@@ -1003,6 +1011,7 @@ const
     'on_paste',
     'on_message',
     'on_console_nav',
+    'on_console_complete',
     'on_output_nav',
     'on_snippet',
     'on_macro',
@@ -1114,6 +1123,7 @@ procedure Lexer_DetectByFilename(const AFilename: string;
 function Lexer_DetectByFilenameOrContent(const AFilename: string;
   AChooseFunc: TecLexerChooseFunc): TecSyntAnalyzer;
 procedure Lexer_EnumAll(L: TStringList; AlsoDisabled: boolean = false);
+function Lexer_IsNameCorrect(AName: string): boolean;
 
 procedure DoMenuitemEllipsis(c: TMenuItem);
 
@@ -1131,17 +1141,16 @@ type
 var
   AppManagerThread: TAppManagerThread = nil;
 
+type
+  TAppAutocompleteCallback = procedure(Ed: TATSynEdit; AActivate: boolean) of object;
+
 var
-  //if True, next IdleTimer call will fire the auto-completion.
-  //avoid direct firing of auto-completion for "autocomplete_autoshow_chars":3,
-  //with LSP Client it makes the work slower.
-  AppRunAutocomplete: boolean = false;
-  AppRunAutocompleteInEditor: TATSynEdit = nil;
+  AppRunAutocomplete: TAppAutocompleteCallback = nil;
 
   //'c': by hotkey or command
   //'a': by 'autocomplete_autoshow_chars' option
   //'r': by showing again by typing or left/right
-  AppAutocompleteInvoke: string = 'c';
+  AppAutocompleteInvoke: char = 'c';
 
 const
   AppDefaultEdFont: string = '';
@@ -1179,13 +1188,11 @@ uses
   proc_lexer_styles;
 
 function MsgBox(const AText: string; AFlags: Longint): integer;
+//Application.MessageBox is not used, to translate button captions
 var
   Typ: TMsgDlgType;
   Res: TModalResult;
 begin
-  ////this is not used, to translate button captions:
-  //Result:= Application.MessageBox(PChar(AText), PChar(msgTitle), AFlags);
-
   case AFlags and $F0 of
     MB_ICONERROR:
       Typ:= mtError;
@@ -1306,6 +1313,10 @@ begin
 
   {$ifdef freebsd}
   exit('/usr/local/lib/libpython3.6m.so');
+  {$endif}
+
+  {$ifdef openbsd}
+  exit('/usr/local/lib/libpython3.9.so.0.0');
   {$endif}
 
   {$ifdef netbsd}
@@ -1664,6 +1675,8 @@ begin
 
     OpTabSize:= 4;
     OpTabSpaces:= false;
+    OpTabSmart:= false;
+
     OpMaxLineLenToTokenize:= 4000;
     OpMaxLineLenForBracketFinder:= 1000;
 
@@ -1680,7 +1693,7 @@ begin
     OpAutoCloseBrackets:= '([{';
     OpAutocompleteAutoshowCharCount:= 0;
     OpAutocompleteTriggerChars:= '';
-    OpAutocompleteCommitChars:= ' ,;/\''"';
+    OpAutocompleteCommitChars:= ' ,;';
     OpAutocompleteCloseChars:= '<>()[]{}=';
     OpAutocompleteAddOpeningBracket:= true;
     OpAutocompleteUpDownAtEdge:= 1; //cudWrap
@@ -1707,6 +1720,7 @@ begin
     OpRulerShow:= false;
     OpRulerNumeration:= 0;
     OpRulerMarkCaret:= 1;
+    OpRulerHeight:= 100;
 
     OpMinimapShow:= false;
     OpMinimapShowSelAlways:= false;
@@ -1715,8 +1729,9 @@ begin
     OpMinimapAtLeft:= false;
     OpMinimapScale:= 0;
     OpMinimapTooltipShow:= false;
-    OpMinimapTooltipLineCount:= 6;
+    OpMinimapTooltipHeight:= 6;
     OpMinimapTooltipWidth:= 60;
+    OpMinimapTooltipFontSize:= 0;
     OpMinimapDragImmediately:= false;
 
     OpMicromapShow:= false;
@@ -1921,6 +1936,7 @@ begin
     AutocompleteInComments:= false;
     AutocompleteInCommentsHTML:= true;
     AutocompleteInStrings:= true;
+    AutocompleteClosingDelay:= 300;
 
     HtmlBackgroundColorPair[false]:= $F0F0F0;
     HtmlBackgroundColorPair[true]:= $101010;
@@ -1932,12 +1948,13 @@ begin
     MaxFileSizeForLexer:= 2;
     MaxFileSizeWithoutProgressForm:= 10*1024*1024;
     MaxStatusbarMessages:= 35; //Linux gtk2 shows maximal ~38 lines in tooltip
+    MaxUndoSizeForSessionFile:= 1000000;
 
     ListboxCentered:= true;
     ListboxSizeX:= 450;
     ListboxSizeY:= 300;
-    ListboxCompleteSizeX:= 550;
-    ListboxCompleteSizeY:= 200;
+    ListboxAutoCompleteWidth:= 550;
+    ListboxAutoCompleteMaxItems:= 12;
     ListboxFuzzySearch:= true;
     ListboxHotkeyFontSizeDelta:= 0; //2 gives too small hotkey font on Lin/Win
     ListboxTopItemIndent:= 4; //listbox TopItem will be ItemIndex-N
@@ -2005,6 +2022,7 @@ begin
     FindShow_HiAll:= true;
     FindShow_ConfirmRep:= true;
     FindShow_RegexSubst:= true;
+    FindShow_PreserveCase:= true;
 
     FindIndentVert:= -5;
     FindIndentHorz:= 10;
@@ -2017,6 +2035,7 @@ begin
     AllowProgramUpdates:= true;
     EscapeClose:= false;
     EscapeCloseConsole:= true;
+    EscapeCloseFinder:= true;
     ConsoleWordWrap:= true;
     InputHeight:= 26;
     InitialDir:= '';
@@ -2046,6 +2065,9 @@ begin
     PyOutputCopyToStdout:= false;
 
     MaxLineLenForEditingKeepingLexer:= 2000;
+    MaxSizeForSession:= 50*1024*1024;
+    MaxLinesForMicromapPaint:= 300*1024;
+
     InfoAboutOptionsEditor:= true;
     AllowRunPkExec:= true;
     AllowCheckConfigsForNullBytes:= true;
@@ -2069,7 +2091,7 @@ begin
     StatusColSel:= '{sel}x{cols} {_sel}';
     StatusCarets:= '{carets} {_carets}, {sel} {_linesel}';
 
-    StatusPanels:= 'caret,C,180|enc,C,125|ends,A,45|lexer,C,140|tabsize,A,75|selmode,A,15|msg,L,4000';
+    StatusPanels:= 'caret,C,180|enc,C,125|ends,A,|lexer,C,140|tabsize,A,|selmode,A,|msg,L,';
     StatusTime:= 5;
     StatusHeightPercents:= 180;
     StatusHeightMin:= 20;
@@ -2086,6 +2108,7 @@ begin
     ShowStatusbar:= true;
     ShowToolbar:= false;
     ShowTitlePath:= false;
+    ShowSidebarMenuButton:= 2;
 
     ReopenSession:= true;
     ReopenSessionWithCmdLine:= true;
@@ -2131,23 +2154,24 @@ begin
     HotkeyFindFirst:= 'Alt+Enter';
     HotkeyFindNext:= 'F3';
     HotkeyFindPrev:= 'Shift+Enter';
-    HotkeyReplaceAndFindNext:= 'Alt+Z';
-    HotkeyReplaceNoFindNext:= 'Ctrl+Alt+Z';
-    HotkeyReplaceAll:= 'Alt+A';
+    HotkeyReplaceAndFindNext:= 'Ctrl+Alt+Z';
+    HotkeyReplaceNoFindNext:= 'Ctrl+Alt+Shift+Z';
+    HotkeyReplaceAll:= 'Ctrl+Alt+A';
     HotkeyReplaceGlobal:= '';
-    HotkeyCountAll:= 'Alt+O';
-    HotkeyExtractAll:= 'Alt+Q';
-    HotkeySelectAll:= 'Alt+E';
-    HotkeyMarkAll:= 'Alt+K';
-    HotkeyToggleRegex:= 'Alt+R';
-    HotkeyToggleCaseSens:= 'Alt+C';
-    HotkeyToggleWords:= 'Alt+W';
-    HotkeyToggleWrapped:= 'Alt+N';
-    HotkeyToggleInSelect:= 'Alt+X';
-    HotkeyToggleMultiline:= 'Alt+M';
-    HotkeyToggleConfirmRep:= 'Alt+Y';
+    HotkeyCountAll:= 'Ctrl+Alt+O';
+    HotkeyExtractAll:= 'Ctrl+Alt+Q';
+    HotkeySelectAll:= 'Ctrl+Alt+E';
+    HotkeyMarkAll:= 'Ctrl+Alt+K';
+    HotkeyToggleRegex:= 'Ctrl+Alt+R';
+    HotkeyToggleCaseSens:= 'Ctrl+Alt+C';
+    HotkeyToggleWords:= 'Ctrl+Alt+W';
+    HotkeyToggleWrapped:= 'Ctrl+Alt+N';
+    HotkeyToggleInSelect:= 'Ctrl+Alt+X';
+    HotkeyToggleMultiline:= 'Ctrl+Alt+M';
+    HotkeyToggleConfirmRep:= 'Ctrl+Alt+Y';
     HotkeyToggleTokens:= '';
     HotkeyToggleHiAll:= '';
+    HotkeyTogglePresCase:= '';
   end;
 end;
 
@@ -2511,6 +2535,22 @@ begin
   with AppManagerLite do
     for i:= 0 to LexerCount-1 do
       L.Add(Lexers[i].LexerName+msgLiteLexerSuffix);
+end;
+
+
+function Lexer_IsNameCorrect(AName: string): boolean;
+begin
+  if AName='' then
+    exit(true);
+  if SEndsWith(AName, msgLiteLexerSuffix) then
+  begin
+    SetLength(AName, Length(AName)-Length(msgLiteLexerSuffix));
+    Result:= AppManagerLite.FindLexerByName(AName)<>nil;
+  end
+  else
+  begin
+    Result:= AppManager.FindLexerByName(AName)<>nil;
+  end;
 end;
 
 
@@ -3149,17 +3189,6 @@ begin
   end;
 end;
 
-{ TAppFileProps }
-
-class operator TAppFileProps.= (const a, b: TAppFileProps): boolean;
-begin
-  Result:=
-    (a.Exists=b.Exists) and
-    (a.Size=b.Size) and
-    (a.Age=b.Age);
-end;
-
-
 { TAppKeyValues }
 
 procedure TAppKeyValues.Add(const AKey, AValue: string);
@@ -3226,41 +3255,6 @@ begin
 end;
 
 
-function RemoveWindowsStreamSuffix(const fn: string): string;
-{$ifdef windows}
-var
-  PosSlash, PosColon: integer;
-{$endif}
-begin
-  Result:= fn;
-  {$ifdef windows}
-  PosSlash:= RPos('\', fn);
-  if PosSlash=0 then exit;
-  PosColon:= Pos(':', fn, PosSlash);
-  if PosColon>0 then
-    SetLength(Result, PosColon-1);
-  {$endif}
-end;
-
-procedure AppGetFileProps(const FileName: string; out P: TAppFileProps);
-var
-  Rec: TSearchRec;
-begin
-  P.Inited:= true;
-  P.Exists:= FindFirst(RemoveWindowsStreamSuffix(FileName), faAnyFile, Rec)=0;
-  if P.Exists then
-  begin
-    P.Size:= Rec.Size;
-    P.Age:= Rec.Time;
-    FindClose(Rec);
-  end
-  else
-  begin
-    P.Size:= 0;
-    P.Age:= 0;
-  end;
-end;
-
 procedure AppUpdateWatcherFrames(AMaxWorkTime: integer = 500);
 var
   Frame: TObject;
@@ -3279,7 +3273,15 @@ begin
       if NCount=0 then
         Break;
       Frame:= TObject(AppFrameListDeleting[NCount-1]);
-      Frame.Free;
+
+      //hide AV when user makes N>1 clicks on ui-tab X icon,
+      //while this ui-tab has huge file and parsing is running
+      try
+        if Frame.ClassName<>'' then
+          Frame.Free;
+      except
+      end;
+
       AppFrameListDeleting.Count:= NCount-1;
       if GetTickCount64-NTick>=AMaxWorkTime then
         Break;
@@ -3843,6 +3845,7 @@ begin
   else
     FixedSizes[cCharEllipsis]:= uw_fullwidth;
 
+  ATEditorOptions.RenderSpaceBgAtLineEOL:= Pos('n', s)=0;
   ATEditorOptions.PreciseCalculationOfCharWidth:= Pos('w', s)=0;
   ATEditorOptions.TextoutNeedsOffsets:= Pos('o', s)>0;
   ATEditorOptions.CaretTextOverInvertedRect:= Pos('c', s)>0;
@@ -3913,6 +3916,28 @@ begin
 end;
 
 
+function AppOption_LoadFromStringlist(L: TStringList; const AKey: string; ADefault: integer): integer;
+var
+  NIndex: integer;
+begin
+  if L.Find(AKey, NIndex) then
+    Result:= integer(PtrInt(L.Objects[NIndex]))
+  else
+    Result:= ADefault;
+end;
+
+procedure AppOption_SaveToStringlist(L: TStringList; const AKey: string; AValue: integer);
+var
+  NIndex: integer;
+begin
+  if L.Find(AKey, NIndex) then
+    L.Objects[NIndex]:= TObject(PtrInt(AValue))
+  else
+    L.AddObject(AKey, TObject(PtrInt(AValue)));
+end;
+
+
+
 initialization
 
   InitDirs;
@@ -3976,7 +4001,7 @@ initialization
   AppManagerLite.OnApplyStyle:= @LiteLexer_ApplyStyle;
   AppManagerThread:= TAppManagerThread.Create(false);
 
-  ATEditorOptions.MaxClipboardRecents:= 15;
+  ATEditorMaxClipboardRecents:= 15;
 
   AppStatusbarMessages:= TStringList.Create;
   AppStatusbarMessages.TextLineBreakStyle:= tlbsLF;
@@ -3994,7 +4019,19 @@ initialization
     {$endif}
     );
 
+  EditorOps_CenteringWidth:= TStringList.Create;
+  EditorOps_CenteringWidth.Sorted:= true;
+  EditorOps_CenteringWidth.UseLocale:= false;
+
+  EditorOps_CenteringDistFree:= TStringList.Create;
+  EditorOps_CenteringDistFree.Sorted:= true;
+  EditorOps_CenteringDistFree.UseLocale:= false;
+
+
 finalization
+
+  FreeAndNil(EditorOps_CenteringDistFree);
+  FreeAndNil(EditorOps_CenteringWidth);
 
   FreeAndNil(AppManagerThread);
   FreeAndNil(AppManagerLite);

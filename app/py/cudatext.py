@@ -100,6 +100,8 @@ MENU_SHOW          = 12
 MENU_GET_PROP      = 14
 MENU_SET_IMAGELIST = 20
 MENU_SET_IMAGEINDEX = 21
+MENU_SET_AUTO_HOTKEY      = 30
+MENU_SET_AUTO_HOTKEY_DEEP = 31
 
 BOOKMARK_SET         = 1
 BOOKMARK_CLEAR       = 2
@@ -278,6 +280,7 @@ PROP_FONT_B                    = 123
 PROP_FONT_I                    = 124
 PROP_FONT_BI                   = 125
 PROP_WHEEL_ZOOMS      = 126
+PROP_TAB_SMART        = 127
 PROP_RECT_GUTTER      = 130
 #PROP_RECT_GUTTER_NUMS = 131
 #PROP_RECT_GUTTER_FOLD = 132
@@ -303,6 +306,7 @@ PROP_MINIMAP_CHAR_WIDTH = 160
 PROP_MINIMAP_AT_LEFT    = 161
 PROP_MINIMAP_SCALE      = 162
 PROP_TAB_TITLE_REASON   = 163
+PROP_RULER_TEXT         = 164
 
 SPLITTER_SIDE    = 0
 SPLITTER_BOTTOM  = 1
@@ -427,6 +431,8 @@ PROC_SEND_MESSAGE     = 161
 PROC_GET_COMPILER_INFO = 162
 PROC_ENUM_ENCODINGS   = 163
 PROC_GET_AUTOCOMPLETION_INVOKE = 164
+PROC_GET_WINDOW_STATE = 165
+#PROC_SET_WINDOW_STATE = 166
 
 PROC_CONFIG_READ           = 169
 PROC_CONFIG_NEWDOC_EOL_GET = 170
@@ -564,6 +570,7 @@ APPSTATE_API_SUBCOMMANDS    = 30
 APPSTATE_API_MENU_ADD       = 31
 APPSTATE_API_MENU_REMOVE    = 32
 APPSTATE_API_MENU_CHANGE    = 33
+APPSTATE_WINDOW             = 39
 APPSTATE_CODETREE_CLEAR         = 40
 APPSTATE_CODETREE_BEFORE_FILL   = 41
 APPSTATE_CODETREE_AFTER_FILL    = 42
@@ -576,6 +583,12 @@ EDSTATE_PINNED    = 4
 EDSTATE_READONLY  = 5
 EDSTATE_ZOOM      = 6
 EDSTATE_BOOKMARK  = 7
+
+WND_NORMAL      = 0
+WND_MINIMIZED   = 1
+WND_MAXIMIZED   = 2
+WND_FULLSCREEN  = 3
+WND_FULLSCREEN2 = 4
 
 COLOR_ID_TextFont = 'EdTextFont'
 COLOR_ID_TextBg = 'EdTextBg'
@@ -1292,6 +1305,9 @@ class Editor:
 
     def set_caret(self, x1, y1, x2=-1, y2=-1, id=CARET_SET_ONE, options=0):
         return ct.ed_set_caret(self.h, x1, y1, x2, y2, id, options)
+
+    def get_line_len(self, index):
+        return ct.ed_get_line_len(self.h, index)
 
     def get_line_count(self):
         return ct.ed_get_line_count(self.h)

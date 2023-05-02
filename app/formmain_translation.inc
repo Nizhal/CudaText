@@ -132,9 +132,6 @@ begin
 
     msgEncReloadAs:= ini.ReadString('m_f', 'e_r', msgEncReloadAs);
     msgEncConvertTo:= ini.ReadString('m_f', 'e_t', msgEncConvertTo);
-    msgEncEuropean:= ini.ReadString('m_f', 'e_eu', msgEncEuropean);
-    msgEncAsian:= ini.ReadString('m_f', 'e_as', msgEncAsian);
-    msgEncMisc:= ini.ReadString('m_f', 'e_mi', msgEncMisc);
 
     DoLocMenuItem(mnuFileEndWin, msgEndWin);
     DoLocMenuItem(mnuFileEndUn, msgEndUnix);
@@ -283,13 +280,6 @@ begin
     DoLocMenuitem(ini, mnuViewMinimap, 'm_v', 't_mi');
     DoLocMenuitem(ini, mnuViewMicromap, 'm_v', 't_mo');
 
-    DoLocMenuitem(ini, mnuViewUnpri, 'm_v', 'u_');
-    DoLocMenuitem(ini, mnuViewUnpriShow, 'm_v', 'u_sh');
-    DoLocMenuitem(ini, mnuViewUnpriSpaces, 'm_v', 'u_sp');
-    DoLocMenuitem(ini, mnuViewUnpriSpacesTail, 'm_v', 'u_spt');
-    DoLocMenuitem(ini, mnuViewUnpriEnds, 'm_v', 'u_e');
-    DoLocMenuitem(ini, mnuViewUnpriEndsDet, 'm_v', 'u_ed');
-
     DoLocMenuitem(ini, mnuViewToolbar, 'm_v', 't_tb');
     DoLocMenuitem(ini, mnuViewStatus, 'm_v', 't_sb');
     DoLocMenuitem(ini, mnuViewSidebar, 'm_v', 't_sl');
@@ -310,7 +300,7 @@ begin
     DoLocMenuitem(ini, mnuOpLexer, 'm_o', 'lx');
     DoLocMenuitem(ini, mnuOpThemeUi, 'm_o', 'cou');
     DoLocMenuitem(ini, mnuOpThemeSyntax, 'm_o', 'cos');
-    //DoLocMenuitem(ini, mnuOpKeys, 'm_o', 'ke');
+    DoLocMenuitem(ini, mnuOpUnprinted, 'm_o', 'unpr');
 
     DoLocMenuitem(ini, mnuFontSub, 'm_o', 'f_');
     DoLocMenuitem(ini, mnuFontText, 'm_o', 'f_t');
@@ -392,8 +382,8 @@ begin
     DoLocToolbarButtonHint(ToolbarMain, 'e_paste', ATEditorOptions.TextMenuitemPaste);
     DoLocToolbarButtonHint(ToolbarMain, 'e_undo', ATEditorOptions.TextMenuitemUndo);
     DoLocToolbarButtonHint(ToolbarMain, 'e_redo', ATEditorOptions.TextMenuitemRedo);
-    if Assigned(mnuViewUnpri) then
-      DoLocToolbarButtonHint(ToolbarMain, 'unpri', mnuViewUnpri.Caption);
+    if Assigned(mnuOpUnprinted) then
+      DoLocToolbarButtonHint(ToolbarMain, 'unpri', TrimRightSet(mnuOpUnprinted.Caption, ['.']));
     if Assigned(mnuViewMinimap) then
       DoLocToolbarButtonHint(ToolbarMain, 'map', mnuViewMinimap.Caption);
     if Assigned(mnuEditIndent) then
@@ -462,6 +452,8 @@ begin
     DoLocString(msgFinderHintWrapped,   ini, 'ui', 'fnd_wrap');
     DoLocString(msgFinderHintInSel,     ini, 'ui', 'fnd_sel');
     DoLocString(msgFinderHintFromCaret, ini, 'ui', 'fnd_crt');
+    DoLocString(msgFinderHintSearchWrapped, ini, 'ui', 'fnd_brd');
+    DoLocString(msgFinderHintPresCase,  ini, 'ui', 'fnd_pres');
 
     DoLocString(msgButtonOk,     ini, 'ui', 'b_ok');
     DoLocString(msgButtonCancel, ini, 'ui', 'b_can');
@@ -571,8 +563,6 @@ begin
     DoLocString(msgStatusFindCount               , ini, 'si', 'FindCount');
     DoLocString(msgStatusReadingOps              , ini, 'si', 'ReadingOps');
     DoLocString(msgStatusSavedFile               , ini, 'si', 'SavedFile');
-    DoLocString(msgStatusReadonly                , ini, 'si', 'Readonly');
-    //DoLocString(msgStatusMacroRec                , ini, 'si', 'MacroRec');
     DoLocString(msgStatusPictureNxN              , ini, 'si', 'PictureNxN');
     DoLocString(msgStatusCancelled               , ini, 'si', 'Cancelled');
     DoLocString(msgStatusBadLineNum              , ini, 'si', 'BadLineNum');

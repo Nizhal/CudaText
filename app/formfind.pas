@@ -122,6 +122,7 @@ type
     chkMulLine: TATButton;
     bTokens: TATButton;
     chkRegex: TATButton;
+    chkPreserveCase: TATButton;
     chkWords: TATButton;
     chkWrap: TATButton;
     edFind: TATComboEdit;
@@ -151,6 +152,7 @@ type
     procedure chkHiAllClick(Sender: TObject);
     procedure chkInSelClick(Sender: TObject);
     procedure chkMulLineClick(Sender: TObject);
+    procedure chkPreserveCaseClick(Sender: TObject);
     procedure chkRegexClick(Sender: TObject);
     procedure chkRegexSubstClick(Sender: TObject);
     procedure chkRepChange(Sender: TObject);
@@ -185,6 +187,7 @@ type
     FMenuitemOptTokensSub: array[TATFinderTokensAllowed] of TMenuItem;
     FMenuitemOptHiAll: TMenuItem;
     FMenuitemOptRegexSubst: TMenuItem;
+    FMenuitemOptPreserveCase: TMenuItem;
     FMenuitemFindFirst: TMenuItem;
     FMenuitemFindPrev: TMenuItem;
     FMenuitemFindNext: TMenuItem;
@@ -452,6 +455,9 @@ begin
     FMenuitemOptRegexSubst:= TMenuItem.Create(Self);
     FMenuitemOptRegexSubst.OnClick:= @chkRegexSubstClick;
 
+    FMenuitemOptPreserveCase:= TMenuItem.Create(Self);
+    FMenuitemOptPreserveCase.OnClick:= @chkPreserveCaseClick;
+
     FMenuitemFindFirst:= TMenuItem.Create(Self);
     FMenuitemFindFirst.OnClick:= @bFindFirstClick;
 
@@ -503,6 +509,7 @@ begin
     FPopupMore.Items.Add(FMenuitemOptTokens);
     FPopupMore.Items.Add(FMenuitemOptHiAll);
     FPopupMore.Items.Add(FMenuitemOptRegexSubst);
+    FPopupMore.Items.Add(FMenuitemOptPreserveCase);
     FPopupMore.Items.Add(Sep1);
     FPopupMore.Items.Add(FMenuitemFindFirst);
     FPopupMore.Items.Add(FMenuitemFindPrev);
@@ -544,6 +551,7 @@ begin
     FMenuitemOptTokensSub[kind].Caption:= bTokens.Items[Ord(kind)];
     FMenuitemOptTokensSub[kind].Checked:= bTokens.ItemIndex=Ord(kind);
   end;
+
   FMenuitemOptHiAll.Caption:= msgFindHint_HiAll;
   FMenuitemOptHiAll.Checked:= chkHiAll.Checked;
   FMenuitemOptHiAll.ShortCut:= TextToShortCut(UiOps.HotkeyToggleHiAll);
@@ -555,6 +563,11 @@ begin
   FMenuitemOptRegexSubst.Caption:= msgFindHint_RegexSubst;
   FMenuitemOptRegexSubst.Checked:= chkRegexSubst.Checked;
   FMenuitemOptRegexSubst.Enabled:= IsReplace and chkRegex.Checked;
+
+  FMenuitemOptPreserveCase.Caption:= msgFindHint_PresCase;
+  FMenuitemOptPreserveCase.Checked:= chkPreserveCase.Checked;
+  FMenuitemOptPreserveCase.Enabled:= IsReplace and not chkRegex.Checked;
+  FMenuitemOptPreserveCase.ShortCut:= TextToShortCut(UiOps.HotkeyTogglePresCase);
 
   FMenuitemFindFirst.Caption:= SCaptionFindFirst;
   FMenuitemFindFirst.ShortCut:= TextToShortCut(UiOps.HotkeyFindFirst);
@@ -670,6 +683,14 @@ end;
 procedure TfmFind.chkMulLineClick(Sender: TObject);
 begin
   IsMultiLine:= not IsMultiLine;
+  DoOnChange;
+end;
+
+procedure TfmFind.chkPreserveCaseClick(Sender: TObject);
+begin
+  with chkPreserveCase do
+    Checked:= not Checked;
+  UpdateState(false);
   DoOnChange;
 end;
 
@@ -915,7 +936,10 @@ begin
 
   if (Key=VK_ESCAPE) and (Shift=[]) then
   begin
-    DoResult(afoCloseDlg);
+    if UiOps.EscapeCloseFinder then
+      DoResult(afoCloseDlg)
+    else
+      DoFocusEditor;
     key:= 0;
     exit;
   end;
@@ -1067,6 +1091,14 @@ begin
     exit
   end;
 
+  if (Str=UiOps.HotkeyTogglePresCase) and IsReplace then
+  begin
+    chkPreserveCaseClick(Self);
+    UpdateState(false);
+    key:= 0;
+    exit
+  end;
+
   if (Str=UiOps.HotkeyReplaceAll) and IsReplace then
   begin
     bRepAllClick(Self);
@@ -1113,6 +1145,22 @@ begin
     UpdateState(false);
     key:= 0;
     exit
+  end;
+
+  //avoid handling of Shift+Tab in the editor (it runs "Unindent block")
+  if (Key=VK_TAB) and (Shift*[ssCtrl, ssAlt]=[]) then
+  begin
+    //SelectNext() LCL method works worse
+    if IsReplace then
+    begin
+      if edFind.Focused then
+        edRep.SetFocus
+      else
+      if edRep.Focused then
+        edFind.SetFocus;
+    end;
+    key:= 0;
+    exit;
   end;
 
   if Assigned(FOnHandleKeyDown) then
@@ -1299,7 +1347,9 @@ begin
     chkConfirm.Parent:= PanelTopOps;
     chkConfirm.Left:= 400; //to right
     chkRegexSubst.Parent:= PanelTopOps;
+    chkPreserveCase.Parent:= PanelTopOps;
     chkRegexSubst.Left:= chkConfirm.Left+80; //to right
+    chkPreserveCase.Left:= chkRegexSubst.Left+80; //to right
   end;
 
   PanelTopOps.Left:= edFind.Left;
@@ -1425,6 +1475,7 @@ begin
   chkMulLine.Enabled:= bEnabled;
   chkConfirm.Enabled:= bEnabled and IsReplace and not FForViewer;
   chkRegexSubst.Enabled:= bEnabled and IsReplace and not FForViewer and chkRegex.Checked;
+  chkPreserveCase.Enabled:= bEnabled and IsReplace and not FForViewer and not chkRegex.Checked;
   bTokens.Enabled:= bEnabled and not FForViewer;
 
   bFindFirst.Visible:= UiOps.FindShow_FindFirst;
@@ -1443,6 +1494,7 @@ begin
   chkHiAll.Visible:= UiOps.FindShow_HiAll;
   chkConfirm.Visible:= (IsReplace or IsNarrow) and UiOps.FindShow_ConfirmRep;
   chkRegexSubst.Visible:= (IsReplace or IsNarrow) and UiOps.FindShow_RegexSubst;
+  chkPreserveCase.Visible:= (IsReplace or IsNarrow) and UiOps.FindShow_PreserveCase;
   ControlAutosizeOptionsByWidth;
 
   edFind.Left:= cPadding;
@@ -1543,6 +1595,7 @@ begin
       msgFindHint_MultiLine:= ini.ReadString(section, 'h_mul', msgFindHint_MultiLine);
       msgFindHint_Tokens:= ini.ReadString(section, 'h_tok', msgFindHint_Tokens);
       msgFindHint_HiAll:= ini.ReadString(section, 'h_hi', msgFindHint_HiAll);
+      msgFindHint_PresCase:= ini.ReadString(section, 'h_pres', msgFindHint_PresCase);
 
       with bTokens do
       begin
@@ -1577,6 +1630,7 @@ begin
   chkMulLine.Hint:= _MakeHint(msgFindHint_MultiLine, UiOps.HotkeyToggleMultiline);
   bTokens.Hint:= _MakeHint(msgFindHint_Tokens, UiOps.HotkeyToggleTokens);
   chkHiAll.Hint:= _MakeHint(msgFindHint_HiAll, UiOps.HotkeyToggleHiAll);
+  chkPreserveCase.Hint:= _MakeHint(msgFindHint_PresCase, UiOps.HotkeyTogglePresCase);
 
   bFindFirst.AutoSize:= true;
   bFindNext.AutoSize:= true;
@@ -1636,6 +1690,7 @@ begin
       Finder.OptRegex:= chkRegex.Checked;
       Finder.OptTokens:= TATFinderTokensAllowed(bTokens.ItemIndex);
       Finder.OptWrapped:= chkWrap.Checked;
+      Finder.OptPreserveCase:= chkPreserveCase.Checked;
       Finder.OnGetToken:= FOnGetToken;
 
       NTick:= GetTickCount64;
@@ -1655,8 +1710,9 @@ begin
         edFind.Update;
       end;
 
-      if Assigned(FOnShowMatchesCount) then
-        FOnShowMatchesCount(NMatches, NTick);
+      if NMatches=0 then //fixing #4775
+        if Assigned(FOnShowMatchesCount) then
+          FOnShowMatchesCount(NMatches, NTick);
     finally
       FreeAndNil(Finder);
     end;

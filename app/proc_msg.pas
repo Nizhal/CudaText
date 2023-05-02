@@ -17,8 +17,8 @@ uses
   ATSynEdit;
 
 const
-  cAppExeVersion = '1.182.0.1';
-  cAppApiVersion = 438;
+  cAppExeVersion = '1.192.1.0';
+  cAppApiVersion = 445;
 
 const
   cOptionSystemSuffix =
@@ -80,6 +80,7 @@ const
   msgCannotFindLexers = 'NOTE: Cannot find lexers: %s';
   msgCannotFindData = 'ERROR: Cannot find data: %s';
   msgCannotFindSessionFile = 'NOTE: File from session not found: %s';
+  msgBadLexerName = 'ERROR: Wrong lexer name in "newdoc_lexer": "%s"';
 
   msgTitle = 'CudaText'; //no i18n
   msgModified: array[boolean] of string = ('', '*'); //no i18n
@@ -113,6 +114,7 @@ const
   msgGotoDialogTooltip: string = '(10, 10:10, 10%%, d100, xFFF, %s)';
   msgGotoDialogInfoExt: string = 'with "+": select';
   msgIgnoredCommandIfNotFocused: string = 'Ignoring the command, editor isn''t focused';
+  msgSuggestOptEditor = '"Options Editor" provides the dialog - click here to open';
 
   msgMenuTranslations: string = 'Translations';
   msgMenuThemesUI: string = 'UI themes';
@@ -148,15 +150,17 @@ const
   msgFinderHintWrapped: string = 'wrapped';
   msgFinderHintInSel: string = 'in-sel';
   msgFinderHintFromCaret: string = 'from-caret';
+  msgFinderHintSearchWrapped: string = 'edge-cross';
+  msgFinderHintPresCase: string = 'pres-case';
   msgFinderRegexMathes: string = 'RegEx matches';
 
   msgButtonOk: string = 'OK';
   msgButtonCancel: string = 'Cancel';
   msgButtonApply: string = 'Apply';
   msgButtonClose: string = 'Close';
-  msgButtonYes: string = 'Yes';
-  msgButtonNo: string = 'No';
-  msgButtonYesAll: string = 'Yes to all';
+  msgButtonYes: string = '&Yes';
+  msgButtonNo: string = '&No';
+  msgButtonYesAll: string = 'Yes to &all';
   msgButtonNoAll: string = 'No to all';
   msgButtonAbort: string = 'Abort';
   msgButtonRetry: string = 'Retry';
@@ -174,13 +178,10 @@ const
 
   msgEncReloadAs: string = 'Reload as';
   msgEncConvertTo: string = 'Convert to';
-  msgEncEuropean: string = 'European';
-  msgEncAsian: string = 'Asian';
-  msgEncMisc: string = 'Misc';
 
-  msgEndWin: string = 'CRLF';
-  msgEndUnix: string = 'LF';
-  msgEndMac: string = 'CR';
+  msgEndWin = 'CRLF';
+  msgEndUnix = 'LF';
+  msgEndMac = 'CR';
 
   msgTabsizeUseSpaces: string = 'Use spaces';
   msgTabsizeConvTabs: string = 'Convert indentation to spaces';
@@ -252,7 +253,7 @@ const
   msgStatusbarHintEnc: string = 'File encoding';
   msgStatusbarHintLexer: string = 'Lexer (language)';
   msgStatusbarHintEnds: string = 'End-of-line chars';
-  msgStatusbarHintSelMode: string = 'Mouse selection mode (normal/column)';
+  msgStatusbarHintSelMode: string = 'Mouse selection mode (normal/column) and Read-Only state';
   msgStatusbarHintTabSize: string = 'Tabulation width, by space-chars';
   msgStatusbarHintInsOvr: string = 'Insert/Overwrite mode';
   msgStatusbarHintWrap: string = 'Word wrap (off, by window, by fixed margin)';
@@ -296,7 +297,6 @@ const
   msgStatusFoundFragments: string = 'Found %d different fragment(s)';
   msgStatusReadingOps: string = 'Reading options';
   msgStatusSavedFile: string = 'Saved:';
-  msgStatusReadonly: string = '[Read Only]';
   msgStatusPictureNxN: string = 'Image %dx%d';
   msgStatusHexViewer: string = 'Hex';
   msgStatusCancelled: string = 'Cancelled';
@@ -320,7 +320,7 @@ const
   msgConfirmInstallIt: string = 'Do you want to install it?';
   msgConfirmFileChangedOutside: string = 'File was changed outside:';
   msgConfirmFileDeletedOutside: string = 'File was deleted outside:';
-  msgConfirmReloadIt: string = 'Reopen it?';
+  msgConfirmReloadIt: string = 'Reload it?';
   msgConfirmReloadYes: string = 'Reload';
   msgConfirmReloadNoMore: string = 'No more notifications';
   msgConfirmReloadItHotkeysSess: string = '(Yes: reopen. No: open text from previous session.)';
@@ -436,6 +436,7 @@ const
   msgFindHint_InSelect: string = 'Search in selection';
   msgFindHint_Tokens: string = 'Allowed syntax elements';
   msgFindHint_HiAll: string = 'Highlight all matches';
+  msgFindHint_PresCase: string = 'Preserve case on replacement';
 
 function msgTranslatedPanelCaption(const ACaption: string): string;
 function msgFinderRegexMatchesNumbered: string;

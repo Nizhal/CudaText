@@ -77,7 +77,7 @@ end;
 function TfmMain.DoPyEvent(AEd: TATSynEdit; AEvent: TAppPyEvent;
   const AParams: TAppVariantArray): TAppPyEventResult;
 const
-  cTheseEventsStoppedByTrue = [cEventOnComplete, cEventOnFuncHint{, cEventOnTabSwitch}];
+  cTheseEventsStoppedByTrue = [cEventOnComplete, cEventOnConsoleComplete, cEventOnFuncHint{, cEventOnTabSwitch}];
   cTheseEventsNeedGroupingUndo = [cEventOnComplete, cEventOnSnippet];
   cTheseEventsDontRequireFrame = [cEventOnSnippet, cEventOnDeleteFile, cEventOnSidebarPopup];
   cTheseEventsAlwaysLazy = [cEventOnExit];
@@ -474,7 +474,7 @@ begin
   NIndex:= AppListTimers.IndexOfObject(Timer);
   if NIndex<0 then exit;
 
-  //if timer_start_one
+  //Timer.Tag=1 for TIMER_START_ONE action
   if Timer.Tag=1 then
     Timer.Enabled:= false;
 

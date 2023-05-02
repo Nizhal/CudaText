@@ -21,6 +21,7 @@ uses
   ATSynEdit_Edits,
   ATSynEdit_Commands,
   ATSynEdit_Adapter_Simple,
+  ATSynEdit_Cmp_Form,
   ATStringProc,
   ec_SyntAnal,
   ec_syntax_format,
@@ -57,17 +58,18 @@ type
     FFormMain: TCustomForm;
     FAdapter: TATAdapterSimple;
     FOnNavigate: TAppConsoleEvent;
+    FOnComplete: TNotifyEvent;
     FOnNumberChange: TNotifyEvent;
     FOnGetMainEditor: TAppConsoleGetEditor;
     FCudatextImported: boolean;
-    FInputFirstChanged: boolean;
     mnuTextClear: TMenuItem;
     mnuTextNav: TMenuItem;
     mnuTextWrap: TMenuItem;
+    procedure InputOnClick(Sender: TObject);
     procedure InputOnCommand(Sender: TObject; ACommand: integer; AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
-    procedure InputOnChange(Sender: TObject);
     procedure DoGetLineColor(Ed: TATSynEdit; ALineIndex: integer; var AColorFont, AColorBg: TColor);
-    procedure MemoClickDbl(Sender: TObject; var AHandled: boolean);
+    procedure MemoOnClick(Sender: TObject);
+    procedure MemoOnClickDbl(Sender: TObject; var AHandled: boolean);
     procedure MemoCommand(Sender: TObject; ACommand: integer; AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
     procedure MemoContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
     procedure DoNavigate(Sender: TObject);
@@ -84,8 +86,10 @@ type
     EdInput: TATComboEdit;
     EdMemo: TATSynEdit;
     ErrorCounter: integer;
+    ShortCutForAutoCompletion: TShortCut;
     constructor Create(AOwner: TComponent); override;
     property OnConsoleNav: TAppConsoleEvent read FOnNavigate write FOnNavigate;
+    property OnConsoleComplete: TNotifyEvent read FOnComplete write FOnComplete;
     property OnNumberChange: TNotifyEvent read FOnNumberChange write FOnNumberChange;
     property OnGetMainEditor: TAppConsoleGetEditor read FOnGetMainEditor write FOnGetMainEditor;
     procedure DoAddLine(const AText: UnicodeString);
@@ -286,7 +290,12 @@ begin
 end;
 
 procedure TfmConsole.KeyDown(var Key: Word; Shift: TShiftState);
+var
+  NShortCut: TShortCut;
 begin
+  NShortCut:= ShortCut(Key, Shift);
+  if NShortCut=0 then exit;
+
   if (Key=VK_ESCAPE) and (Shift=[]) then
     if Assigned(FFormMain.OnKeyDown) then
     begin
@@ -294,6 +303,27 @@ begin
       Key:= 0;
       exit;
     end;
+
+  //avoid handling of Shift+Tab in the editor (it runs "Unindent block")
+  if (Key=VK_TAB) and (Shift*[ssCtrl, ssAlt]=[]) then
+  begin
+    //SelectNext() LCL method works worse
+    if EdInput.Focused then
+      EdMemo.SetFocus
+    else
+    if EdMemo.Focused then
+      EdInput.SetFocus;
+    Key:= 0;
+    exit;
+  end;
+
+  if NShortCut=ShortCutForAutoCompletion then
+  begin
+    if Assigned(FOnComplete) then
+      FOnComplete(Self);
+    Key:= 0;
+    exit;
+  end;
 
   inherited KeyDown(Key, Shift);
 end;
@@ -316,8 +346,8 @@ begin
   EdInput.Keymap:= AppKeymapMain;
   EdInput.WantTabs:= false;
   EdInput.TabStop:= true;
+  EdInput.OnClick:= @InputOnClick;
   EdInput.OnCommand:= @InputOnCommand;
-  EdInput.OnChange:= @InputOnChange;
 
   EdInput.OptTabSize:= 4;
   EdInput.OptBorderWidth:= 1;
@@ -359,7 +389,8 @@ begin
   DoControl_InitPropsObject(EdInput, Self, 'editor_edit');
   DoControl_InitPropsObject(EdMemo, Self, 'editor');
 
-  EdMemo.OnClickDouble:= @MemoClickDbl;
+  EdMemo.OnClick:= @MemoOnClick;
+  EdMemo.OnClickDouble:= @MemoOnClickDbl;
   EdMemo.OnCommand:= @MemoCommand;
   //after DoControl_InitPropsObject, because it did set custom OnContextMenu
   EdMemo.OnContextPopup:= @MemoContextPopup;
@@ -476,16 +507,6 @@ begin
   Handled:= false;
 end;
 
-procedure TfmConsole.InputOnChange(Sender: TObject);
-begin
-  if not FInputFirstChanged then
-  begin
-    if Assigned(FOnNavigate) then
-      FOnNavigate('(console_input_change)');
-  end;
-  FInputFirstChanged:= true;
-end;
-
 procedure TfmConsole.SetIsDoubleBuffered(AValue: boolean);
 begin
   EdInput.DoubleBuffered:= AValue;
@@ -509,7 +530,7 @@ var
 begin
   if ACommand=cCommand_KeyEnter then
   begin
-    MemoClickDbl(nil, AHandled);
+    MemoOnClickDbl(nil, AHandled);
     AHandled:= true;
     exit;
   end;
@@ -524,7 +545,17 @@ begin
 end;
 
 
-procedure TfmConsole.MemoClickDbl(Sender: TObject; var AHandled: boolean);
+procedure TfmConsole.InputOnClick(Sender: TObject);
+begin
+  CloseFormAutoCompletion;
+end;
+
+procedure TfmConsole.MemoOnClick(Sender: TObject);
+begin
+  CloseFormAutoCompletion;
+end;
+
+procedure TfmConsole.MemoOnClickDbl(Sender: TObject; var AHandled: boolean);
 var
   s: string;
   n: integer;

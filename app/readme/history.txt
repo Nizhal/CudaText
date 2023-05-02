@@ -3,10 +3,190 @@
   - fixed
   * changed
 
-1.182.1 (2023/01)
+1.193.0 (2023/05)
+
+core changes for huge documents:
+  * change: Undo-list is cleared when any action touches line with length>100K
+  + add: caret must move OK in line with length up to 2G
+  + add: if file has line with length>2G, don't crash but show nice error message on opening
+  - fix: caret up/down moving over huge lines worked very slow
+  - fix: mouse selection over huge lines worked very slow
+  - fix: horizontal scrollbar could not scroll to the end, with line length=2G
+  - fix: vertical scrollbar could not scroll to the end, with 500M lines
+  - fix: bad handling of error "too many lines in file"
+
+* change: don't save document's text to session, if text size>50M
+- fix: app always copied the selection to 'primary selection' on Unix, ignoring "auto_copy_clp" option
+- fix: regression since 2022/07: lexer-specific config is not applied to all N>1 files with the same lexer (thanks @veksha)
+
+1.192.0 (2023/04)
+
+* change: commands "delete word next"/"delete word previous" changed behaviour with selection, they delete the selection first, like in Sublime/VSCode (thanks @veksha); bad effect: custom hotkeys for these commands were reset
+* change: auto-completion font now equals to 'editor font'
+
++ add: auto-completion window is now parented in the main window: 1) no more separate shadow, 2) main window don't loose focus and don't blink, 3) no more showing of autocomplete-window in Alt+Tab list (thanks d0vgan, @veksha)
++ add: new values of "ui_notif_confirm" to show _modal_ prompt to reload file (thanks @Crunchbits)
++ add: option "autocomplete_closing_delay" (thanks @pintassilgo)
++ add: option "ui_esc_close_finder" (thanks @NorbertJh)
+- fix: lexer 'Ini files ^' small bug
+- fix: tree-helper for Ini: support '#' comments
+
+1.191.5 (2023/04)
+
+* change: submenu "View / Toggle unprinted chars" replaced with menuitem "Options / Unprinted chars..." which shows new dialog "Unprinted characters", it gives much more control
++ add: "autocomplete_autoshow_chars" must trigger also inside 'strings', it makes sense for some LSP servers (thanks @veksha)
++ add: "ui_scale_font" must affect font size in tooltips too (thanks @veksha)
+* change: "autocomplete_html":true must work together with "autocomplete_autoshow_chars" (before: it overridden "autocomplete_autoshow_chars" to 1) (thanks @veksha)
+- fix: lexer XML: this must not be highlighted as string: <tag>"</tag>...<tag>"</tag>
+
+1.191.0 (2023/04)
+
+* change: rename option "minimap_tooltip_line_count" to "minimap_tooltip_height"
++ add: new option "minimap_tooltip_font_size" allows to use smaller font in minimap-tooltip (thanks @Vivalzar)
++ add: added limit of undo-data-length in session files, 1M chars, to prevent too long session saving/loading when editing with multi-carets (thanks @rssguy2)
++ add: long reloading of huge file, must show editor (or both splitted editors) as 'locked' (hourglass icon)
++ add: Windows: X icon in menu-like dialogs now looks like ui-tabs X icon
+- fix: regression since 2021/08: loading of huge (100M) file with rare 'umlaut' chars did not activate "fallback_encoding" and forced UTF-8 (thanks @Vivalzar)
+- fix: several clicks on X-icon to close big file, while lexer parser is working, may lead to Access Violation (thanks @veksha)
+- fix: Qt5-version exposed bug with wrong scrolling to found words, in word-wrap mode, on some Unicode texts (thanks @pintassilgo)
+- fix: loading session with 2 groups: file in 2nd group looses syntax highlight (thanks @rssguy2)
+- fix: crash with multi-line comments + "auto_fold_comments":2 + code-tree visible (thanks @ildarkhasanshin)
+
+1.190.1 (2023/04)
+
++ add: smart-tabs option, "tab_smart", known from several text editors: PSPad, ConTEXT, Lazarus IDE (thanks @qwerky, @Vivalzar)
+- fix: theme config dialog's Apply-button did not apply color to sidebar (thanks @qwerky)
+- fix: minor issue with Alt+Tab with plugin dialogs, on Windows (thanks @veksha)
+
+1.190.0 (2023/04)
+
+* change: statusbar click on cells "file encoding", "end-of-line chars", "lexer" now shows menu-like dialogs, like in VSCode (thanks @Vivalzar)
++ add: improve "minimap_drag_immediately":true, so that minimap click scrolls to clicked position (thanks @veksha)
++ add: add option "ui_menu_button", to control showing of '3 dots' sidebar button
++ add: Project Manager: on renaming of project file, rename also corresponding opened ui-tab (thanks @ThaiDat)
++ add: Command Palette: add few missing items for newly added encodings; rename few CJK encoding items (thanks @Vivalzar)
+- fix: error with "auto_fold_comments":2 and command "move lines down"
+- fix: lexer reStructuredText did not support spell-checker
+
+1.189.0 (2023/03)
+
+* change: statusbar now reacts to caret moving/selection with a delay, like in 1.184; it is needed to avoid rendering speed regression since 1.185 (thanks @veksha)
+* change: hide sidebar button "3 dots" when "ui_menu_show":true
+* change: change default hotkeys in the Find dialog, e.g. Alt+O to Ctrl+Alt+O, to avoid conflicts with Alt+ hotkeys of the menu bar (thanks @pintassilgo)
+* change: change default value of "lexer_folding_max_lines" from 10000 to 15000
+* change: on macOS, hotkey for "auto-completion" changed to Alt+Space, because on author's computer (macOS 10.11) Ctrl+Space is reserved to toggle keyboard layout; and Console uses the same hotkey now
+
++ add: option "minimap_scale" supports value<100 to show compact look
++ add: option "renderer_tweaks" has sub-option to avoid 'space at line-end in selection', like in Kate (thanks @pintassilgo)
++ add: auto-completion listbox must handle clipboard command hotkeys (thanks @veksha)
++ add: Project Manager icons recolored from black to gray, to support dark ui-themes (thanks @veksha)
++ add: lexer C/C++: better code-tree (thanks @Forum0888 from linux.org.ru)
++ add: word wrap: don't split chars '([' from word-chars (thanks @GenuZ) 
++ add: better support plugin "Console Auto-Completion" so it is activated only on pressing Ctrl+Space (Alt+Space on macOS); and Console completion listbox stays visible on typing more text 
+
+- fix: after lexer installation, passive ui-tabs loose syntax highlighting (thanks @MichIs from linux.org.ru)
+- fix: regression: option "auto_fold_comments" was broken
+
+1.188.0 (2023/03)
+
++ add: support new macros in statusbar config: {offset_max}, {offset_caret}; the maximal supported count of lines can be changed via new option "max_lines_to_calc_offsets" (thanks @pintassilgo)
++ add: support emojis by statusbar macros {char} and {char_xxxx}
++ add: lexer C++: better code-tree for complex classes (thanks @d0vgan)
++ add: lexers C/C++: update keyword list from last standard
+- fix: error "Assertion failed" when closing single ui-tab, with visible plugin Tabs List
+
+1.187.1 (2023/03)
+
++ add: session also has Undo/Redo data; added sub-option for Undo/Redo to "ui_history_disabled" (thanks @pintassilgo)
++ add: sub-option "T" in "unprinted_content" (thanks @pintassilgo)
+- fix: regression in auto-completion in 1.187.0 (thanks @eltonfabricio10)
+
+1.187.0 (2023/03)
+
+* change: option "autocomplete_autoshow_chars": avoid the timer pause, like in many other editors (thanks @pintassilgo)
+* change: auto-completion popup: height is now determined by items count, ie new option: "ui_listbox_complete_size_items"; popup height is decreased if listbox has less items (thanks @pintassilgo)
+* change: auto-completion popup: keys Home/End should move caret, not listbox selection, like in many other editors (thanks @pintassilgo)
+
++ add: option "ui_session_save_interval": avoid saving if session is not yet changed (thanks @d0vgan for the patch)
++ add: code-tree in lexer CSS shows colored squares also for: rgb() rgba() hsl() hsla() (thanks @Stefan)
++ add: dialog Char Map should save not only size, but also position
++ add: avoid plugin dialogs / floating groups / Char Map to show out of visible screen area
++ add: plugin Insert Time: better support locale-dependant 'formats' (thanks @Vivalzar)
++ add: improved Shift+[mouse dragging]: this must expand selection of the 1st caret, like in other editors/browsers (thanks @pintassilgo)
+- fix: when file-pair is loaded from session, modified state of 2nd file is not restored (thanks @d0vgan)
+- fix: commands "go to screen top/bottom" at the document edges (thanks @qwerky)
+- fix: Options Editor: better tabbing over UI controls (thanks @Stefan)
+- fix: auto-completion popup must not have the taskbar button (thanks @pintassilgo)
+
+1.186.2 (2023/03)
+
++ add: on pasting text with M lines into N carets (where N>=20, 0<abs(N-M)<=5), show a warning about possible big memory usage (thanks @rssguy2)
++ add: column of 'margin' line is now saved to session; added corresponding sub-option to "ui_history_disabled"
+- fix: Shift+Tab, pressed in the Replace / Console dialog, performed the 'Unindent' in editor (thanks @ildarkhasanshin)
+- fix: crash on calling "move tab to group 2" from Command Palette (thanks @Stefan)
+- fix: command "show main menu as popup" should show from the left-top corner even if sidebar is on the right (thanks @Stefan)
+
+1.186.0 (2023/02)
+
+* change: removed plugin "Emmet" to Addons Manager
+* change: removed plugin "Show Unsaved Changes" to Addons Manager
+* change: commands "go to screen top/bottom/center": retain the caret's column, like in many other editors (thanks @qwerky)
++ add: find/replace dialog: added option 'AB' (preserve case on replacement), it is described in the Wiki topic "Dialog Find/Replace" (thanks @d0vgan for the patch)
++ add: option "ui_initial_dir" supports macros: {AppDir}, {AppDrive} (thanks @Stefan)
++ add: commands "scroll to document begin/end", "scroll column left/right", "scroll page up/down" now respect option "caret_keep_visible_on_scroll":true (thanks @qwerky)
++ add: Wiki topic https://wiki.freepascal.org/CudaText#How_command_.22Paste_and_indent.22_works
+- fix: problem with applying changed _syntax_ theme colors (thanks @rssguy2)
+- fix: problem with mouse selection auto-scrolling in Distraction-Free mode (thanks @Stefan)
+- fix: if "mouse column selection mode" was toggled by a hotkey, app did not update the statusbar (thanks @qwerky)
+- fix: bug in parser (it creates the log ~/cudatext.error), visible on JSON files
+
+1.185.0 (2023/02)
+
+* change: statusbar: removed msg prefix "[Read only]" but added "RO" text to the cell "selmode" instead (cell "selmode" by default is located just before the last message cell)
++ add: option "ruler_height" (thanks @qwerky)
++ add: tab-switcher dialog (Ctrl+Tab): shows the current document too; reacts also to Ctrl+Shift+Tab (thanks @d0vgan)
++ add: find/replace: show in the statusbar "border crossed" for wrapped search (thanks @d0vgan)
++ add: option "centering_width": reworked code, coz we had hard to reproduce bug when option was reset (thanks @Stefan)
++ add: option "centering_width" works also in grouping modes "2 horz", "3 horz", "4 horz", "6 horz"
++ add: option "centering_width" in floating groups: ignores grouping mode in main window
++ add: show console error when option "newdoc_lexer" has wrong lexer name 
++ add: Windows+click does the same as simple click, like VSCode (thanks @rssguy2)
++ add: lexer XML: support multi-line quoted strings
+- fix: option "mouse_column_selection":false blocked auto-scrolling on selection (thanks @Stefan)
+- fix: replacement of a char to LF on the last line was adding trailing LF (thanks @kvichans)
+- fix: in splitted view (of one tab), full-screen mode was not hiding stuff for 2nd editor
+- fix: messagebox buttons Yes / No lost accelerator: &Yes / &No (thanks @rssguy2)
+- fix: crash in find/replace with RegEx (thanks @cser)
+- fix: Ins-key did not update the statusbar 'Ins/Ovr' cell (thanks @qwerky) 
+
+1.184.0 (2023/02)
+
++ add: handle click on gutter line number, which is first line of folded range -- it selects the entire range (thanks @adoeller)
++ add: handle double-click on folded-rectangle-marks (like [def name...]) -- it selects all lines of this folded range
++ add: handle Shift+click on gutter line numbers (thanks @JairoMartinezA)
++ add: command "Delete line" with caret on beginning of folded range: must unfold the range first (thanks @Crowbarous)
++ add: API to show HTML-formatted text on the horizontal 'ruler' band
++ add: lexer JS: highlight 'modifier' keywords with a new style
+- fix: theme item "editor, folded line" was invisible on few standard themes (thanks @adoeller)
+- fix: folding underline '— — — —' was not painted for last visible line
+
+1.183.0 (2023/02)
+
++ add: on Windows, use new method to detect file changes in external programs (thanks @JairoMartinezA, @ThaiDat)
++ add: before saving user.json config (or lexer-specific config), validate its JSON text (thanks @xcme)
++ add: add default lexer-specific config for CSS to specify that '-' is a word-char in CSS
++ add: code-tree, project panel, other treeviews: support horizontal scrolling by Shift+wheel (thanks @iconv)
+- fix: bad look of non-blinking caret on dark themes (thanks @iconv)
+- fix: "trembling" of text after selection, on Qt and macOS, without lexer (thanks @Andreas0602)
+- fix: issues in Bash lexer (thanks @Flashwalker)
+
+1.182.2 (2023/01)
 
 - fix: dialog "Save tabs": if user presses Cancel in "Save file as", don't quit (thanks @Andreas0602)
+- fix: bad rendering of long lines (>"max_line_len_parsed") in lite lexers (thanks @veksha)
+- fix: not fully focused tab after command "move tab to next group" (thanks @rssguy2)
 - fix: some minor UI issues (thanks @veksha)
+- fix: lexer Bash issues (thanks @Flashwalker)
 
 1.182.0 (2023/01)
 

@@ -36,7 +36,7 @@ uses
   fix_gtk_clipboard,
   {$endif}
   fix_focus_window,
-  at__jsonconf,
+  at__jsonconf, at__fpjson, proc_json_ex,
   PythonEngine,
   ec_LexerList,
   ec_SyntAnal,
@@ -121,6 +121,7 @@ uses
   form_menu_py,
   form_addon_report,
   form_choose_theme,
+  form_unprinted,
   Math;
 
 type
@@ -221,6 +222,18 @@ type
     procedure Clear;
   end;
 
+  { TFrameEditState }
+
+  TFrameEditState = record
+    Ed1_FileName: string;
+    Ed2_FileName: string;
+    Ed1_ModifiedVersion: Int64;
+    Ed2_ModifiedVersion: Int64;
+    procedure Assign(AFrame: TEditorFrame);
+  end;
+
+operator =(constref a, b: TFrameEditState): boolean;
+
 const
   cMenuTabsizeMin = 1;
   cMenuTabsizeMax = 10;
@@ -229,6 +242,7 @@ type
   { TfmMain }
   TfmMain = class(TForm)
     AppProps: TApplicationProperties;
+    mnuOpUnprinted: TMenuItem;
     mnuEditPasteHist: TMenuItem;
     mnuEditPasteIndent: TMenuItem;
     mnuViewSplitNo: TMenuItem;
@@ -252,7 +266,6 @@ type
     mnuSelExtWord: TMenuItem;
     mnuViewOnTop: TMenuItem;
     mnuOpPlugins: TMenuItem;
-    mnuViewUnpriSpacesTail: TMenuItem;
     mnuViewMicromap: TMenuItem;
     mnuHelpCheckUpd: TMenuItem;
     MenuItem4: TMenuItem;
@@ -398,12 +411,6 @@ type
     mnuViewWrap: TMenuItem;
     mnuViewMinimap: TMenuItem;
     mnuViewSplitSub: TMenuItem;
-    MenuItem10: TMenuItem;
-    mnuViewUnpriShow: TMenuItem;
-    mnuViewUnpriSpaces: TMenuItem;
-    mnuViewUnpriEnds: TMenuItem;
-    mnuViewUnpriEndsDet: TMenuItem;
-    mnuViewUnpri: TMenuItem;
     mnuHelp: TMenuItem;
     mnuView: TMenuItem;
     mnuViewBottom: TMenuItem;
@@ -447,23 +454,27 @@ type
     procedure AppPropsDropFiles(Sender: TObject;
       const FileNames: array of string);
     procedure AppPropsEndSession(Sender: TObject);
+    procedure AppPropsModalBegin(Sender: TObject);
     procedure AppPropsQueryEndSession(var Cancel: Boolean);
     procedure ButtonCancelClick(Sender: TObject);
     procedure FormActivate(Sender: TObject);
     procedure FormChangeBounds(Sender: TObject);
     procedure FormClose(Sender: TObject; var CloseAction: TCloseAction);
     procedure FormCloseQuery(Sender: TObject; var ACanClose: boolean);
-    procedure FormColorsApply(const AColors: TAppTheme);
+    procedure FormColorsApply(const AColors: TAppTheme; AThemeUI: boolean);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormDropFiles(Sender: TObject; const FileNames: array of String);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
+    procedure FormUTF8KeyPress(Sender: TObject; var UTF8Key: TUTF8Char);
+    procedure FormWindowStateChange(Sender: TObject);
     procedure FrameAddRecent(Sender: TObject);
     procedure FrameOnMsgStatus(Sender: TObject; const AStr: string);
     procedure FrameOnEditorChangeCaretPos(Sender: TObject);
     procedure FrameOnEditorScroll(Sender: TObject);
+    procedure FrameOnEditorPaint(Sender: TObject);
     procedure FrameOnInitAdapter(Sender: TObject);
     procedure FrameOnChangeSlow(Sender: TObject);
     procedure FrameParseDone(Sender: TObject);
@@ -534,9 +545,6 @@ type
     ImageListTree: TImageList;
     PopupTab: TPopupMenu;
     PopupTree: TPopupMenu;
-    PopupEnds: TPopupMenu;
-    PopupEnc: TPopupMenu;
-    PopupLex: TPopupMenu;
     PopupTabSize: TPopupMenu;
     PopupViewerMode: TPopupMenu;
     PopupPicScale: TPopupMenu;
@@ -580,9 +588,6 @@ type
     mnuTreeFold8: TMenuItem;
     mnuTreeFold9: TMenuItem;
     mnuTreeSorted: TMenuItem;
-    mnuEndsWin: TMenuItem;
-    mnuEndsUnix: TMenuItem;
-    mnuEndsMac: TMenuItem;
     mnuTabsizeSpace: TMenuItem;
     mnuTabsizeConvTabs: TMenuItem;
     mnuTabsizeConvSpaces: TMenuItem;
@@ -693,7 +698,6 @@ type
     FNeedAppState_MenuAdd: boolean;
     FNeedAppState_MenuRemove: boolean;
     FNeedAppState_MenuChange: boolean;
-    FLastProjectPath: string;
     FLastDirOfOpenDlg: string;
     FLastLexerForPluginsMenu: string;
     FLastStatusbarMessage: string;
@@ -706,6 +710,7 @@ type
     FLastAppActivate: QWord;
     FLastSaveSessionTick: QWord;
     FLastLoadedConfig: string;
+    FLastLoadedEditorOps: TEditorOps;
     FDisableTreeClearing: boolean;
     FInvalidateShortcuts: boolean;
     FInvalidateShortcutsForce: boolean;
@@ -720,6 +725,8 @@ type
     FOption_SidebarTab: string;
     FOption_BottomTab: string;
     FCmdlineFileCount: integer;
+    FPrevJsonObj: TJSONData;
+    FPrevFramesEditState: array of TFrameEditState;
 
     function ConfirmAllFramesAreSaved(AWithCancel: boolean): boolean;
     procedure FindAndStop(ABack: boolean);
@@ -732,7 +739,6 @@ type
     procedure FindAndExtractRegexMatches;
     function GetFileOpenOptionsString(AFileCount: integer): string;
     procedure HandleTimerCommand(Ed: TATSynEdit; CmdCode: integer; CmdInvoke: TATEditorCommandInvoke);
-    function IsFrameInMainWindow(Frame: TEditorFrame): boolean;
     function IsTooManyTabsOpened: boolean;
     function GetUntitledNumberedCaption: string;
     procedure PopupBottomOnPopup(Sender: TObject);
@@ -756,15 +762,16 @@ type
     procedure CodeTreeFilter_OnCommand(Sender: TObject; ACmd: integer; AInvoke: TATEditorCommandInvoke;
       const AText: string; var AHandled: boolean);
     procedure DisablePluginMenuItems(AddFindLibraryItem: boolean);
+    procedure DoShowForVisibleFrames;
     procedure DoLocalizeTabTitles;
     procedure DoApplyCli(const ACliModule: string; const ACliParams: TAppStringArray);
     procedure DoApplyNewdocLexer(F: TEditorFrame);
-    procedure DoApplyCenteringOption;
     procedure DoApplyLexerStylesMapsToFrames(AndApplyTheme: boolean);
     procedure DoApplyTranslationToGroups(G: TATGroups);
     procedure DoClearSingleFirstTab;
     function DoCloseAllTabs(AClosePinned: boolean): boolean;
     procedure DoCloseAllTabs_Old;
+    procedure DoDialogUnprinted(Ed: TATSynEdit);
     procedure DoDialogMenuThemes_ThemeSetter(const AThemeUi, AThemeSyntax: string);
     procedure DoFileDialog_PrepareDir(Dlg: TFileDialog);
     procedure DoFileDialog_SaveDir(Dlg: TFileDialog);
@@ -794,10 +801,12 @@ type
     procedure FormFloatGroups1_OnEmpty(Sender: TObject);
     procedure FormFloatGroups2_OnEmpty(Sender: TObject);
     procedure FormFloatGroups3_OnEmpty(Sender: TObject);
-    procedure FormFloatGroups_OnDropFiles(Sender: TObject; const FileNames: array of String);
     procedure FormFloatGroups1_OnClose(Sender: TObject; var CloseAction: TCloseAction);
     procedure FormFloatGroups2_OnClose(Sender: TObject; var CloseAction: TCloseAction);
     procedure FormFloatGroups3_OnClose(Sender: TObject; var CloseAction: TCloseAction);
+    procedure FormFloatGroups_OnKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure FormFloatGroups_OnUTF8KeyPress(Sender: TObject; var UTF8Key: TUTF8Char);
+    procedure FormFloatGroups_OnDropFiles(Sender: TObject; const FileNames: array of String);
     procedure CharmapOnInsert(const AStr: string);
     procedure DoLocalize;
     procedure DoLocalizePopupTab;
@@ -823,6 +832,7 @@ type
     procedure DoCodetree_OnContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
     procedure DoCodetree_GetSyntaxRange(ANode: TTreeNode; out APosBegin, APosEnd: TPoint);
     procedure DoCodetree_SetSyntaxRange(ANode: TTreeNode; const APosBegin, APosEnd: TPoint);
+    procedure DoCodetree_OnClick(Sender: TObject);
     procedure DoCodetree_OnDblClick(Sender: TObject);
     procedure DoCodetree_OnMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
     procedure DoCodetree_OnKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -849,6 +859,7 @@ type
     procedure DoBottom_FindClick(Sender: TObject);
     function DoAutoComplete_FromPlugins(Ed: TATSynEdit): boolean;
     function DoAutoComplete_PosOnBadToken(Ed: TATSynEdit; AX, AY: integer): boolean;
+    procedure DoAutoComplete_Callback(Ed: TATSynEdit; AActivate: boolean);
     procedure DoAutoComplete(Ed: TATSynEdit);
     procedure DoPyCommand_CommandLineParam(const AModuleAndMethod: string);
     procedure DoPyCommand_Cudaxlib(Ed: TATSynEdit; const AMethod: string; AInvoke: TATEditorCommandInvoke);
@@ -869,10 +880,12 @@ type
     procedure DoApplyThemeToGroups(G: TATGroups);
     procedure DoOnConsoleNumberChange(Sender: TObject);
     procedure DoOnConsoleKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
-    function DoDialogConfigTheme(var AData: TAppTheme; AThemeUI: boolean): boolean;
+    function DoDialogConfigTheme(AThemeUI: boolean): boolean;
     function DoDialogMenuApi(const AProps: TDlgMenuProps): integer;
     procedure DoDialogMenuTranslations;
     procedure DoDialogMenuThemes;
+    procedure DoDialogMenuEncodings;
+    procedure DoDialogMenuEnds;
     procedure DoFileExportHtml(Ed: TATSynEdit);
     function DoFileInstallZip(const fn: string; out DirTarget: string; ASilent: boolean): boolean;
     procedure DoFileCloseAndDelete(Ed: TATSynEdit);
@@ -911,13 +924,10 @@ type
     procedure InitPopupPicScale;
     procedure InitPopupBottom(var AMenu: TPopupMenu; AEditor: TATSynEdit);
     procedure InitPopupViewerMode;
-    procedure InitPopupEnc;
-    procedure InitPopupEnds;
-    procedure InitPopupLex;
     procedure InitPopupTab;
     procedure InitPopupTabSize;
     procedure InitBottomEditor(var Form: TAppFormWithEditor);
-    procedure InitFloatGroup(var F: TForm; var G: TATGroups; ATag: integer;
+    procedure InitFloatGroup(var F: TForm; var G: TATGroups; AIndexOfGroup: integer;
       const ARect: TRect; AOnClose: TCloseEvent; AOnGroupEmpty: TNotifyEvent);
     procedure InitFloatGroups;
     procedure InitSaveDlg;
@@ -933,14 +943,12 @@ type
     procedure MenuRecentsClear(Sender: TObject);
     procedure MenuRecentsPopup(Sender: TObject);
     procedure MenuRecentItemClick(Sender: TObject);
-    procedure MenuEncWithReloadClick(Sender: TObject);
     procedure MenuitemClick_CommandFromTag(Sender: TObject);
     procedure MenuitemClick_CommandFromHint(Sender: TObject);
     procedure MenuPicScaleClick(Sender: TObject);
     procedure MenuPluginClick(Sender: TObject);
     procedure MenuTabsizeClick(Sender: TObject);
     procedure MenuViewerModeClick(Sender: TObject);
-    procedure MenuEncNoReloadClick(Sender: TObject);
     procedure MenuLexerClick(Sender: TObject);
     procedure MenuMainClick(Sender: TObject);
     procedure MsgStatus(AText: string; AFinderMessage: boolean=false);
@@ -994,7 +1002,6 @@ type
     procedure DoOps_LoadOptions(const AFileName: string; var Ops: TEditorOps; AllowGlobalOps: boolean);
     procedure DoOps_LoadOptionsFromString(const AString: string);
     procedure DoOps_FindPythonLib(Sender: TObject);
-    procedure DoEditorsLock(ALock: boolean);
     procedure DoFindCurrentWordOrSel(Ed: TATSynEdit; ANext, AWordOrSel: boolean);
     procedure DoDialogCommands;
     function DoDialogCommands_Custom(Ed: TATSynEdit; const AProps: TDlgCommandsProps): integer;
@@ -1071,6 +1078,7 @@ type
     procedure InitFormFind;
     function IsFocusedBottom: boolean;
     function IsFocusedFind: boolean;
+    procedure TimerConsoleCompletionTick(Sender: TObject);
     procedure PyCompletionOnGetProp(Sender: TObject; AContent: TStringList; out ACharsLeft, ACharsRight: integer);
     procedure PyCompletionOnResult(Sender: TObject; const ASnippetId: string; ASnippetIndex: integer);
     procedure DoPyCommand_ByPluginIndex(AIndex: integer; AInvoke: TATEditorCommandInvoke);
@@ -1097,10 +1105,12 @@ type
     procedure UpdateMenuRecents(sub: TMenuItem);
     procedure UpdateSidebarButtonOverlay;
     procedure UpdateEditorTabsize(AValue: integer);
-    procedure UpdateMenuItemAltObject(mi: TMenuItem; cmd: integer);
+    procedure UpdateMenuItemAltObject(mi: TMenuItem; ACmd: integer);
     procedure UpdateMenuItemChecked(mi: TMenuItem; saved: TATMenuItemsAlt; AValue: boolean);
     procedure UpdateMenuItemHint(mi: TMenuItem; const AHint: string);
-    procedure UpdateMenuItemHotkey(mi: TMenuItem; cmd: integer);
+    procedure UpdateMenuItemHotkey(mi: TMenuItem; ACmd: integer; AllowSetShortcut: boolean=true);
+    procedure UpdateMenuItem_SetShortcutFromProps(mi: TMenuItem);
+    procedure UpdateMenuItem_SetShortcutsRecursively(AMenuItem: TMenuItem; AMaxMenuLevel: integer);
     procedure UpdateMenuLexersTo(AMenu: TMenuItem);
     procedure UpdateMenuRecent(Ed: TATSynEdit);
     procedure UpdateMenuHotkeys;
@@ -1110,7 +1120,6 @@ type
     procedure UpdateMenuChecks_Frame(F: TEditorFrame);
     procedure UpdateMenuChecks_FrameSplit(F: TEditorFrame);
     procedure UpdateMenuChecks_Global;
-    procedure UpdateMenuEnc(AMenu: TMenuItem);
     procedure UpdateFrameLineEnds(Frame: TEditorFrame; AValue: TATLineEnds);
     procedure UpdateEditorCaretLineEnds(Frame: TEditorFrame; Ed: TATSynEdit; AValue: TATLineEnds);
     procedure UpdateStatusbarPanelsFromString(const AText: string);
@@ -1149,9 +1158,8 @@ type
     procedure InitFinder;
     procedure InitBookmarkSetup;
     procedure FrameOnChangeCaption(Sender: TObject);
-    procedure FrameOnUpdateStatusbar(Sender: TObject);
+    procedure FrameOnUpdateStatusbar(Sender: TObject; AReason: TAppStatusbarUpdateReason);
     procedure FrameOnUpdateState(Sender: TObject);
-    procedure FrameOnUpdateZoom(Sender: TObject);
     function CreateTab(APages: TATPages; const ACaption: string;
       AndActivate: boolean=true;
       AAllowNearCurrent: TApp3States=a3sPassive): TATTabData;
@@ -1172,6 +1180,7 @@ type
     PanelCodeTreeTop: TPanel;
     StatusProgress: TATGauge;
     ButtonCancel: TATButton;
+    TimerConsoleCmp: TTimer;
     function FrameCount: integer;
     property Frames[N: integer]: TEditorFrame read GetFrame;
     function CurrentGroups: TATGroups;
@@ -1192,6 +1201,7 @@ type
     property ShowTabsMain: boolean read GetShowTabsMain write SetShowTabsMain;
     function DoPyEvent(AEd: TATSynEdit; AEvent: TAppPyEvent; const AParams: TAppVariantArray): TAppPyEventResult;
     function DoPyEvent_ConsoleNav(const AText: string): boolean;
+    procedure DoPyEvent_ConsoleComplete(Sender: TObject);
     function DoPyEvent_Message(const AText: string): boolean;
     procedure DoPyEvent_AppState(AState: integer);
     procedure DoPyEvent_EdState(Ed: TATSynEdit; AState: integer);
@@ -1208,7 +1218,6 @@ type
       AForMany: boolean; var AConfirm, AContinue: boolean; var AReplacement: UnicodeString);
     procedure PyStatusbarPanelClick(Sender: TObject; const ATag: Int64);
     procedure UpdateThemes(const AThemeUi, AThemeSyntax: string);
-    procedure SetProjectPath(const APath: string);
   end;
 
 var
@@ -1225,6 +1234,7 @@ uses
   EmmetHelper,
   TreeHelpers_Base,
   TreeHelpers_Proc,
+  ATSynEdit_ClipRecents,
   ATStringProc_HtmlColor;
 
 {$R *.lfm}
@@ -1827,7 +1837,7 @@ procedure TAppNotifThread.HandleOneFrame;
       SFileName:= CurFrame.FileName2;
     if SFileName='' then exit;
 
-    AppGetFileProps(SFileName, Props);
+    Props.Init(SFileName);
     if not CurFrame.FileProps[EdIndex].Inited then
       CurFrame.FileProps[EdIndex]:= Props
     else
@@ -1877,6 +1887,25 @@ begin
       AppEventWatcher.SetEvent;
     end;
   until false;
+end;
+
+{ TFrameEditState }
+
+operator =(constref a, b: TFrameEditState): boolean;
+begin
+  Result:=
+    (a.Ed1_FileName = b.Ed1_FileName) and
+    (a.Ed2_FileName = b.Ed2_FileName) and
+    (a.Ed1_ModifiedVersion = b.Ed1_ModifiedVersion) and
+    (a.Ed2_ModifiedVersion = b.Ed2_ModifiedVersion);
+end;
+
+procedure TFrameEditState.Assign(AFrame: TEditorFrame);
+begin
+  Ed1_FileName:= AFrame.Ed1.FileName;
+  Ed2_FileName:= AFrame.Ed2.FileName;
+  Ed1_ModifiedVersion:= AFrame.Ed1.Strings.ModifiedVersion;
+  Ed2_ModifiedVersion:= AFrame.Ed2.Strings.ModifiedVersion;
 end;
 
 { TfmMain }
@@ -1950,47 +1979,6 @@ begin
       PopupViewerMode.Items.Add(mi);
     end;
   end;
-end;
-
-procedure TfmMain.InitPopupEnc;
-begin
-  if PopupEnc=nil then
-  begin
-    PopupEnc:= TPopupMenu.Create(Self);
-  end;
-  UpdateMenuEnc(PopupEnc.Items);
-end;
-
-procedure TfmMain.InitPopupEnds;
-begin
-  if PopupEnds=nil then
-  begin
-    PopupEnds:= TPopupMenu.Create(Self);
-    mnuEndsWin:= TMenuItem.Create(Self);
-    mnuEndsUnix:= TMenuItem.Create(Self);
-    mnuEndsMac:= TMenuItem.Create(Self);
-
-    UpdateMenuItemHotkey(mnuEndsWin, cmd_LineEndWin);
-    UpdateMenuItemHotkey(mnuEndsUnix, cmd_LineEndUnix);
-    UpdateMenuItemHotkey(mnuEndsMac, cmd_LineEndMac);
-
-    PopupEnds.Items.Add(mnuEndsWin);
-    PopupEnds.Items.Add(mnuEndsUnix);
-    PopupEnds.Items.Add(mnuEndsMac);
-  end;
-
-  mnuEndsWin.Caption:= msgEndWin;
-  mnuEndsUnix.Caption:= msgEndUnix;
-  mnuEndsMac.Caption:= msgEndMac;
-end;
-
-procedure TfmMain.InitPopupLex;
-begin
-  if PopupLex=nil then
-  begin
-    PopupLex:= TPopupMenu.Create(Self);
-  end;
-  UpdateMenuLexersTo(PopupLex.Items);
 end;
 
 procedure TfmMain.InitPopupTab;
@@ -2221,23 +2209,16 @@ begin
     StatusbarTag_Enc:
       begin
         if not Frame.ReadOnly[Frame.Editor] then
-        begin
-          InitPopupEnc;
-          PopupEnc.PopUp;
-        end;
+          DoDialogMenuEncodings;
       end;
     StatusbarTag_LineEnds:
       begin
         if not Frame.ReadOnly[Frame.Editor] then
-        begin
-          InitPopupEnds;
-          PopupEnds.PopUp;
-        end;
+          DoDialogMenuEnds;
       end;
     StatusbarTag_Lexer:
       begin
-        InitPopupLex;
-        PopupLex.PopUp;
+        DoDialogLexerMenu;
       end;
     StatusbarTag_TabSize:
       begin
@@ -2355,17 +2336,6 @@ begin
     UpdateMenuChecks_Global;
   end;
 
-  if Assigned(Frame) and AppRunAutocomplete then
-  begin
-    AppRunAutocomplete:= false;
-    if AppRunAutocompleteInEditor=Frame.Editor then //prevents event on_complete in wrong tab
-    begin
-      AppAutocompleteInvoke:= 'a';
-      Frame.TextCharsTyped:= 0;
-      DoAutoComplete(Frame.Editor);
-    end;
-  end;
-
   if Assigned(Frame) and not (Frame.IsTreeBusy or Frame.IsParsingBusy) then
     if AppCodetreeState.NeedsSelJump then
     begin
@@ -2468,6 +2438,11 @@ begin
     AppCodetreeState.Lexer:= EditorLexerNameAtPos(Ed, Point(-1, -1))
   else
     AppCodetreeState.Lexer:= '';
+end;
+
+procedure TfmMain.DoCodetree_OnClick(Sender: TObject);
+begin
+  CloseFormAutoCompletion;
 end;
 
 procedure TfmMain.DoCodetree_OnDblClick(Sender: TObject);
@@ -2622,6 +2597,7 @@ begin
   CodeTree.Parent:= PanelCodeTreeAll;
   CodeTree.Align:= alClient;
   CodeTree.Themed:= true;
+  CodeTree.Tree.OnClick:= @DoCodetree_OnClick;
   CodeTree.Tree.OnDblClick:= @DoCodetree_OnDblClick;
   CodeTree.Tree.OnMouseMove:= @DoCodetree_OnMouseMove;
   CodeTree.Tree.OnKeyDown:= @DoCodetree_OnKeyDown;
@@ -2742,6 +2718,7 @@ begin
   OnEnter:= @FormEnter;
   TimerCmd.Interval:= UiOps.CommandTimerInterval;
   mnuHelpCheckUpd.Enabled:= UiOps.AllowProgramUpdates;
+  AppRunAutocomplete:= @DoAutoComplete_Callback;
 
   with AppPanels[cPaneSide] do
   begin
@@ -2817,6 +2794,7 @@ begin
   InitBottomEditor(fmValidate);
   InitConsole(Self, @FindDialogGetMainEditor);
   fmConsole.OnConsoleNav:= @DoPyEvent_ConsoleNav;
+  fmConsole.OnConsoleComplete:= @DoPyEvent_ConsoleComplete;
   fmConsole.OnNumberChange:= @DoOnConsoleNumberChange;
   fmConsole.OnKeyDown:=@DoOnConsoleKeyDown;
   InitSidebar; //after initing PanelCodeTreeAll, EditorOutput, EditorValidate, fmConsole
@@ -2958,7 +2936,10 @@ begin
       DoPyEvent(F.Ed2, cEventOnClose, []);
   end;
 
+  DoPyEvent(nil, cEventOnExit, []);
+
   //after UpdateMenuRecent
+  //and after on_exit, so plugin can close its side-panels in on_exit, and panel will be hidden on next app start
   DoOps_SaveHistory(UiOps.SaveModifiedTabsOnClose);
 
   {
@@ -2971,8 +2952,6 @@ begin
   {$ifdef LCLGTK2}
   FixClipboardFinalization;
   {$endif}
-
-  DoPyEvent(nil, cEventOnExit, []);
 end;
 
 procedure TfmMain.ButtonCancelClick(Sender: TObject);
@@ -2987,6 +2966,7 @@ end;
 
 procedure TfmMain.FormChangeBounds(Sender: TObject);
 begin
+  CloseFormAutoCompletion;
   DoTooltipHide;
 end;
 
@@ -3042,14 +3022,17 @@ procedure TfmMain.AppPropsDeactivate(Sender: TObject);
 var
   F: TEditorFrame;
 begin
-  //Caption:= 'deact '+TimeToStr(Now);
-
   if EditorOps.OpDimUnfocused<>0 then
   begin
     F:= CurrentFrame;
     if Assigned(F) then
       F.Editor.Update;
   end;
+
+  {
+  //it was needed when autocomplete was non-docked window, to hide autocomplete from Alt+Tab
+  CloseFormAutoCompletion;
+  }
 
   DoPyEvent_AppActivate(cEventOnAppDeactivate);
 end;
@@ -3071,6 +3054,11 @@ end;
 procedure TfmMain.AppPropsEndSession(Sender: TObject);
 begin
   //
+end;
+
+procedure TfmMain.AppPropsModalBegin(Sender: TObject);
+begin
+  CloseFormAutoCompletion;
 end;
 
 procedure TfmMain.AppPropsQueryEndSession(var Cancel: Boolean);
@@ -3161,7 +3149,7 @@ begin
   end;
 end;
 
-procedure TfmMain.FormColorsApply(const AColors: TAppTheme);
+procedure TfmMain.FormColorsApply(const AColors: TAppTheme; AThemeUI: boolean);
 begin
   AppTheme:= AColors;
   DoClearLexersAskedList;
@@ -3170,6 +3158,8 @@ end;
 
 procedure TfmMain.FormDestroy(Sender: TObject);
 begin
+  CloseFormAutoCompletion;
+
   AppStopListTimers;
 
   if Assigned(FFinder) then
@@ -3266,6 +3256,33 @@ begin
   end;
 end;
 
+procedure TfmMain.FormFloatGroups_OnKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  if Assigned(FormAutoCompletion) and FormAutoCompletion.Visible then
+  begin
+    FormAutoCompletion.FormKeyDown(Sender, Key, Shift);
+    exit;
+  end;
+end;
+
+procedure TfmMain.FormFloatGroups_OnUTF8KeyPress(Sender: TObject; var UTF8Key: TUTF8Char);
+begin
+  if Assigned(FormAutoCompletion) and FormAutoCompletion.Visible then
+  begin
+    FormAutoCompletion.FormUTF8KeyPress(Sender, UTF8Key);
+    exit;
+  end;
+end;
+
+procedure TfmMain.FormUTF8KeyPress(Sender: TObject; var UTF8Key: TUTF8Char);
+begin
+  if Assigned(FormAutoCompletion) and FormAutoCompletion.Visible then
+  begin
+    FormAutoCompletion.FormUTF8KeyPress(Sender, UTF8Key);
+    exit;
+  end;
+end;
+
 procedure TfmMain.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
 var
   bEditorActive,
@@ -3276,6 +3293,12 @@ var
   KeyArray: TATKeyArray;
   N: integer;
 begin
+  if Assigned(FormAutoCompletion) and FormAutoCompletion.Visible then
+  begin
+    FormAutoCompletion.FormKeyDown(Sender, Key, Shift);
+    exit;
+  end;
+
   if (Key=VK_ESCAPE) and (Shift=[]) then
   begin
     PyEscapeFlag:= true;
@@ -3319,8 +3342,13 @@ begin
     if bFindDockedAndVisible then
     begin
       Ed:= Ctl as TATSynEdit;
-      EditorClearHiAllMarkers(Ed);
-      fmFind.Hide;
+      if UiOps.EscapeCloseFinder then
+      begin
+        EditorClearHiAllMarkers(Ed);
+        fmFind.Hide;
+      end
+      else
+        Ed.SetFocus;
       Key:= 0;
     end
     else
@@ -3521,19 +3549,6 @@ procedure TfmMain.FormShow(Sender: TObject);
       Frame.SetFocus;
   end;
   //
-  procedure _Init_FramesOnShow;
-  var
-    Frame: TEditorFrame;
-    i: integer;
-  begin
-    for i:= 0 to FrameCount-1 do
-    begin
-      Frame:= Frames[i];
-      if Frame.Visible then
-        Frame.DoShow;
-    end;
-  end;
-  //
   procedure _Init_ShowStartupTimes;
   var
     NTick: QWord;
@@ -3575,6 +3590,26 @@ procedure TfmMain.FormShow(Sender: TObject);
       if Frame.Splitted then
         EditorForceUpdateIfWrapped(Frame.Ed2);
     end;
+  end;
+  //
+  procedure _Init_ShortcutsForCustomizedMainMenu;
+  //var
+  //  tick: QWord;
+  begin
+    //tick:= GetTickCount64;
+
+    //main menu is not customized?
+    if (MainMenu.Items.Count>3) and
+      (MainMenu.Items[0]=mnuFile) and
+      (MainMenu.Items[1]=mnuEdit) and
+      (MainMenu.Items[2]=mnuSel) and
+      (MainMenu.Items[MainMenu.Items.Count-1]=mnuGroups) then
+      exit;
+
+    UpdateMenuItem_SetShortcutsRecursively(MainMenu.Items, 2);
+
+    //tick:= GetTickCount64-tick;
+    //MsgLogConsole('Init top menu shortcuts: '+IntToStr(tick)+'ms');
   end;
   //
 var
@@ -3635,7 +3670,7 @@ begin
 
   //postpone parsing until frames are shown
   AppAllowFrameParsing:= true;
-  _Init_FramesOnShow;
+  DoShowForVisibleFrames;
 
   FHandledUntilFirstFocus:= true;
 
@@ -3667,6 +3702,8 @@ begin
   //fix wrong caret/staples pos, #4559
   _Init_ForceRepaintEditor;
 
+  _Init_ShortcutsForCustomizedMainMenu;
+
   if not FHandledOnStart2 then
   begin
     FHandledOnStart2:= true;
@@ -3674,6 +3711,11 @@ begin
   end;
 
   AppFormShowCompleted:= true;
+end;
+
+procedure TfmMain.FormWindowStateChange(Sender: TObject);
+begin
+  DoPyEvent_AppState(APPSTATE_WINDOW);
 end;
 
 procedure TfmMain.ShowWelcomeInfo;
@@ -3731,6 +3773,41 @@ end;
 procedure TfmMain.FrameOnMsgStatus(Sender: TObject; const AStr: string);
 begin
   MsgStatus(AStr);
+end;
+
+
+procedure TfmMain.FrameOnEditorPaint(Sender: TObject);
+//why we set Ed.OptTextCenteringCharWidth via OnPaint event?
+//before it was as usual, but buggy - sometimes option was reset to 0 (without stable repro)
+var
+  Ed: TATSynEdit;
+  Frame: TEditorFrame;
+  CurGrp: TATGroups;
+  SLexer: string;
+begin
+  Ed:= TATSynEdit(Sender);
+  Frame:= TGroupsHelper.GetEditorFrame(Ed);
+  if Frame=nil then exit;
+  CurGrp:= Frame.GetTabGroups;
+
+  if CurGrp.Mode in [gmOne, gm2h, gm3h, gm4h, gm6h] then
+  begin
+    SLexer:= Frame.LexerName[Ed];
+    if ShowDistractionFree then
+    begin
+      Ed.OptTextCenteringCharWidth:=
+        AppOption_LoadFromStringlist(EditorOps_CenteringDistFree, SLexer, EditorOps.OpCenteringForDistractionFree);
+    end
+    else
+    begin
+      Ed.OptTextCenteringCharWidth:=
+        AppOption_LoadFromStringlist(EditorOps_CenteringWidth, SLexer, EditorOps.OpCenteringWidth);
+    end;
+  end
+  else
+  begin
+    Ed.OptTextCenteringCharWidth:= 0;
+  end;
 end;
 
 procedure TfmMain.MenuRecentsClear(Sender: TObject);
@@ -4079,6 +4156,7 @@ begin
     fmConsole.EdInput.Height:= ATEditorScale(UiOps.InputHeight);
     fmConsole.MemoWordWrap:= UiOps.ConsoleWordWrap;
     fmConsole.ApplyCaretView;
+    fmConsole.ShortCutForAutoCompletion:= AppKeymapMain.GetShortcutFromCommand(cmd_AutoComplete);
   end;
 
   EditorApplyOpsCommon(fmOutput.Ed);
@@ -4130,14 +4208,16 @@ begin
 
   ATFlatTheme.FontName:= UiOps.VarFontName;
   ATFlatTheme.FontSize:= UiOps.VarFontSize;
+  ATFlatTheme.MonoFontName:= EditorOps.OpFontName;
+  ATFlatTheme.MonoFontSize:= EditorOps.OpFontSize;
   ATFlatTheme.ScalePercents:= ATEditorScalePercents;
   ATFlatTheme.ScaleFontPercents:= ATEditorScaleFontPercents;
 
   ATScrollbar.ATScrollbarTheme.ScalePercents:= ATEditorScalePercents;
   ATScrollbar.ATScrollbarTheme.BorderSize:= 1;
 
-  CompletionOps.FormSizeX:= ATEditorScale(UiOps.ListboxCompleteSizeX);
-  CompletionOps.FormSizeY:= ATEditorScale(UiOps.ListboxCompleteSizeY);
+  CompletionOps.FormWidth:= ATEditorScale(UiOps.ListboxAutoCompleteWidth);
+  CompletionOps.FormMaxVisibleItems:= UiOps.ListboxAutoCompleteMaxItems;
 
   {$ifdef unix}
   if not AppAlwaysNewInstance and UiOps.OneInstance then
@@ -4177,30 +4257,6 @@ end;
 procedure TfmMain.DoGroupsChangeMode(Sender: TObject);
 begin
   DoPyEvent_AppState(APPSTATE_GROUPS);
-  DoApplyCenteringOption;
-end;
-
-procedure TfmMain.DoApplyCenteringOption;
-var
-  F: TEditorFrame;
-  NCentering, i: integer;
-begin
-  if EditorOps.OpCenteringWidth>0 then
-  begin
-    if Groups.Mode<>gmOne then
-      NCentering:= 0
-    else
-      NCentering:= EditorOps.OpCenteringWidth;
-
-    for i:= 0 to FrameCount-1 do
-    begin
-      F:= Frames[i];
-      F.Ed1.OptTextCenteringCharWidth:= NCentering;
-      F.Ed2.OptTextCenteringCharWidth:= NCentering;
-      F.Ed1.Update;
-      F.Ed2.Update;
-    end;
-  end;
 end;
 
 procedure TfmMain.CodeTreeFilter_OnChange(Sender: TObject);
@@ -4535,8 +4591,18 @@ begin
       Result:= D.TabObject as TEditorFrame;
     end;
 
+    if bAndActivate then
+    begin
+      SetFrame(Result);
+      DoFocusFrame(Result);
+    end;
+
+    {
+    //2023.03.15. why it was needed? seems it only makes bad: new opened file (in preview tab) don't have highlighting
     Result.Adapter[Result.Ed1].Stop;
     Result.Adapter[Result.Ed2].Stop;
+    }
+
     Result.DoFileOpen(AFileName, AFileName2,
       bEnableHistory,
       bEnableLoadBookmarks,
@@ -4545,9 +4611,6 @@ begin
       bEnableLoadUndo,
       OpenMode);
     MsgStatusFileOpened(AFileName, AFileName2);
-
-    if bAndActivate then
-      DoFocusFrame(Result);
 
     if bEnableEventOpened then
     begin
@@ -4602,6 +4665,10 @@ begin
 
         UpdateStatusbar;
       end;
+
+      //for _lite_ lexer, update code-tree (for _normal_ lexer it will run on parsing-done)
+      if F.Ed1.AdapterForHilite is TATLiteLexer then
+        UpdateTreeByTimer;
 
       Exit
     end;
@@ -4664,15 +4731,22 @@ begin
   begin
     case UiOps.OpenDir[iChar] of
       'p':
-        Dir:= PyCurrentFolder;
+        Dir:= PyCurrentProjectFolder;
       'q':
-        Dir:= ExtractFileDir(FLastProjectPath);
+        Dir:= ExtractFileDir(PyCurrentProject);
       'f':
         Dir:= ExtractFileDir(CurrentFrame.FileName);
       'l':
         Dir:= FLastDirOfOpenDlg;
       'i':
-        Dir:= UiOps.InitialDir;
+        begin
+          Dir:= UiOps.InitialDir;
+          if Pos('{', Dir)>0 then
+          begin
+            Dir:= StringReplace(Dir, '{AppDir}', ExtractFileDir(Application.ExeName), [rfReplaceAll]);
+            Dir:= StringReplace(Dir, '{AppDrive}', {$ifdef windows} ExtractFileDrive(Application.ExeName) {$else} '' {$endif}, [rfReplaceAll]);
+          end;
+        end;
       'h':
         Dir:= AppDir_Home;
       else
@@ -4800,6 +4874,9 @@ begin
     Ed.DoCommand(NCmd, cInvokeAppPalette);
     UpdateCurrentFrame;
   end;
+
+  if Assigned(fmConsole) then
+    fmConsole.ShortCutForAutoCompletion:= AppKeymapMain.GetShortcutFromCommand(cmd_AutoComplete);
 end;
 
 
@@ -5196,18 +5273,12 @@ procedure TfmMain.UpdateGroupsOfContextMenu;
 var
   CurForm: TForm;
 begin
-  CurForm:= Screen.ActiveForm;
-  GroupsCtx:= nil;
-  GroupsCtxIndex:= -1;
+  GroupsCtx:= Groups;
+  GroupsCtxIndex:= GroupsCtx.FindPages(GroupsCtx.PopupPages);
 
-  if CurForm=Self then
-  begin
-    GroupsCtx:= Groups;
-    GroupsCtxIndex:= GroupsCtx.FindPages(GroupsCtx.PopupPages);
-  end
-  else
   if FloatGroups then
   begin
+    CurForm:= Screen.ActiveForm;
     if CurForm=FFormFloatGroups1 then
     begin
       GroupsCtx:= GroupsF1;
@@ -5313,10 +5384,14 @@ begin
   PythonModule.ModuleName:= 'cudatext_api';
   PythonModule.OnInitialization:= @PythonModuleInitialization;
 
-  //handle special empty value of "pylib"
-  if UiOps.PyLibrary='' then
+  if (UiOps.PyLibrary='') or
+    ((Pos('/', UiOps.PyLibrary)>0) and not FileExists(UiOps.PyLibrary)) then
   begin
-    DisablePluginMenuItems(false);
+    MsgLogConsole(msgCannotInitPython1);
+    MsgLogConsole(msgCannotInitPython2);
+    if msgCannotInitPython2b<>'' then
+      MsgLogConsole(msgCannotInitPython2b);
+    DisablePluginMenuItems({$if defined(windows) or defined(darwin)}false{$else}UiOps.PyLibrary<>''{$endif});
     exit;
   end;
 
@@ -5364,16 +5439,6 @@ begin
       mnuPlugins.Add(mi);
       {$endif}
     end;
-end;
-
-procedure TfmMain.MenuEncNoReloadClick(Sender: TObject);
-begin
-  SetFrameEncoding(CurrentEditor, (Sender as TMenuItem).Caption, false);
-end;
-
-procedure TfmMain.MenuEncWithReloadClick(Sender: TObject);
-begin
-  SetFrameEncoding(CurrentEditor, (Sender as TMenuItem).Caption, true);
 end;
 
 
@@ -5562,8 +5627,9 @@ begin
   if Frame=nil then exit;
   if Frame.FrameKind=efkEditor then
   begin
-    if Frame.ReadOnly[Frame.Editor] then
-      Result+= msgStatusReadonly+' ';
+    //if Frame.ReadOnly[Frame.Editor] then
+    //  Result+= msgStatusReadonly+' ';
+
     //if Frame.MacroRecord then
     //  Result+= msgStatusMacroRec+' ';
   end;
@@ -5612,6 +5678,7 @@ var
   NCellSize, NSizeX, NSizeY: integer;
   TempX, TempY: integer;
   P: TPoint;
+  PntCoord: TATPoint;
 begin
   if ASeconds<=0 then
   begin
@@ -5690,9 +5757,10 @@ begin
           if TempY>=0 then
             P.Y:= TempY;
         end;
-        P:= Ed.CaretPosToClientPos(P);
-        if P.Y<0 then exit;
-        if not PtInRect(Ed.ClientRect, P) then exit;
+        PntCoord:= Ed.CaretPosToClientPos(P);
+        if PntCoord.Y<0 then exit;
+        if not ATPointInRect(Ed.ClientRect, PntCoord) then exit;
+        P:= Point(PntCoord.X, PntCoord.Y);
         P:= Ed.ClientToScreen(P);
         Dec(P.Y, NSizeY);
         if P.Y<=WorkRect.Top then
@@ -5940,6 +6008,8 @@ begin
   Frame:= TGroupsHelper.GetEditorFrame(Ed);
   if Frame=nil then exit;
 
+  CloseFormAutoCompletion;
+
   if not Frame.EditorsLinked then
   begin
     MsgStatus(msgCannotHandleSplittedTab);
@@ -5983,10 +6053,19 @@ begin
 end;
 
 procedure TfmMain.DoApplyNewdocLexer(F: TEditorFrame);
+var
+  Ed: TATSynEdit;
 begin
-  //call this for empty NewdocLexer too- to apply lexer-spec cfg for none-lexer
+  //call this for empty NewdocLexer too: to apply lexer-specific config for none-lexer
   if Assigned(F) then
-    F.LexerName[F.Ed1]:= UiOps.NewdocLexer;
+  begin
+    Ed:= F.Ed1;
+    F.LexerName[Ed]:= UiOps.NewdocLexer;
+
+    if UiOps.NewdocLexer<>'' then
+      if (F.Lexer[Ed]=nil) and (F.LexerLite[Ed]=nil) then
+        MsgLogConsole(Format(msgBadLexerName, [UiOps.NewdocLexer]));
+  end;
 end;
 
 procedure TfmMain.MenuRecentItemClick(Sender: TObject);
@@ -6131,6 +6210,7 @@ begin
   FShowFullScreen:= AValue;
   FShowFullScreen_DisFree:= false;
   SetFullScreen_Ex(AValue, false);
+  DoPyEvent_AppState(APPSTATE_WINDOW);
 end;
 
 procedure TfmMain.SetShowDistractionFree(AValue: boolean);
@@ -6139,6 +6219,7 @@ begin
   FShowFullScreen:= AValue;
   FShowFullScreen_DisFree:= AValue;
   SetFullScreen_Ex(AValue, true);
+  DoPyEvent_AppState(APPSTATE_WINDOW);
 end;
 
 procedure TfmMain.SetShowDistractionFree_Forced;
@@ -6165,10 +6246,26 @@ begin
 end;
 
 procedure TfmMain.SetFullScreen_Ex(AValue: boolean; AHideAll: boolean);
+  //
+  procedure FullScreen_ForDistractionFree(Ed: TATSynEdit);
+  begin
+    Ed.OptMinimapVisible:= false;
+    Ed.OptMicromapVisible:= false;
+    Ed.Update;
+  end;
+  //
+  procedure FullScreen_Restore(Ed: TATSynEdit);
+  begin
+    Ed.OptMinimapVisible:= EditorOps.OpMinimapShow;
+    Ed.OptMicromapVisible:= EditorOps.OpMicromapShow;
+    Ed.OptMicromapOnScrollbar:= EditorOps.OpMicromapOnScrollbar;
+    Ed.Update;
+  end;
+  //
 var
-  Ed: TATSynEdit;
+  F: TEditorFrame;
 begin
-  Ed:= CurrentEditor;
+  F:= CurrentFrame;
   if AValue then
   begin
     FOrigShowToolbar:= ShowToolbar;
@@ -6180,10 +6277,8 @@ begin
 
     if AHideAll then
     begin
-      Ed.OptMinimapVisible:= false;
-      Ed.OptMicromapVisible:= false;
-      Ed.OptTextCenteringCharWidth:= EditorOps.OpCenteringForDistractionFree;
-      Ed.Update;
+      FullScreen_ForDistractionFree(F.Ed1);
+      FullScreen_ForDistractionFree(F.Ed2);
     end;
 
     if AHideAll or (Pos('t', UiOps.FullScreen)>0) then ShowToolbar:= false;
@@ -6193,6 +6288,15 @@ begin
     if AHideAll or (Pos('a', UiOps.FullScreen)>0) then ShowSideBar:= false;
     if AHideAll or (Pos('u', UiOps.FullScreen)>0) then ShowTabsMain:= false;
     if AHideAll or (Pos('g', UiOps.FullScreen)>0) then DoApplyGutterVisible(false);
+
+    {$ifdef windows}
+    if not ShowStatus then
+    begin
+      //workaround for Lazarus Win32 bug, where Ed.Height is bigger than needed, in distraction-free mode;
+      //it don't allow auto-scrolling timer to activate
+      //TODO
+    end;
+    {$endif}
   end
   else
   begin
@@ -6202,10 +6306,10 @@ begin
     AppPanels[cPaneSide].Visible:= FOrigShowSidePanel;
     ShowSideBar:= FOrigShowSideBar;
     ShowTabsMain:= FOrigShowTabs;
-    Ed.OptMinimapVisible:= EditorOps.OpMinimapShow;
-    Ed.OptMicromapVisible:= EditorOps.OpMicromapShow;
-    Ed.OptMicromapOnScrollbar:= EditorOps.OpMicromapOnScrollbar;
-    Ed.OptTextCenteringCharWidth:= IfThen(Groups.Mode=gmOne, EditorOps.OpCenteringWidth, 0);
+
+    FullScreen_Restore(F.Ed1);
+    FullScreen_Restore(F.Ed2);
+
     DoApplyGutterVisible(EditorOps.OpGutterShow);
   end;
 
@@ -6271,22 +6375,13 @@ begin
   Groups.SetTabOption(tabOptionShowTabs, Ord(AValue));
 end;
 
-
-procedure TfmMain.DoEditorsLock(ALock: boolean);
-var
-  i: integer;
-begin
-  for i:= 0 to FrameCount-1 do
-    Frames[i].Locked:= ALock;
-end;
-
 procedure TfmMain.DoFileNewFrom(const fn: string);
 var
   F: TEditorFrame;
 begin
   F:= DoFileOpen('', '');
   if F=nil then exit;
-  F.Ed1.Strings.LoadFromFile(fn);
+  F.Ed1.Strings.LoadFromFile(fn, []);
   F.DoLexerFromFilename(F.Ed1, fn);
   UpdateFrameEx(F, true);
   UpdateStatusbar;
@@ -6341,7 +6436,7 @@ end;
 procedure TfmMain.DoFocusFrame(F: TEditorFrame);
 begin
   if Assigned(F) then
-    if Visible and F.Enabled then
+    if F.Visible and F.Enabled then
     begin
       SetFrame(F);
       F.SetFocus;
@@ -6660,6 +6755,28 @@ begin
   end;
 end;
 
+
+procedure TfmMain.DoAutoComplete_Callback(Ed: TATSynEdit; AActivate: boolean);
+{
+AActivate param is for future maybe, for _delayed_ autocomplete.
+AActivate=False means: cancel next planned _delayed_ autocomplete.
+if we will need _delayed_ acp, we will
+a) rewrite this callback to just set/clear the flag,
+b) add reaction to flag in TimerAppIdle handler.
+}
+var
+  Frame: TEditorFrame;
+begin
+  if AActivate then
+  begin
+    AppAutocompleteInvoke:= 'a';
+    Frame:= TGroupsHelper.GetEditorFrame(Ed);
+    if Assigned(Frame) then
+      Frame.TextCharsTyped:= 0;
+    DoAutoComplete(Ed);
+  end;
+end;
+
 procedure TfmMain.DoAutoComplete(Ed: TATSynEdit);
 var
   Frame: TEditorFrame;
@@ -6682,9 +6799,9 @@ begin
   CompletionOps.CommitChars:= Ed.OptAutocompleteCommitChars; //before DoPyEvent
   CompletionOps.CloseChars:= Ed.OptAutocompleteCloseChars; //before DoPyEvent
   CompletionOps.CommitIfSingleItem:= Ed.OptAutocompleteCommitIfSingleItem; //before DoPyEvent
-  CompletionOps.ShortcutForDeleteWordPrev:= Ed.Keymap.GetShortcutFromCommand(cCommand_TextDeleteWordPrev);
-  CompletionOps.ShortcutForDeleteWordNext:= Ed.Keymap.GetShortcutFromCommand(cCommand_TextDeleteWordNext);
+  CompletionOps.CommandForShitchTab:= cmd_SwitchTab_HotkeyNext;
   CompletionOps.ShortcutForAutocomplete:= Ed.Keymap.GetShortcutFromCommand(cmd_AutoComplete);
+  CompletionOps.ClosingTimerInverval:= UiOps.AutocompleteClosingDelay;
 
   //auto-completion for file:///, before plugins
   if UiOps.AutocompleteFileURI and
@@ -6971,6 +7088,88 @@ begin
   finally
     FreeAndNil(ListNames);
     FreeAndNil(ListFiles);
+  end;
+end;
+
+procedure TfmMain.DoDialogMenuEnds;
+var
+  List: TStringList;
+  NRes, NSelected: integer;
+  Ed: TATSynEdit;
+begin
+  Ed:= CurrentEditor;
+  if Ed=nil then exit;
+
+  List:= TStringList.Create;
+  try
+    List.Add(msgEndUnix);
+    List.Add(msgEndWin);
+    List.Add(msgEndMac);
+
+    case Ed.Strings.Endings of
+      cEndUnix: NSelected:= 0;
+      cEndWin: NSelected:= 1;
+      cEndMac: NSelected:= 2;
+      else NSelected:= 0;
+    end;
+
+    NRes:= DoDialogMenuList(msgStatusbarHintEnds, List, NSelected);
+    if NRes<0 then exit;
+
+    case NRes of
+      0: Ed.DoCommand(cmd_LineEndUnix, cInvokeAppPalette);
+      1: Ed.DoCommand(cmd_LineEndWin, cInvokeAppPalette);
+      2: Ed.DoCommand(cmd_LineEndMac, cInvokeAppPalette);
+    end;
+  finally
+    FreeAndNil(List);
+  end;
+end;
+
+procedure TfmMain.DoDialogMenuEncodings;
+var
+  List: TStringList;
+  NRes, NSelected, i: integer;
+  bReloadFile: boolean;
+  Ed: TATSynEdit;
+  SEncName: string;
+  DlgProps: TDlgMenuProps;
+begin
+  Ed:= CurrentEditor;
+  if Ed=nil then exit;
+  SEncName:= Ed.EncodingName;
+
+  List:= TStringList.Create;
+  try
+    List.Clear;
+    List.Add(msgEncReloadAs);
+    List.Add(msgEncConvertTo);
+
+    NRes:= DoDialogMenuList(msgStatusbarHintEnc, List, 0);
+    if NRes<0 then exit;
+    bReloadFile:= NRes=0;
+
+    List.Clear;
+    NSelected:= 0;
+    for i:= Low(AppEncodings) to High(AppEncodings) do
+    begin
+      List.Add(AppEncodings[i].Name);
+      if SameText(AppEncodings[i].Name, SEncName) then
+        NSelected:= i;
+    end;
+
+    DlgProps:= Default(TDlgMenuProps);
+    DlgProps.Caption:= msgStatusbarHintEnc;
+    DlgProps.Collapse:= acsmRight;
+    DlgProps.InitialIndex:= NSelected;
+    DlgProps.ItemsText:= List.Text;
+
+    NRes:= DoDialogMenuApi(DlgProps);
+    if NRes<0 then exit;
+
+    SetFrameEncoding(Ed, AppEncodings[NRes].Name, bReloadFile);
+  finally
+    FreeAndNil(List);
   end;
 end;
 
@@ -7358,6 +7557,8 @@ var
 begin
   AHandled:= true; //avoid selection of word
 
+  CloseFormAutoCompletion;
+
   Form:= FindBottomForm_ByEditor(Sender as TATSynEdit);
   if Form=nil then exit;
 
@@ -7496,6 +7697,11 @@ end;
 function TfmMain.DoPyEvent_ConsoleNav(const AText: string): boolean;
 begin
   Result:= DoPyEvent(nil, cEventOnConsoleNav, [AppVariant(AText)]).Val <> evrFalse;
+end;
+
+procedure TfmMain.DoPyEvent_ConsoleComplete(Sender: TObject);
+begin
+  DoPyEvent(nil, cEventOnConsoleComplete, []);
 end;
 
 function TfmMain.DoPyEvent_Message(const AText: string): boolean;
@@ -7853,7 +8059,7 @@ begin
     Num:= StrToIntDef(AMenuCmd, 0); //command code
     if Num>0 then
     begin
-      UpdateMenuItemHotkey(mi, Num);
+      UpdateMenuItemHotkey(mi, Num, false); //AllowSetShortcut=false to fix ConfigToolbar wrong shortcuts
       UpdateMenuItemAltObject(mi, Num);
     end
     else
@@ -8035,7 +8241,7 @@ begin
 end;
 
 
-procedure TfmMain.InitFloatGroup(var F: TForm; var G: TATGroups; ATag: integer;
+procedure TfmMain.InitFloatGroup(var F: TForm; var G: TATGroups; AIndexOfGroup: integer;
   const ARect: TRect; AOnClose: TCloseEvent; AOnGroupEmpty: TNotifyEvent);
 begin
   if not Assigned(F) then
@@ -8047,7 +8253,10 @@ begin
     F.BorderIcons:= [biSystemMenu, biMaximize, biMinimize];
     F.OnClose:= AOnClose;
     F.OnActivate:= @FormActivate;
-    F.Caption:= Format('[f%d]', [ATag]) + (' - ' + msgTitle);
+    F.OnKeyDown:= @FormFloatGroups_OnKeyDown;
+    F.OnUTF8KeyPress:= @FormFloatGroups_OnUTF8KeyPress;
+    F.Caption:= Format('[f%d]', [AIndexOfGroup]) + (' - ' + msgTitle);
+    F.KeyPreview:= true;
 
     F.AllowDropFiles:= true;
     F.OnDropFiles:= @FormFloatGroups_OnDropFiles;
@@ -8055,7 +8264,7 @@ begin
 
     G:= TATGroups.Create(Self);
     G.Pages1.EnabledEmpty:= true;
-    G.Tag:= ATag;
+    G.IndexOfGroup:= AIndexOfGroup;
     G.Parent:= F;
     G.Align:= alClient;
     G.Mode:= gmOne;
@@ -8338,7 +8547,7 @@ begin
       for iTab:= 0 to Pages.Tabs.TabCount-1 do
       begin
         F:= Pages.Tabs.GetTabData(iTab).TabObject as TEditorFrame;
-        if F=CurFrame then Continue;
+        //if F=CurFrame then Continue; //allow current document in list too
 
         if iGroup>=6 then
           //floating groups
@@ -8357,10 +8566,15 @@ begin
       end;
     end;
 
-    if FrameList.Count=0 then exit;
+    if FrameList.Count<=1 then exit;
     FrameList.CustomSort(@_FrameListCompare);
 
-    iTab:= DoDialogMenuList(msgPanelTabs, FrameList, 0, true);
+    iTab:= DoDialogMenuList(
+      msgPanelTabs,
+      FrameList,
+      Min(1 {initially select 2nd item}, FrameList.Count-1),
+      true
+      );
     if iTab<0 then exit;
 
     F:= FrameList.Objects[iTab] as TEditorFrame;
@@ -8834,15 +9048,6 @@ begin
   Form.Ed.OnKeyDown:= @EditorOutput_OnKeyDown;
 end;
 
-procedure TfmMain.SetProjectPath(const APath: string);
-begin
-  if FLastProjectPath<>APath then
-  begin
-    FLastProjectPath:= APath;
-    DoPyEvent_AppState(APPSTATE_PROJECT);
-  end;
-end;
-
 
 procedure TfmMain.TimerMouseStopTimer(Sender: TObject);
 //call API event on_mouse_stop.
@@ -8942,16 +9147,61 @@ begin
     mnuEditCopyAppend.Enabled:= bSel;
 end;
 
-function TfmMain.IsFrameInMainWindow(Frame: TEditorFrame): boolean;
+
+procedure TfmMain.DoShowForVisibleFrames;
 var
-  FGroups: TATGroups;
-  FPages: TATPages;
-  NLocalGroupIndex, NGlobalGroupIndex, NTabIndex: integer;
+  Frame: TEditorFrame;
+  i: integer;
 begin
-  GetFrameLocation(Frame, FGroups, FPages, NLocalGroupIndex, NGlobalGroupIndex, NTabIndex);
-  Result:= FGroups=Self.Groups;
+  for i:= 0 to FrameCount-1 do
+  begin
+    Frame:= Frames[i];
+    if Frame.Visible then
+      Frame.DoShow;
+  end;
 end;
 
+procedure TfmMain.DoDialogUnprinted(Ed: TATSynEdit);
+var
+  Form: TfmUnprinted;
+  Symbol: TATEditorUnptintedEolSymbol;
+begin
+  Symbol:= ATEditorOptions.UnprintedEndSymbol;
+
+  Form:= TfmUnprinted.Create(nil);
+  try
+    EditorApplyTheme(Form.EdPreview);
+
+    Form.OnSaveOptionBool:= @DoOps_SaveOptionBool;
+    Form.OnSaveOptionString:= @DoOps_SaveOptionString;
+
+    Form.chkVisible.Checked:= Ed.OptUnprintedVisible;
+    Form.chkShowWhitespace.Checked:= Ed.OptUnprintedSpaces;
+    Form.chkOnlyTrail.Checked:= Ed.OptUnprintedSpacesTrailing;
+    Form.chkOnlyLeadAndTrail.Checked:= Ed.OptUnprintedSpacesBothEnds;
+    Form.chkOnlyInSel.Checked:= Ed.OptUnprintedSpacesOnlyInSelection;
+    Form.chkAlsoInSel.Checked:= Ed.OptUnprintedSpacesAlsoInSelection;
+    Form.chkForceShowTabs.Checked:= Ed.OptUnprintedForceTabs;
+    Form.chkShowEndMarks.Checked:= Ed.OptUnprintedEnds;
+    case Symbol of
+      aeueDot:
+        Form.chkEndDot.Checked:= true;
+      aeueArrowDown:
+        Form.chkEndArrow.Checked:= true;
+      aeuePilcrow:
+        Form.chkEndPilcrow.Checked:= true;
+    end;
+    Form.chkEndDetails.Checked:= Ed.OptUnprintedEndsDetails;
+
+    if Form.ShowModal=mrOk then
+    begin
+      Form.ApplyToEditor(Ed);
+      UpdateToolbarButtons(CurrentFrame);
+    end;
+  finally
+    FreeAndNil(Form);
+  end;
+end;
 
 //----------------------------
 {$I formmain_loadsave.inc}

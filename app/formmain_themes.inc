@@ -82,12 +82,6 @@ begin
 
   EditorApplyTheme(CodeTreeFilterInput);
 
-  if Assigned(fmConsole) then
-    fmConsole.ApplyTheme;
-
-  if Assigned(fmFind) then
-    fmFind.ApplyTheme;
-
   ToolbarMain.Color:= GetAppColor(apclTabBg);
   Self.Color:= ToolbarMain.Color;
 
@@ -143,6 +137,17 @@ begin
   ATFlatTheme.ColorListboxBorderFocused:= GetAppColor(apclEdBorderFocused);
   //ATFlatTheme.ColorListboxBorderPassive:= GetAppColor(apclButtonBorderPassive);
   //ATFlatTheme.ColorListboxBorderFocused:= GetAppColor(apclButtonBorderFocused);
+
+  ToolbarMain.Invalidate;
+  ToolbarSideTop.Invalidate;
+  ToolbarSideMid.Invalidate;
+  ToolbarSideLow.Invalidate;
+
+  if Assigned(fmConsole) then
+    fmConsole.ApplyTheme;
+
+  if Assigned(fmFind) then
+    fmFind.ApplyTheme;
 
   UpdateThemeStatusbar;
 
@@ -358,7 +363,7 @@ begin
     StrExt:= AppExtensionThemeSyntax;
   end;
 
-  if DoDialogConfigTheme(AppTheme, AThemeUI) then
+  if DoDialogConfigTheme(AThemeUI) then
   begin
     DoApplyTheme;
 
@@ -378,24 +383,18 @@ begin
   end;
 end;
 
-function TfmMain.DoDialogConfigTheme(var AData: TAppTheme; AThemeUI: boolean): boolean;
+function TfmMain.DoDialogConfigTheme(AThemeUI: boolean): boolean;
 var
   Form: TfmColorSetup;
 begin
   Form:= TfmColorSetup.Create(nil);
   try
-    Form.PanelUi.Visible:= AThemeUI;
-    Form.PanelSyntax.Visible:= not AThemeUI;
-
+    Form.ThemeUI:= AThemeUI;
     Form.OnApply:= @FormColorsApply;
-    Form.Data:= AData;
+    Form.Data:= AppTheme;
     Result:= Form.ShowModal=mrOk;
-
     if Result then
-    begin
-      AData:= Form.Data;
-      DoApplyLexerStylesMapsToFrames(false);
-    end;
+      Form.OnApply(Form.Data, AThemeUI);
   finally
     FreeAndNil(Form);
   end;

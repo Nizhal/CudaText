@@ -17,6 +17,8 @@ var
 begin
   Frame:= Sender as TEditorFrame;
   GetFrameLocation(Frame, Gr, Pages, NLocalGroup, NGlobalGroup, NTab);
+  if Gr=nil then exit;
+
   D:= Pages.Tabs.GetTabData(NTab);
   if D=nil then Exit;
   D.TabCaption:= Frame.TabCaption;
@@ -40,22 +42,29 @@ begin
   UpdateCaption;
 end;
 
-procedure TfmMain.FrameOnUpdateStatusbar(Sender: TObject);
+procedure TfmMain.FrameOnUpdateStatusbar(Sender: TObject; AReason: TAppStatusbarUpdateReason);
 begin
-  FNeedUpdateStatuses:= true;
-  //real updating will run on TimerAppIdle work
+  case AReason of
+    //sbrCaret: don't add here, it makes editor repaint slower on mouse selection; issue #4917
+    sbrViewerScroll,
+    sbrInsOvr,
+    sbrZoom:
+      begin
+        //some events only need the fast update of the statusbar
+        UpdateStatusbar_RealWork;
+      end;
+    else
+      begin
+        //request the call UpdateTabCaptionsFromFolders + update of the statusbar + update menu checkmarks
+        FNeedUpdateStatuses:= true;
+      end;
+  end;
 end;
 
 procedure TfmMain.FrameOnUpdateState(Sender: TObject);
 begin
   FNeedUpdateMenuChecks:= true;
   //real updating will run on TimerAppIdle work
-end;
-
-procedure TfmMain.FrameOnUpdateZoom(Sender: TObject);
-begin
-  //update statusbar w/o delays
-  UpdateStatusbar_RealWork;
 end;
 
 procedure TfmMain.DoCodetree_StopUpdate;

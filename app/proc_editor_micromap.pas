@@ -203,18 +203,20 @@ begin
     begin
       BookmarkPtr:= Bookmarks.ItemPtr[i];
       NIndex:= BookmarkPtr^.Data.LineNum;
-      BoolArray[NIndex]:= true;
+      if (NIndex>=0) and (NIndex<=High(BoolArray)) then
+        BoolArray[NIndex]:= true;
     end;
     for i:= 0 to Wr.Count-1 do
     begin
       NIndex:= Wr.Data[i].NLineIndex;
-      if BoolArray[NIndex] then
-      begin
-        RectMark:= EditorRectMicromapMark(Ed, 1{column}, i, i, ARect.Height, EditorOps.OpMicromapMinMarkHeight, NScaleDiv);
-        ABitmap.FillRect(RectMark, XColorBkmk);
-      end;
+      if (NIndex>=0) and (NIndex<=High(BoolArray)) then
+        if BoolArray[NIndex] then
+        begin
+          RectMark:= EditorRectMicromapMark(Ed, 1{column}, i, i, ARect.Height, EditorOps.OpMicromapMinMarkHeight, NScaleDiv);
+          ABitmap.FillRect(RectMark, XColorBkmk);
+        end;
     end;
-    SetLength(BoolArray, 0);
+    BoolArray:= nil;
   end;
 
   //paint marks for plugins
@@ -230,6 +232,9 @@ begin
     if Marker.SelX<0 then
       Inc(NLine2, -Marker.SelX-1);
     }
+
+    if (NLine1<0) or (NLine1>High(PropArray)) then Continue; //fix issue #4821
+
     case Marker.Tag of
       cTagSpellChecker:
         begin
@@ -274,9 +279,11 @@ begin
       end;
     end;
   end;
+
   for i:= 0 to Wr.Count-1 do
   begin
     NIndex:= Wr.Data[i].NLineIndex;
+    if (NIndex<0) or (NIndex>High(PropArray)) then Continue;
     if PropArray[NIndex].Inited then
     begin
       RectMark:= GetWrapItemRect(PropArray[NIndex].Column, i, i, PropArray[NIndex].MarkPos);
@@ -287,7 +294,7 @@ begin
         ABitmap.FillRect(RectMark, PropArray[NIndex].XColor, dmDrawWithTransparency, $8000);
     end;
   end;
-  SetLength(PropArray, 0);
+  PropArray:= nil;
 
   //all done
   ABitmap.Draw(ACanvas, ARect.Left, ARect.Top);

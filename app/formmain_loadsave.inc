@@ -196,6 +196,7 @@ begin
     cfg.SetValue('/finder/wrap', FFinder.OptWrapped);
     cfg.SetValue('/finder/insel', FFinder.OptInSelection);
     cfg.SetValue('/finder/tokens', Ord(FFinder.OptTokens));
+    cfg.SetValue('/finder/prescase', FFinder.OptPreserveCase);
 
     ////state
     cfg.SetValue('lang', UiOps.LangName);
@@ -228,33 +229,44 @@ end;
 
 function TfmMain.DoOps_SaveSession(const ASessionId: string;
   ASaveModifiedFiles, ASaveUntitledTabs, AByTimer: boolean): boolean;
+const
+  keysToIgnore: array of UTF8String = ('text', 'undo', 'redo');
 var
-  cfg: TJSONConfig;
+  cfg: TJSONConfigEx;
   Frame: TEditorFrame;
   Gr: TATGroups;
   Pages: TATPages;
   sSessionFileName, sTabFilename, sTabFilename2, sRootPath: string;
   nLocalGroup, nGlobalGroup, nTabInGroup: integer;
   nCountFiles, nCountUntitled, nSavedTabIndex: integer;
-  path, value: string;
+  nFrameCount, nPrevFrameCount: integer;
+  path, sTabKind, sConsole, sUndo: string;
   bModified, bUntitled: boolean;
+  bSessionUpdated: boolean;
   iFrame, iGroup: integer;
+  currFramesEditState: array of TFrameEditState;
+  fileWriteTimeBeforeSaving, fileWriteTimeAfterSaving: TDateTime;
 begin
   Result:= false;
   if ASessionId='' then exit;
 
   SSplitByChar(ASessionId, '|', sSessionFileName, sRootPath);
 
+  {
+  // this code breaks the save-only-updated-session feature
   if sRootPath='' then
   begin
     AppDiskCheckFreeSpace(sSessionFileName);
     DeleteFile(sSessionFileName);
   end;
+  }
 
+  bSessionUpdated:= false;
   nCountFiles:= 0;
   nCountUntitled:= 0;
+  nFrameCount:= FrameCount;
 
-  cfg:= TJSONConfig.Create(nil);
+  cfg:= TJSONConfigEx.Create(nil);
   try
     try
       cfg.Formatted:= true;
@@ -268,6 +280,12 @@ begin
         exit;
       end;
     end;
+
+    if not FileExists(sSessionFileName) then
+      bSessionUpdated:= true; // the session file has been physically deleted
+
+    if FPrevJsonObj=nil then
+      FPrevJsonObj:= CloneJsonObj(cfg.GetJsonObj, keysToIgnore);
 
     DoOps_SaveHistory_GroupView(cfg, sRootPath);
 
@@ -293,8 +311,22 @@ begin
       if not Floating then
         cfg.SetValue(sRootPath+'/panels/bottom_size', PanelSize);
 
+    SetLength(currFramesEditState, nFrameCount);
+    nPrevFrameCount:= Length(FPrevFramesEditState);
+    if nFrameCount<>nPrevFrameCount then
+    begin
+      bSessionUpdated:= true; //number of opened documents has changed
+
+      //cleanup session keys, left from the previous saving
+      for iFrame:= nFrameCount to nPrevFrameCount-1 do
+      begin
+        path:= sRootPath+'/'+Format('%3.3d', [iFrame]);
+        cfg.DeleteValue(path);
+      end;
+    end;
+
     nSavedTabIndex:= 0;
-    for iFrame:= 0 to FrameCount-1 do
+    for iFrame:= 0 to nFrameCount-1 do
     begin
       Frame:= Frames[iFrame];
       if Frame.IsEmpty then Continue;
@@ -324,7 +356,17 @@ begin
       GetFrameLocation(Frame, Gr, Pages, nLocalGroup, nGlobalGroup, nTabInGroup);
       bModified:= Frame.Ed1.Modified or (bUntitled and not Frame.IsEmpty);
 
+      currFramesEditState[iFrame].Assign(Frame);
+
+      if not bSessionUpdated then
+      begin
+        if currFramesEditState[iFrame]<>FPrevFramesEditState[iFrame] then
+          bSessionUpdated:= true; // frame's FileName or unsaved text has been updated
+      end;
+
       cfg.SetValue(path+'/modified', bModified);
+      if not bModified then
+        cfg.DeleteValue(path+'/text');
       cfg.SetValue(path+'/file', AppCollapseHomeDirInFilename(sTabFilename));
 
       if bModified then
@@ -334,13 +376,13 @@ begin
 
       case Frame.FrameKind of
         efkEditor:
-          value:= '';
+          sTabKind:= '';
         efkBinaryViewer:
-          value:= 'bin,'+IntToStr(Ord(Frame.Binary.Mode));
+          sTabKind:= 'bin,'+IntToStr(Ord(Frame.Binary.Mode));
         efkImageViewer:
-          value:= 'pic';
+          sTabKind:= 'pic';
       end;
-      cfg.SetValue(path+'/kind', value);
+      cfg.SetValue(path+'/kind', sTabKind);
 
       {
       //TODO: add together with restoring of 'v_pos'
@@ -353,11 +395,22 @@ begin
       if bModified and UiOps.HistoryItems[ahhText] then
         if (not bUntitled and ASaveModifiedFiles) or
           (bUntitled and ASaveUntitledTabs) then
+          if not Frame.Ed1.Strings.IsSizeBig(UiOps.MaxSizeForSession) then
         begin
           cfg.SetValue(path+'/text', Frame.Ed1.Text);
           if (not bUntitled) and FileExists(sTabFilename) then
             cfg.SetValue(path+'/file_date', FormatFileDateAsNiceString(sTabFilename));
           Frame.VersionInSession:= Frame.Ed1.Strings.ModifiedVersion;
+
+          if UiOps.HistoryItems[ahhUndoRedo] then
+          begin
+            sUndo:= Frame.Ed1.UndoAsString;
+            if Length(sUndo)<=UiOps.MaxUndoSizeForSessionFile then
+              cfg.SetValue(path+'/undo', sUndo);
+            sUndo:= Frame.Ed1.RedoAsString;
+            if Length(sUndo)<=UiOps.MaxUndoSizeForSessionFile then
+              cfg.SetValue(path+'/redo', sUndo);
+          end;
         end;
 
       Frame.DoSaveHistoryEx(Frame.Ed1, cfg, path, true{AForSession});
@@ -369,36 +422,80 @@ begin
 
         bModified:= Frame.Ed2.Modified;
         cfg.SetValue(path+'/modified', bModified);
+        if not bModified then
+          cfg.DeleteValue(path+'/text');
         cfg.SetValue(path+'/file', AppCollapseHomeDirInFilename(sTabFilename2));
 
         if bModified and UiOps.HistoryItems[ahhText] then
+          if not Frame.Ed2.Strings.IsSizeBig(UiOps.MaxSizeForSession) then
         begin
           cfg.SetValue(path+'/text', Frame.Ed2.Text);
           if FileExists(sTabFilename2) then
             cfg.SetValue(path+'/file_date', FormatFileDateAsNiceString(sTabFilename2));
+          if UiOps.HistoryItems[ahhUndoRedo] then
+          begin
+            sUndo:= Frame.Ed2.UndoAsString;
+            if Length(sUndo)<=UiOps.MaxUndoSizeForSessionFile then
+              cfg.SetValue(path+'/undo', sUndo);
+            sUndo:= Frame.Ed2.RedoAsString;
+            if Length(sUndo)<=UiOps.MaxUndoSizeForSessionFile then
+              cfg.SetValue(path+'/redo', sUndo);
+          end;
         end;
 
         Frame.DoSaveHistoryEx(Frame.Ed2, cfg, path, true{AForSession});
       end;
     end;
 
+    FPrevFramesEditState:= Copy(currFramesEditState, 0, Length(currFramesEditState));
+
     Result:= true;
   finally
     try
-      cfg.Free; //saves json file
+      if not bSessionUpdated then
+      begin
+        if not IsJsonObjEqual(cfg.GetJsonObj, FPrevJsonObj, keysToIgnore) then
+          bSessionUpdated:= true; // the JSON config has been updated
+      end;
+
+      if bSessionUpdated then
+      begin
+        FPrevJsonObj.Free;
+        FPrevJsonObj:= CloneJsonObj(cfg.GetJsonObj, keysToIgnore);
+        if not FileAge(sSessionFileName, fileWriteTimeBeforeSaving) then
+          fileWriteTimeBeforeSaving:= Default(TDateTime);
+      end
+      else
+        cfg.SetModified(false); // no need to save the session
+
+      cfg.Free; //saves json file when its property 'Modified' is 'true'
     except
       //for incorrect sess folder
     end;
   end;
 
-  if UiOps.LogSessions then
+  if bSessionUpdated then
   begin
-    value:= Format('Saved session: "%s", %d file(s)', [ExtractFileName(sSessionFileName), nCountFiles]);
+    if not FileAge(sSessionFileName, fileWriteTimeAfterSaving) then
+      fileWriteTimeAfterSaving:= Default(TDateTime);
+    if fileWriteTimeBeforeSaving=fileWriteTimeAfterSaving then
+    begin
+      FPrevJsonObj.Free;
+      FPrevJsonObj:= TJSONNull.Create; // the session has not been saved!!!
+    end;
+  end;
+
+  if UiOps.LogSessions and bSessionUpdated then
+  begin
+    if fileWriteTimeBeforeSaving<>fileWriteTimeAfterSaving then
+      sConsole:= Format('Saved session: "%s", %d file(s)', [ExtractFileName(sSessionFileName), nCountFiles])
+    else
+      sConsole:= Format('Failed to save session: "%s", %d file(s)', [ExtractFileName(sSessionFileName), nCountFiles]);
     if nCountUntitled>0 then
-      value+= Format(' + %d untitled', [nCountUntitled]);
+      sConsole+= Format(' + %d untitled', [nCountUntitled]);
     if AByTimer then
-      value+= Format(', by timer at %s', [TimeToStr(Now)]);
-    MsgLogConsole(value);
+      sConsole+= Format(', by timer at %s', [TimeToStr(Now)]);
+    MsgLogConsole(sConsole);
   end;
 end;
 
@@ -412,17 +509,18 @@ var
   cfg: TJSONConfig;
   Frame: TEditorFrame;
   Ed: TATSynEdit;
-  list: TStringlist;
+  Pages: TATPages;
+  ListSessionKeys: TStringList;
   sSessionFileName, sTabFilename, sTabFilename2, sRootPath,
   sTabTitle, sTabKind, sOpenOptions,
   item_path, item_path2: string;
   nCountFiles, nCountFilesModified, nCountFilesBefore: integer;
-  Pages: TATPages;
-  bModified: boolean;
+  bModified, bModified2: boolean;
   bAllowOnState: boolean;
   sText: UnicodeString;
+  sUndoString, sRedoString: string;
   bExist, bExist2: boolean;
-  sDateSaved, sDateCurrent, sMessage: string;
+  sDateSaved, sDateCurrent, sConsole: string;
   CurTabs: TATTabs;
   nTick: QWord;
   nGroupIndex, nTabInGroup: integer;
@@ -471,7 +569,7 @@ begin
   AppFileCheckForNullBytes(sSessionFileName);
 
   cfg:= TJSONConfig.Create(nil);
-  list:= TStringList.Create;
+  ListSessionKeys:= TStringList.Create;
   try
     try
       cfg.Filename:= sSessionFileName;
@@ -499,13 +597,13 @@ begin
     DoOps_LoadHistory_GroupView(cfg, sRootPath); //reads to variables
     DoApplyInitialGroupSizes; //applies that variables
 
-    cfg.EnumSubKeys(sRootPath+'/', list);
-    list.Sort;
+    cfg.EnumSubKeys(sRootPath+'/', ListSessionKeys);
+    ListSessionKeys.Sort;
 
-    for iList:= 0 to list.Count-1 do
+    for iList:= 0 to ListSessionKeys.Count-1 do
     begin
       //handle only sections like "000".."001"..etc, ignore sections like "panels", "gr"
-      item_path:= list[iList];
+      item_path:= ListSessionKeys[iList];
       if not IsHistorySectionForFilename(item_path) then Continue;
       item_path:= sRootPath+'/'+item_path+'/';
       item_path2:= item_path+'pair/';
@@ -528,6 +626,8 @@ begin
       end;
 
       sText:= cfg.GetValue(item_path+'text', '');
+      sUndoString:= cfg.GetValue(item_path+'undo', '');
+      sRedoString:= cfg.GetValue(item_path+'redo', '');
       sTabKind:= cfg.GetValue(item_path+'kind', '');
       bModified:= cfg.GetValue(item_path+'modified', false);
       if sText='' then //don't load this file from session
@@ -585,6 +685,10 @@ begin
         end;
         if sText<>'' then
           Frame.Editor.Text:= sText;
+        if sUndoString<>'' then
+          Frame.Editor.UndoAsString:= sUndoString;
+        if sRedoString<>'' then
+          Frame.Editor.RedoAsString:= sRedoString;
         Frame.Editor.Modified:= bModified;
         sTabTitle:= cfg.GetValue(item_path+'tab_title', '');
         if sTabTitle<>'' then
@@ -600,8 +704,6 @@ begin
       if bExist then
       begin
         Inc(nCountFiles);
-        if sTabFilename2<>'' then
-          Inc(nCountFiles);
         Frame:= DoFileOpen(sTabFilename, sTabFilename2, Pages, sOpenOptions+SOptionPassive+SOptionNoHistory);
       end;
 
@@ -611,13 +713,42 @@ begin
         Frame.DoLoadHistoryEx(Frame.Ed1, cfg, item_path, true);
 
         if sTabFilename2<>'' then
+        begin
+          sText:= cfg.GetValue(item_path2+'text', '');
+          sUndoString:= cfg.GetValue(item_path2+'undo', '');
+          sRedoString:= cfg.GetValue(item_path2+'redo', '');
+          bModified2:= cfg.GetValue(item_path2+'modified', false);
+          if sText='' then
+            bModified2:= false;
+
+          if bModified2 then
+          begin
+            Inc(nCountFilesModified);
+            if sText<>'' then
+              Frame.Ed2.Text:= sText;
+            if sUndoString<>'' then
+              Frame.Ed2.UndoAsString:= sUndoString;
+            if sRedoString<>'' then
+              Frame.Ed2.RedoAsString:= sRedoString;
+            Frame.Ed2.Modified:= bModified2;
+            Frame.UpdateModified(Frame.Ed2);
+          end
+          else
+          if bExist2 then
+            Inc(nCountFiles);
+
           Frame.DoLoadHistoryEx(Frame.Ed2, cfg, item_path2, true);
+        end;
 
         Frame.TabPinned:= cfg.GetValue(item_path+'pinned', false);
 
         //event on_open was blocked in DoFileOpen, call it here
         //(plugin "Tab Icons" needs it)
-        DoPyEvent_Open(Frame.Ed1);
+        if (sTabFilename<>'') or Assigned(Frame.Ed1.AdapterForHilite) then
+          DoPyEvent_Open(Frame.Ed1);
+
+        if sTabFilename2<>'' then
+          DoPyEvent_Open(Frame.Ed2);
       end;
     end;
 
@@ -680,17 +811,17 @@ begin
     Result:= true;
   finally
     AppSessionIsLoading:= false;
-    list.Free;
+    ListSessionKeys.Free;
     cfg.Free;
   end;
 
   if UiOps.LogSessions then
   begin
     nTick:= (GetTickCount64-nTick) div 10 * 10;
-    sMessage:= Format('Loaded session: "%s", %dms, %d file(s)', [ExtractFileName(sSessionFileName), nTick, nCountFiles]);
+    sConsole:= Format('Loaded session: "%s", %dms, %d file(s)', [ExtractFileName(sSessionFileName), nTick, nCountFiles]);
     if nCountFilesModified>0 then
-      sMessage+= Format(' + %d modified', [nCountFilesModified]);
-    MsgLogConsole(sMessage);
+      sConsole+= Format(' + %d modified', [nCountFilesModified]);
+    MsgLogConsole(sConsole);
   end;
 
   //don't wait until plugin sets session name in PROC_SET_SESSION,
@@ -711,15 +842,25 @@ begin
   //avoid getting N tabs for untitled of which only N-1 are translated
   DoLocalizeTabTitles;
 
+  //fix disabled parsing for passive tab-groups (issue #4995)
+  DoShowForVisibleFrames;
+
   Frame:= CurrentFrame;
   if Assigned(Frame) then
   begin
-    DoOnTabFocusFinalization(Frame, nCountFiles>0);
+    DoOnTabFocusFinalization(Frame, nCountFiles+nCountFilesModified>0);
 
     //python 'on_caret' is disabled during session loading, so fire it here
     Ed:= Frame.Ed1;
     if not EditorIsEmpty(Ed) and not EditorCaretIsOnStart(Ed) then
       Ed.DoEventCarets;
+  end;
+
+  SetLength(FPrevFramesEditState, FrameCount);
+  for iFrame:= 0 to Length(FPrevFramesEditState)-1 do
+  begin
+    Frame:= Frames[iFrame];
+    FPrevFramesEditState[iFrame].Assign(Frame);
   end;
 end;
 
@@ -827,10 +968,11 @@ begin
     FFinder.OptWrapped:= cfg.GetValue('/finder/wrap', false);
     FFinder.OptInSelection:= cfg.GetValue('/finder/insel', false);
     FFinder.OptTokens:= TATFinderTokensAllowed(cfg.GetValue('/finder/tokens', 0));
+    FFinder.OptPreserveCase:= cfg.GetValue('/finder/prescase', false);
 
     ////state
     case UiOps.SidepanelOnStart of
-      0: bFlag:= cfg.GetValue('show_sidepanel', true);
+      0: bFlag:= cfg.GetValue('show_sidepanel', false);
       1: bFlag:= true;
       2: bFlag:= false;
     end;
@@ -991,6 +1133,9 @@ begin
   if (N>=0) and (N<=cMaxScale) then
     ATEditorScaleFontPercents:= N;
 
+  if ATEditorScaleFontPercents>100 then //not always, as GTK2 widgetset has a bug: hint is clipped on bottom
+    Screen.HintFont.Size:= ATEditorScaleFont(UiOps.VarFontSize);
+
   ATEditorOptions.CharSizeProportional:= cfg.GetValue('unicode_proportional', ATEditorOptions.CharSizeProportional);
   ATEditorOptions.CharScaleFullWidth:= cfg.GetValue('unicode_full_width', ATEditorOptions.CharScaleFullWidth);
   ATEditorOptions.BookmarksAutoDelete:= cfg.GetValue('auto_delete_bookmarks', ATEditorOptions.BookmarksAutoDelete);
@@ -998,8 +1143,9 @@ begin
 
   ATEditorOptions.MouseDragDropFocusesTargetEditor:= cfg.GetValue('mouse_drag_drop_focus_target', ATEditorOptions.MouseDragDropFocusesTargetEditor);
   ATEditorOptions.MaxTabPositionToExpand:= cfg.GetValue('tab_max_pos_expanded', ATEditorOptions.MaxTabPositionToExpand);
+  ATEditorOptions.MaxLinesForStatusbarOffsetsCalc:= cfg.GetValue('max_lines_to_calc_offsets', ATEditorOptions.MaxLinesForStatusbarOffsetsCalc);
   ATEditorOptions.MaxLineLenForAccurateCharWidths:= Min(1024, cfg.GetValue('max_line_len_for_accurate_width', ATEditorOptions.MaxLineLenForAccurateCharWidths));
-  ATEditorOptions.MaxClipboardRecents:= cfg.GetValue('ui_max_history_clipboard', ATEditorOptions.MaxClipboardRecents);
+  ATEditorMaxClipboardRecents:= cfg.GetValue('ui_max_history_clipboard', ATEditorMaxClipboardRecents);
   ATEditorOptions.MinimapColoringTime:= cfg.GetValue('minimap_coloring_time', ATEditorOptions.MinimapColoringTime);
   ATEditorOptions.SpeedScrollAutoVert:= cfg.GetValue('mouse_scroll_speed_vert', ATEditorOptions.SpeedScrollAutoVert);
 
@@ -1106,6 +1252,7 @@ begin
 
   Op.OpTabSize:= cfg.GetValue('tab_size', Op.OpTabSize);
   Op.OpTabSpaces:= cfg.GetValue('tab_spaces', Op.OpTabSpaces);
+  Op.OpTabSmart:= cfg.GetValue('tab_smart', Op.OpTabSmart);
 
   Op.OpMaxLineLenToTokenize:= cfg.GetValue('max_line_len_parsed', Op.OpMaxLineLenToTokenize);
   Op.OpMaxLineLenForBracketFinder:= Op.OpMaxLineLenToTokenize; //do we need separate option?
@@ -1147,7 +1294,7 @@ begin
   Op.OpRulerShow:= cfg.GetValue('ruler_show', Op.OpRulerShow);
   Op.OpRulerNumeration:= cfg.GetValue('ruler_numeration', Op.OpRulerNumeration);
   Op.OpRulerMarkCaret:= cfg.GetValue('ruler_mark_caret', Op.OpRulerMarkCaret);
-  //Op.OpRulerTextIndent:= cfg.GetValue('ruler_text_indent', Op.OpRulerTextIndent);
+  Op.OpRulerHeight:= cfg.GetValue('ruler_height', Op.OpRulerHeight);
 
   Op.OpMinimapShow:= cfg.GetValue('minimap_show', Op.OpMinimapShow);
   Op.OpMinimapShowSelAlways:= cfg.GetValue('minimap_sel_always', Op.OpMinimapShowSelAlways);
@@ -1156,8 +1303,9 @@ begin
   Op.OpMinimapAtLeft:= cfg.GetValue('minimap_at_left', Op.OpMinimapAtLeft);
   Op.OpMinimapScale:= cfg.GetValue('minimap_scale', Op.OpMinimapScale);
   Op.OpMinimapTooltipShow:= cfg.GetValue('minimap_tooltip_show', Op.OpMinimapTooltipShow);
-  Op.OpMinimapTooltipLineCount:= cfg.GetValue('minimap_tooltip_line_count', Op.OpMinimapTooltipLineCount);
+  Op.OpMinimapTooltipHeight:= cfg.GetValue('minimap_tooltip_height', Op.OpMinimapTooltipHeight);
   Op.OpMinimapTooltipWidth:= cfg.GetValue('minimap_tooltip_width', Op.OpMinimapTooltipWidth);
+  Op.OpMinimapTooltipFontSize:= cfg.GetValue('minimap_tooltip_font_size', Op.OpMinimapTooltipFontSize);
   Op.OpMinimapDragImmediately:= cfg.GetValue('minimap_drag_immediately', Op.OpMinimapDragImmediately);
 
   Op.OpMicromapShow:= cfg.GetValue('micromap_show', Op.OpMicromapShow);
@@ -1355,6 +1503,7 @@ begin
   UiOps.HotkeyToggleConfirmRep:= cfg.GetValue('find_hotkey_op_confirm_rep', UiOps.HotkeyToggleConfirmRep);
   UiOps.HotkeyToggleTokens:= cfg.GetValue('find_hotkey_op_tokens', UiOps.HotkeyToggleTokens);
   UiOps.HotkeyToggleHiAll:= cfg.GetValue('find_hotkey_op_hi', UiOps.HotkeyToggleHiAll);
+  UiOps.HotkeyTogglePresCase:= cfg.GetValue('find_hotkey_op_prescase', UiOps.HotkeyTogglePresCase);
 
   UiOps.LexerThemes:= cfg.GetValue('ui_lexer_themes', UiOps.LexerThemes);
   UiOps.LexerMenuGrouped:= cfg.GetValue('ui_lexers_grouped', UiOps.LexerMenuGrouped);
@@ -1365,6 +1514,16 @@ begin
   UiOps.ShowMenubar:= cfg.GetValue('ui_menu_show', UiOps.ShowMenubar);
   UiOps.ShowStatusbar:= cfg.GetValue('ui_statusbar_show', UiOps.ShowStatusbar);
   UiOps.ShowToolbar:= cfg.GetValue('ui_toolbar_show', UiOps.ShowToolbar);
+  UiOps.ShowSidebarMenuButton:= cfg.GetValue('ui_menu_button', UiOps.ShowSidebarMenuButton);
+
+  if ToolbarSideTop.ButtonCount>0 then
+    with ToolbarSideTop.Buttons[0] do
+      if OnClick=@DoSidebar_MainMenuClick then
+        case UiOps.ShowSidebarMenuButton of
+          0: Visible:= false;
+          1: Visible:= true;
+          2: Visible:= not UiOps.ShowMenubar;
+        end;
 
   UiOps.SidebarShow:= cfg.GetValue('ui_sidebar_show', UiOps.SidebarShow);
   UiOps.SidebarOnRight:= cfg.GetValue('ui_sidebar_on_right', UiOps.SidebarOnRight);
@@ -1387,6 +1546,7 @@ begin
   UiOps.PictureTypes:= cfg.GetValue('picture_types', UiOps.PictureTypes);
 
   UiOps.MaxFileSizeToOpen:= cfg.GetValue('ui_max_size_open', UiOps.MaxFileSizeToOpen);
+  UiOps.MaxFileSizeToOpen:= Min(UiOps.MaxFileSizeToOpen, 2*1024-1); //because TStream.ReadBuffer is called, it can handle only 32-bit LongInt
   UiOps.MaxFileSizeForLexer:= cfg.GetValue('ui_max_size_lexer', UiOps.MaxFileSizeForLexer);
 
   UiOps.AutocompleteAcpFiles:= cfg.GetValue('autocomplete_acp', UiOps.AutocompleteAcpFiles);
@@ -1396,6 +1556,7 @@ begin
   UiOps.AutocompleteCss:= cfg.GetValue('autocomplete_css', UiOps.AutocompleteCss);
   UiOps.AutocompleteCss_Lexers:= cfg.GetValue('autocomplete_css_lexers', UiOps.AutocompleteCss_Lexers);
   UiOps.AutocompleteFileURI:= cfg.GetValue('autocomplete_file_uri', UiOps.AutocompleteFileURI);
+  UiOps.AutocompleteClosingDelay:= cfg.GetValue('autocomplete_closing_delay', UiOps.AutocompleteClosingDelay);
 
   UiOps.FindSuggestSel:= cfg.GetValue('find_suggest_sel', UiOps.FindSuggestSel);
   UiOps.FindSuggestWord:= cfg.GetValue('find_suggest_cur_word', UiOps.FindSuggestWord);
@@ -1418,6 +1579,7 @@ begin
   UiOps.FindShow_HiAll:=         Pos('H', UiOps.FindHiddenButtons)=0;
   UiOps.FindShow_ConfirmRep:=    Pos('C', UiOps.FindHiddenButtons)=0;
   UiOps.FindShow_RegexSubst:=    Pos('E', UiOps.FindHiddenButtons)=0;
+  UiOps.FindShow_PreserveCase:=  Pos('P', UiOps.FindHiddenButtons)=0;
 
   UiOps.FindIndentVert:= cfg.GetValue('find_indent_vert', UiOps.FindIndentVert);
   UiOps.FindIndentHorz:= cfg.GetValue('find_indent_horz', UiOps.FindIndentHorz);
@@ -1463,8 +1625,8 @@ begin
   //UiOps.ListboxCentered:= cfg.GetValue('ui_listbox_centered', UiOps.ListboxCentered);
   UiOps.ListboxSizeX:= cfg.GetValue('ui_listbox_size_x', UiOps.ListboxSizeX);
   UiOps.ListboxSizeY:= cfg.GetValue('ui_listbox_size_y', UiOps.ListboxSizeY);
-  UiOps.ListboxCompleteSizeX:= cfg.GetValue('ui_listbox_complete_size_x', UiOps.ListboxCompleteSizeX);
-  UiOps.ListboxCompleteSizeY:= cfg.GetValue('ui_listbox_complete_size_y', UiOps.ListboxCompleteSizeY);
+  UiOps.ListboxAutoCompleteWidth:= cfg.GetValue('ui_listbox_complete_size_x', UiOps.ListboxAutoCompleteWidth);
+  UiOps.ListboxAutoCompleteMaxItems:= cfg.GetValue('ui_listbox_complete_size_items', UiOps.ListboxAutoCompleteMaxItems);
   UiOps.ListboxFuzzySearch:= cfg.GetValue('ui_listbox_fuzzy', UiOps.ListboxFuzzySearch);
 
   UiOps.MaxHistoryEdits:= Max(0, Min(200, cfg.GetValue('ui_max_history_edits', UiOps.MaxHistoryEdits)));
@@ -1479,6 +1641,7 @@ begin
 
   UiOps.EscapeClose:= cfg.GetValue('ui_esc_close', UiOps.EscapeClose);
   UiOps.EscapeCloseConsole:= cfg.GetValue('ui_esc_close_console', UiOps.EscapeCloseConsole);
+  UiOps.EscapeCloseFinder:= cfg.GetValue('ui_esc_close_finder', UiOps.EscapeCloseFinder);
   UiOps.ConsoleWordWrap:= cfg.GetValue('ui_console_wrap', UiOps.ConsoleWordWrap);
   UiOps.InitialDir:= cfg.GetValue('ui_initial_dir', UiOps.InitialDir);
   UiOps.OpenDir:= cfg.GetValue('ui_open_dir', UiOps.OpenDir);
@@ -1570,23 +1733,47 @@ end;
 
 
 procedure TfmMain.DoOps_LoadOptionsLexerSpecific(F: TEditorFrame; Ed: TATSynEdit);
+  //
+  procedure ApplyOps(const Ops: TEditorOps);
+  var
+    PrevTabSize: integer;
+    PrevTabSizeChanged: boolean;
+    PrevTabSpaces: boolean;
+    PrevTabSpacesChanged: boolean;
+    TempOps: TATEditorTempOptions;
+  begin
+    PrevTabSize:= Ed.OptTabSize;
+    PrevTabSizeChanged:= F.TabSizeChanged;
+    PrevTabSpaces:= Ed.OptTabSpaces;
+    PrevTabSpacesChanged:= F.TabSpacesChanged;
+
+    EditorSaveTempOptions(Ed, TempOps);
+    TempOps.FontSize:= Ops.OpFontSize; //support overriding "font_size" in lexer-specific config
+    DoApplyFrameOps(F, Ops, true);
+    EditorRestoreTempOptions(Ed, TempOps, Ed.InitialOptions);
+
+    if PrevTabSizeChanged then
+      Ed.OptTabSize:= PrevTabSize;
+    if PrevTabSpacesChanged then
+      Ed.OptTabSpaces:= PrevTabSpaces;
+  end;
+  //
 var
-  Ops: TEditorOps;
   FilenameDefault, FilenameUser, CurLexer: string;
   bExistsDefault, bExistsUser: boolean;
-  TempOps: TATEditorTempOptions;
   SNewLoadedConfig: string;
-  PrevTabSize: integer;
-  PrevTabSizeChanged: boolean;
-  PrevTabSpaces: boolean;
-  PrevTabSpacesChanged: boolean;
 begin
   if F=nil then exit;
 
   CurLexer:= F.LexerName[Ed];
   SNewLoadedConfig:= 'lexer:'+CurLexer;
-  if FLastLoadedConfig=SNewLoadedConfig then exit; //fix issue #4225
+  if FLastLoadedConfig=SNewLoadedConfig then //fix issue #4225
+  begin
+    ApplyOps(FLastLoadedEditorOps);
+    exit;
+  end;
   FLastLoadedConfig:= SNewLoadedConfig;
+  FLastLoadedEditorOps:= EditorOps;
 
   FilenameDefault:= AppFile_LexerSpecificConfig(CurLexer, true);
   FilenameUser:= AppFile_LexerSpecificConfig(CurLexer, false);
@@ -1596,31 +1783,21 @@ begin
 
   if bExistsDefault or bExistsUser then
   begin
-    Ops:= EditorOps;
-    EditorSaveTempOptions(Ed, TempOps);
-
-    PrevTabSize:= Ed.OptTabSize;
-    PrevTabSizeChanged:= F.TabSizeChanged;
-    PrevTabSpaces:= Ed.OptTabSpaces;
-    PrevTabSpacesChanged:= F.TabSpacesChanged;
-
     if bExistsDefault then
     begin
-      DoOps_LoadOptions(FilenameDefault, Ops, false);
+      DoOps_LoadOptions(FilenameDefault, FLastLoadedEditorOps, false);
     end;
 
     if bExistsUser then
     begin
-      DoOps_LoadOptions(FilenameUser, Ops, false);
+      DoOps_LoadOptions(FilenameUser, FLastLoadedEditorOps, false);
+
+      //store 'centering...' options in special way
+      AppOption_SaveToStringlist(EditorOps_CenteringWidth, CurLexer, FLastLoadedEditorOps.OpCenteringWidth);
+      AppOption_SaveToStringlist(EditorOps_CenteringDistFree, CurLexer, FLastLoadedEditorOps.OpCenteringForDistractionFree);
     end;
 
-    DoApplyFrameOps(F, Ops, true);
-    EditorRestoreTempOptions(Ed, TempOps, Ed.InitialOptions);
-
-    if PrevTabSizeChanged then
-      Ed.OptTabSize:= PrevTabSize;
-    if PrevTabSpacesChanged then
-      Ed.OptTabSpaces:= PrevTabSpaces;
+    ApplyOps(FLastLoadedEditorOps);
   end;
 end;
 

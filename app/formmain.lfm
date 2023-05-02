@@ -5,7 +5,7 @@ object fmMain: TfmMain
   Width = 1236
   AllowDropFiles = True
   Caption = 'CudaText'
-  ClientHeight = 497
+  ClientHeight = 493
   ClientWidth = 1236
   Constraints.MinHeight = 200
   Constraints.MinWidth = 300
@@ -22,11 +22,13 @@ object fmMain: TfmMain
   OnKeyDown = FormKeyDown
   OnResize = FormResize
   OnShow = FormShow
+  OnUTF8KeyPress = FormUTF8KeyPress
+  OnWindowStateChange = FormWindowStateChange
   LCLVersion = '2.3.0.0'
   Visible = True
   object PanelSide: TATPanelSimple
     Left = 0
-    Height = 497
+    Height = 493
     Top = 0
     Width = 75
     Align = alLeft
@@ -37,7 +39,7 @@ object fmMain: TfmMain
       AnchorSideBottom.Side = asrBottom
       Left = 0
       Height = 30
-      Top = 467
+      Top = 463
       Width = 75
       Anchors = [akLeft, akBottom]
       AutoSize = True
@@ -51,7 +53,7 @@ object fmMain: TfmMain
       AnchorSideTop.Control = PanelSide
       AnchorSideBottom.Control = ToolbarSideMid
       Left = 0
-      Height = 437
+      Height = 433
       Top = 0
       Width = 75
       Anchors = [akTop, akLeft, akBottom]
@@ -70,7 +72,7 @@ object fmMain: TfmMain
       AnchorSideBottom.Control = ToolbarSideLow
       Left = 0
       Height = 30
-      Top = 437
+      Top = 433
       Width = 75
       Anchors = [akLeft, akBottom]
       AutoSize = True
@@ -82,7 +84,7 @@ object fmMain: TfmMain
   end
   object PanelAll: TATPanelSimple
     Left = 75
-    Height = 497
+    Height = 493
     Top = 0
     Width = 1161
     Align = alClient
@@ -100,13 +102,13 @@ object fmMain: TfmMain
     end
     object PanelMain: TATPanelSimple
       Left = 0
-      Height = 473
+      Height = 469
       Top = 24
       Width = 1161
       Align = alClient
       object PanelEditors: TATPanelSimple
         Left = 0
-        Height = 473
+        Height = 469
         Top = 0
         Width = 1161
         Align = alClient
@@ -453,27 +455,6 @@ object fmMain: TfmMain
       object mnuViewMicromap: TMenuItem
         Caption = 'Toggle micr&omap'
       end
-      object mnuViewUnpri: TMenuItem
-        Caption = 'Toggle &unprinted chars'
-        object mnuViewUnpriShow: TMenuItem
-          Caption = '&Show'
-        end
-        object MenuItem10: TMenuItem
-          Caption = '-'
-        end
-        object mnuViewUnpriSpaces: TMenuItem
-          Caption = 'Show spaces/&tabs'
-        end
-        object mnuViewUnpriSpacesTail: TMenuItem
-          Caption = 'Show spaces/tabs trailing &only'
-        end
-        object mnuViewUnpriEnds: TMenuItem
-          Caption = 'Show &ends'
-        end
-        object mnuViewUnpriEndsDet: TMenuItem
-          Caption = 'Show ends &details'
-        end
-      end
       object mnuViewSplitSub: TMenuItem
         Caption = '&Split tab'
         object mnuViewSplitNo: TMenuItem
@@ -589,11 +570,14 @@ object fmMain: TfmMain
           Caption = 'Lexer styles &mapping...'
         end
       end
+      object mnuOpUnprinted: TMenuItem
+        Caption = 'Unprinted chars...'
+      end
       object mnuOpThemes: TMenuItem
-        Caption = 'Themes'
+        Caption = 'Select color theme...'
       end
       object mnuOpLangs: TMenuItem
-        Caption = 'Translations'
+        Caption = 'Select translation...'
       end
     end
     object mnuHelp: TMenuItem
@@ -696,9 +680,10 @@ object fmMain: TfmMain
     ShowButtonGlyphs = sbgNever
     OnActivate = AppPropsActivate
     OnDeactivate = AppPropsDeactivate
-    OnDropFiles = AppPropsDropFiles
     OnEndSession = AppPropsEndSession
     OnQueryEndSession = AppPropsQueryEndSession
+    OnModalBegin = AppPropsModalBegin
+    OnDropFiles = AppPropsDropFiles
     Left = 520
     Top = 424
   end

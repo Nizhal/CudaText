@@ -604,6 +604,7 @@ class DialogMK2:
                 'w': 100,
                 #'sp_r': PAD,
                 'on_change': self._on_tree_click,
+                'tab_stop': False,
                 })
         self._h_tree = dlg_proc(h, DLG_CTL_HANDLE, index=n)
         tree_proc(self._h_tree, TREE_THEME)
@@ -630,6 +631,7 @@ class DialogMK2:
                 'on_change': self._on_opt_click,
                 'on_click_header': self._on_header_click,
                 'on_menu': self.listbox_menu,
+                'tab_stop': True,
                 })
         self._h_list = dlg_proc(h, DLG_CTL_HANDLE, index=n)
 
@@ -720,6 +722,7 @@ class DialogMK2:
                 'sp_t': BTN_H + PAD,
                 'align': ALIGN_CLIENT,
                 'h': 100,
+                'tab_stop': False,
                 })
         h_ed = dlg_proc(h, DLG_CTL_HANDLE, index=n)
         edt = Editor(h_ed)
@@ -788,6 +791,7 @@ class DialogMK2:
                 'sp_r': PAD*2, 'sp_b': PAD*2,
                 'cap': _('Cancel'),
                 'on_change': lambda *args, **vargs: self.close(),
+                'tab_stop': False,
                 })
         # help #######
         n = dlg_proc(h, DLG_CTL_ADD, 'button_ex')
@@ -798,6 +802,7 @@ class DialogMK2:
                 'sp_l': PAD*2, 'sp_b': PAD*2,
                 'cap': _('Help'),
                 'on_change': self.dlg_help,
+                'tab_stop': False,
                 })
 
         # reverse buttons for Windows: [Cancel, Apply, OK] => [OK, Apply, Cancel]
@@ -813,6 +818,18 @@ class DialogMK2:
         h_iml = get_list_imagelist()
         listbox_proc(self._h_list, LISTBOX_SET_HEADER_IMAGELIST, text=h_iml)
 
+        # tab_order
+        dlg_proc(h, DLG_CTL_PROP_SET, name='filter',       prop={'tab_order': 0,})
+        dlg_proc(h, DLG_CTL_PROP_SET, name='options_list', prop={'tab_order': 1,})
+        dlg_proc(h, DLG_CTL_PROP_SET, name='scope',        prop={'tab_order': 2,})
+        dlg_proc(h, DLG_CTL_PROP_SET, name=ValueEds.VALUE_ED_RESET, prop={'tab_order': 3,})
+        # reverse buttons for Windows: [Cancel, Apply, OK] => [OK, Apply, Cancel]
+        if IS_WIN:
+            dlg_proc(h, DLG_CTL_PROP_SET, name='btn_ok',       prop={'tab_order': 4,})
+            dlg_proc(h, DLG_CTL_PROP_SET, name='btn_apply',    prop={'tab_order': 5,})
+        else:
+            dlg_proc(h, DLG_CTL_PROP_SET, name='btn_apply',    prop={'tab_order': 4,})
+            dlg_proc(h, DLG_CTL_PROP_SET, name='btn_ok',       prop={'tab_order': 5,})
 
         edt.set_prop(PROP_RO, True)
         edt.set_prop(PROP_RULER, False)
@@ -1114,6 +1131,14 @@ class DialogMK2:
         new_scope, _new_val = active_scoped_val
 
         # set scope
+        if not is_opt_modified: # do not switch scope automatically if value of that scope was not changed yet.
+            new_scope = 'u' # user scope
+            active_scoped_val = (
+                new_scope,
+                self.optman.get_opt_scope_value(self._cur_opt, new_scope, is_ui=False)
+                # if user scope has None value, get default
+                or self.optman.get_opt_scope_value(self._cur_opt, 'def', is_ui=False)
+            )
         new_scope_name = self._scope_captions[new_scope]
         with ignore_edit(self.h, self.scope_ed):
             self.scope_ed.set_text_all(new_scope_name)

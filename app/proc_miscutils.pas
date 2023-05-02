@@ -54,6 +54,8 @@ procedure FormUnlock(Ctl: TForm);
 procedure FormHistorySave(F: TForm; const AConfigPath: string; AWithPos: boolean);
 procedure FormHistoryLoad(F: TForm; const AConfigPath: string; AWithPos: boolean);
 
+procedure FormPutToVisibleArea(F: TForm);
+
 function Canvas_TextMultilineExtent(C: TCanvas; const AText: string): TPoint;
 function Canvas_NumberToFontStyles(Num: integer): TFontStyles;
 procedure Canvas_PaintPolygonFromSting(C: TCanvas; const AText: string);
@@ -64,7 +66,9 @@ function DoClipboardFormatsAsString: string;
 
 procedure AppScalePanelControls(APanel: TWinControl);
 procedure AppScaleSplitter(C: TSplitter);
-procedure AppInitProgressForm(out AForm: TForm; out AProgress: TATGauge; const AText: string);
+procedure AppInitProgressForm(out AForm: TForm; out AProgress: TATGauge;
+  out AButtonCancel: TATButton; const AText: string);
+function AppValidateJson(const AText: string): boolean;
 
 procedure LexerEnumSublexers(An: TecSyntAnalyzer; List: TStringList);
 procedure LexerEnumStyles(An: TecSyntAnalyzer; List: TStringList);
@@ -904,6 +908,8 @@ begin
     Result+= 'o';
   if F.OptWrapped then
     Result+= 'a';
+  if F.OptPreserveCase then
+    Result+= 'P';
   if F.OptTokens<>cTokensAll then
     Result+= 'T'+IntToStr(Ord(F.OptTokens));
 end;
@@ -920,6 +926,7 @@ begin
   F.OptInSelection:= Pos('s', S)>0;
   F.OptConfirmReplace:= Pos('o', S)>0;
   F.OptWrapped:= Pos('a', S)>0;
+  F.OptPreserveCase:= Pos('P', S)>0;
   F.OptTokens:= cTokensAll;
 
   N:= Pos('T', S);
@@ -1302,9 +1309,14 @@ begin
 end;
 
 
-procedure AppInitProgressForm(out AForm: TForm; out AProgress: TATGauge; const AText: string);
+procedure AppInitProgressForm(out AForm: TForm; out AProgress: TATGauge;
+  out AButtonCancel: TATButton; const AText: string);
+const
+  cIndent = 6;
+  cBtnHeight = 20;
+  cBtnWidth = 80;
 var
-  Pane: TPanel;
+  Pane, Pane2: TPanel;
 begin
   AForm:= TForm.CreateNew(nil, 0);
   AForm.Width:= 600;
@@ -1325,16 +1337,31 @@ begin
   Pane.Font.Color:= GetAppColor(apclTabFont);
   Pane.Caption:= AText;
 
+  Pane2:= TPanel.Create(AForm);
+  Pane2.Align:= alBottom;
+  Pane2.Height:= cBtnHeight+cIndent*2;
+  Pane2.Parent:= AForm;
+  Pane2.BevelInner:= bvNone;
+  Pane2.BevelOuter:= bvNone;
+  Pane2.Caption:= '';
+
   AProgress:= TATGauge.Create(AForm);
-  AProgress.Align:= alBottom;
+  AProgress.Align:= alClient;
+  AProgress.Parent:= Pane2;
   AProgress.Kind:= gkHorizontalBar;
   AProgress.ShowText:= false;
-  AProgress.Height:= 20;
-  AProgress.BorderSpacing.Bottom:= 6;
-  AProgress.BorderSpacing.Left:= 6;
-  AProgress.BorderSpacing.Right:= 6;
-  AProgress.Parent:= AForm;
+  AProgress.BorderSpacing.Bottom:= cIndent;
+  AProgress.BorderSpacing.Left:= cIndent;
+  AProgress.BorderSpacing.Right:= cIndent;
   AProgress.Progress:= 0;
+
+  AButtonCancel:= TATButton.Create(AForm);
+  AButtonCancel.Align:= alRight;
+  AButtonCancel.Parent:= Pane2;
+  AButtonCancel.Width:= cBtnWidth;
+  AButtonCancel.BorderSpacing.Bottom:= cIndent;
+  AButtonCancel.BorderSpacing.Left:= cIndent;
+  AButtonCancel.BorderSpacing.Right:= cIndent;
 end;
 
 
@@ -1358,6 +1385,49 @@ begin
     end;
 end;
 
+
+function AppValidateJson(const AText: string): boolean;
+var
+  fn: string;
+  cfg: TJSONConfig;
+begin
+  fn:= GetTempDir(false)+'cudatext_validation.json';
+  if FileExists(fn) then
+    DeleteFile(fn);
+  DoWriteStringToFile(fn, AText);
+
+  cfg:= TJSONConfig.Create(nil);
+  try
+    try
+      cfg.Filename:= fn;
+      Result:= true;
+    except
+      on E: Exception do
+      begin
+        MsgBox('Incorrect JSON:'#10+E.Message, MB_OK+MB_ICONERROR);
+        Result:= false;
+      end;
+    end;
+  finally
+    FreeAndNil(cfg);
+    DeleteFile(fn);
+  end;
+end;
+
+procedure FormPutToVisibleArea(F: TForm);
+var
+  R: TRect;
+begin
+  R:= Screen.DesktopRect;
+
+  if F.Width>R.Width then
+    F.Width:= R.Width-2;
+  if F.Height>R.Height then
+    F.Height:= R.Height-2;
+
+  F.Left:= Max(R.Left, Min(R.Right-F.Width, F.Left));
+  F.Top:= Max(R.Top, Min(R.Bottom-F.Height, F.Top));
+end;
 
 
 finalization

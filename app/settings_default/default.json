@@ -3,8 +3,8 @@
 //
 //Some options have suffix for OS:
 //  Windows: empty
-//  Linux:   "__linux"
-//  macOS:   "__mac"
+//  Linux: "__linux"
+//  macOS: "__mac"
 //  FreeBSD: "__freebsd"
 //  OpenBSD: "__openbsd"
 //  NetBSD: "__netbsd"
@@ -131,6 +131,7 @@
   //                   If 's' not in value, show Unicode-spaces in hex form.
   //                   Unicode-spaces are: U+1680, U+2007, U+200B, U+202F, U+205F, U+2060, U+3000.
   //  if 'l' in value: On Windows: enable ligatures on line(s) with caret.
+  //  if 'n' in value: When line-end is selected, don't render empty cell at line-end.
   //
   //Note: default for Qt5/Qt6 version is different than for GTK version, it equals to macOS default.
   //Note: this option is global, not per-lexer.
@@ -192,10 +193,12 @@
   "ui_notif_time": 2,
 
   //Notifications about file change in external programs:
-  //when to show confirmation to reload the changed file.
-  //  0: show always (on each change in external program)
-  //  1: show if editor is modified or Undo-data is not empty
-  //  2: show if editor is modified
+  //when/how to show confirmation to reload the changed file.
+  //  0: show modal-less prompt, always (on each change in external program)
+  //  1: show modal-less prompt, if editor is modified or Undo-data is not empty
+  //  2: show modal-less prompt, if editor is modified
+  //  3: show modal prompt, always
+  //  4: show modal prompt, if editor is modified
   "ui_notif_confirm": 1,
 
   //[File/Detection]
@@ -300,7 +303,7 @@
   //will not find folding ranges, which makes parsing 1.5-3 times faster.
   //But this disables the work of code-tree for most of lexers.
   //Note: this option is global, not per-lexer.
-  "lexer_folding_max_lines": 10000,
+  "lexer_folding_max_lines": 15000,
 
   //[Text/Folding]
   //Style of folded blocks.
@@ -376,8 +379,19 @@
   //Tab-char width.
   "tab_size": 4,
 
-  //Tab key inserts spaces, instead of tab-char.
+  //Tab-key inserts spaces, instead of tab-char.
   "tab_spaces": false,
+
+  //Tab-key has "Smart tabs" behaviour, known from many editors,
+  //e.g. Lazarus IDE has such an option. Description from Lazarus IDE Wiki:
+  //  The tab key will move forward to position below the start-position of the next
+  //  word in the preceding line. If below the last word of the preceding line,
+  //  then you move to the position below the end of the preceding line. If behind
+  //  the last word of the preceding line, it uses the next line above that is longer
+  //  than your current line.
+  //"Smart tabs" supports multi-carets, but without selection(s), and moving
+  //of all carets are the same as for the first caret.
+  "tab_smart": false,
 
   //Maximal X position, before which tab-characters visually expand to N spaces.
   //After this X position, tab-chars expand to 1 space.
@@ -398,6 +412,10 @@
   //Value 0 (or too huge): feature is disabled.
   //Note: this option is global, not per-lexer.
   "max_line_len_for_editing_keeping_lexer": 2000,
+
+  //Maximal count of lines in document, for which app can calculate macros
+  //{offset_max} and {offset_caret}, for statusbar display.
+  "max_lines_to_calc_offsets": 7000,
 
   //[Lexers]
   //Maximal line length parsed, ie:
@@ -463,9 +481,10 @@
   //  0: Always hide
   //  1: Always show
   //  2: Show automatically
+  //Note: only for "scrollbar_themed":true .
   "scroll_style_horz": 2,
 
-  //Use custom-painted scrollbars in editor, instead of OS-themed scrollbars.
+  //Use custom-painted scrollbars in editor, instead of OS-painted scrollbars.
   "scrollbar_themed": true,
 
   //Style of arrows in editor's themed scrollbars.
@@ -503,6 +522,9 @@
   //Ruler: Show ruler (horizontal bar at the top).
   "ruler_show": false,
 
+  //Ruler: Height, in percents of average text cell.
+  "ruler_height": 100,
+
   //Ruler: Numeration style.
   //  0: numbers 0 - 10 - 20 - 30...
   //  1: numbers 1 - 11 - 21 - 31...
@@ -520,7 +542,7 @@
   //After this time passes, lower remaining lines loose highlighting.
   //Value 0 totally disables syntax-highlighting in the minimap.
   //Note: this option is global, not per-lexer.
-  "minimap_coloring_time": 15,
+  "minimap_coloring_time": 40,
 
   //Minimap: Show selection area always. If false: show only on mouse-over.
   "minimap_sel_always": false,
@@ -536,17 +558,23 @@
   //Minimap: Place minimap to the left side.
   "minimap_at_left": false,
 
-  //Minimap: Custom scale in percents, if value>100.
+  //Minimap: Scale in percents.
+  //  value=0: use default look: 2 pixels per line, and consider "ui_scale"
+  //  0<value<100: use compact look: 1 pixel per line, and ignore "ui_scale"
+  //  value>=100: use specified line height in %, and consider "ui_scale"
   "minimap_scale": 0,
 
   //Minimap: Show "tooltip panel", when mouse cursor moves over minimap.
   "minimap_tooltip_show": false,
 
-  //Minimap: Number of lines in "tooltip panel".
-  "minimap_tooltip_line_count": 6,
+  //Minimap: Height of "tooltip panel", in editor's char-cells.
+  "minimap_tooltip_height": 6,
 
-  //Minimap: Width of "tooltip panel" in percents of editor width.
+  //Minimap: Width of "tooltip panel", in percents of editor width.
   "minimap_tooltip_width": 60,
+
+  //Minimap: Special font size for minimap-tooltip, if value>2.
+  "minimap_tooltip_font_size": 0,
 
   //Minimap: Feature of Sublime Text 2 (removed in Sublime Text 3):
   //mouse-down on minimap starts the dragging of sel-rect immediately.
@@ -590,6 +618,7 @@
   //  if "X" in value: Whitespace also in selection (works together with "l", "t")
   //  if "l" in value: Whitespace only leading+trailing, ie at begin/end of lines (overrides "t")
   //  if "t" in value: Whitespace only trailing, ie at end of lines
+  //  if "T" in value: Show all tab-chars (overrides "x", "X", "l", "t")
   //  if "e" in value: Show end-of-lines marks
   //  if "d" in value: Detailed end-of-lines: "LF", "CRLF", "CR" (overrides ".")
   //  if "." in value: Instead of arrows at end-of-lines, show thick dots (overrides "p")
@@ -653,10 +682,14 @@
   //Undo: Undo is enabled even after file saving.
   "undo_after_save": true,
 
-  //Undo: For which files Undo is saved to disk (files in .cudatext folder).
-  //Value can be "": disabled, "*": enabled for all files,
-  //or ","-separated file extensions like "c,h,txt".
+  //Undo: For which files Undo-data is saved to disk (files in .cudatext subfolders).
+  //Value can be:
+  //  - "": feature is disabled,
+  //  - "*": feature is enabled for all files,
+  //  - ","-separated file extensions, like "c,h,txt".
   //Note: this option is global, not per-lexer.
+  //Note: option doesn't need to be set when: a) you keep changed files in sessions, and
+  //      b) "ui_history_disabled" doesn't include 'U'.
   "undo_persistent": "",
 
   //Undo: Pause (in milliseconds) for Undo/Redo commands, to show minimalistic animation.
@@ -707,7 +740,8 @@
   //  5: carets column on the right
   "caret_after_paste_column": 5,
 
-  //Keep caret on visible screen area, on commands "Scroll line up/down".
+  //Keep caret on visible screen area. Several commands respect this option:
+  //"scroll line up/down", "scroll page up/down", "scroll to document begin/end" etc.
   "caret_keep_visible_on_scroll": true,
 
   //Mode of column selection, value makes difference for wrapped lines
@@ -721,7 +755,9 @@
   "caret_proximity_vert": 0,
 
   //[Find]
-  //Find dialog: show window, not docked to app bottom (applied after restart).
+  //Find dialog: show Find dialog as separate window (not docked to the main window).
+  //Option is applied after app restart.
+  //Option is disabled in GTK2 versions due to the bug in Lazarus.
   "find_separate_form": false,
 
   //Find dialog: suggest selection (of first caret) as initial search text.
@@ -741,21 +777,22 @@
   "find_sel_case": 2,
 
   //Find dialog: which buttons to hide.
-  //  if "R" in value: "Regular expressions" option button
-  //  if "S" in value: "Case sensitive" option button
-  //  if "W" in value: "Whole words" option button
-  //  if "O" in value: "Wrapped search" option button
-  //  if "I" in value: "Search in selection" option button
-  //  if "M" in value: "Multi-line inputs" option button
-  //  if "X" in value: "Allowed syntax elements" option button
-  //  if "H" in value: "Highlight all matches" option button
-  //  if "C" in value: "Confirm on replace" option button
-  //  if "E" in value: "RegEx substitution for 'Replace with'" option button
-  //  if "f" in value: "Find first" button
-  //  if "n" in value: "Find next" button
-  //  if "p" in value: "Find prev" button
-  //  if "a" in value: "Replace all" button
-  //  if "g" in value: "Replace global" button
+  //  if 'R' in value: "Regular expressions" option button
+  //  if 'S' in value: "Case sensitive" option button
+  //  if 'W' in value: "Whole words" option button
+  //  if 'O' in value: "Wrapped search" option button
+  //  if 'I' in value: "Search in selection" option button
+  //  if 'M' in value: "Multi-line inputs" option button
+  //  if 'X' in value: "Allowed syntax elements" option button
+  //  if 'H' in value: "Highlight all matches" option button
+  //  if 'C' in value: "Confirm on replace" option button
+  //  if 'E' in value: "RegEx substitution for 'Replace with'" option button
+  //  if 'P' in value: "Preserve case on replacement" option button
+  //  if 'f' in value: "Find first" button
+  //  if 'n' in value: "Find next" button
+  //  if 'p' in value: "Find prev" button
+  //  if 'a' in value: "Replace all" button
+  //  if 'g' in value: "Replace global" button
   "find_hidden_buttons": "",
 
   //Find dialog: multi-line mode: how height of inputs is increased.
@@ -900,11 +937,11 @@
   //Listboxes: Commands/API listbox height.
   "ui_listbox_size_y": 300,
 
-  //Listboxes: Auto-completion listbox width.
+  //Listboxes: Auto-completion listbox width, in pixels.
   "ui_listbox_complete_size_x": 550,
 
-  //Listboxes: Auto-completion listbox height.
-  "ui_listbox_complete_size_y": 200,
+  //Listboxes: Auto-completion listbox height, in items.
+  "ui_listbox_complete_size_items": 12,
 
   //Listboxes: Enable fuzzy search in menu dialogs (see Wiki).
   "ui_listbox_fuzzy": true,
@@ -946,6 +983,8 @@
   //  if 'C' in value: Custom color of ui-tab header
   //  if 'F' in value: Code-tree filter: string and history
   //  if 'i' in value: Splitted state of UI tab (horiz/vert, percents of size)
+  //  if 'I' in value: Column of vertical 'margin' line
+  //  if 'U' in value: Undo/Redo data
   "ui_history_disabled": "",
 
   //[UI/Listbox]
@@ -959,7 +998,13 @@
   //Close the Console panel by Esc key.
   "ui_esc_close_console": true,
 
+  //Close the Find/Replace dialog by Esc key.
+  "ui_esc_close_finder": true,
+
   //Sub-option of "ui_open_dir".
+  //Supports several macros:
+  //  {AppDir} - Folder path of CudaText executable file.
+  //  {AppDrive} - (Windows only) Drive/disk letter of CudaText executable, e.g. "D:".
   "ui_initial_dir": "",
 
   //Initial folder of Open/Save-as dialog.
@@ -1081,7 +1126,8 @@
   "mouse_gutter_click_sel": true,
 
   //Allow to zoom text using Ctrl+[mouse wheel up/down].
-  //If option is off, you can still use Command Palette's "current document font size: bigger/smaller".
+  //If option is off, you can still use Command Palette's
+  //"current document font size: bigger/smaller".
   "mouse_wheel_zoom": true,
 
   //Mouse wheel scrolling speed, vertical (in lines).
@@ -1191,6 +1237,8 @@
   //  {char_dec}: character at first caret - decimal code (empty if no char)
   //  {char_hex}: character at first caret - 2...4-digit hex code (empty if no char)
   //  {char_hex4}: character at first caret - 4-digit hex code (empty if no char)
+  //  {offset_max}: total document length, in UTF-16 chars
+  //  {offset_caret}: offset of 1st caret from the start, in UTF-16 chars
   //  {_ln}: localized string "Ln"
   //  {_col}: localized string "Col"
   //  {_sel}: localized string "sel"
@@ -1209,7 +1257,7 @@
   //Statusbar panels list. Can skip and reorder panels.
   //Panels are "|"-separated, where each item is ","-separated: name, alignment, width.
   //Panel names:
-  //    caret  : Caret(s) info.
+  //    caret  : Caret(s)/selection(s) information.
   //    enc    : Encoding name.
   //    ends   : Line ends characters.
   //    lexer  : Lexer name.
@@ -1221,13 +1269,13 @@
   //    zoom   : Zoom value in percents (%).
   //             Change zoom value by Command Palette commands "current document font size: bigger/smaller",
   //             and by Ctrl+<Mouse wheel> (when option "mouse_wheel_zoom":true).
-  //    msg    : Messages from CudaText and plugins. Panel should be auto-sized.
+  //    msg    : Messages from CudaText and plugins.
   //Panel alignments:
   //    C: center
   //    L: left
   //    R: right
-  //    A: auto-sized (size adjusts to text)
-  "ui_statusbar_panels": "caret,C,180|enc,C,125|ends,A,45|lexer,C,140|tabsize,A,75|selmode,A,15|msg,L,4000",
+  //    A: auto-sized (width adjusts to text)
+  "ui_statusbar_panels": "caret,C,180|enc,C,125|ends,A,|lexer,C,140|tabsize,A,|selmode,A,|msg,L,",
 
   //Statusbar messages: show time in seconds.
   "ui_statusbar_time": 5,
@@ -1361,7 +1409,7 @@
   "duplicate_move_down": true,
 
   //[Text/Completion]
-  //Enable auto-completion from *.acp files (static lists of words)
+  //Enable auto-completion from *.acp files (static lists of words).
   "autocomplete_acp": true,
 
   //Enable special HTML auto-completion, see wiki.
@@ -1384,19 +1432,19 @@
   "autocomplete_file_uri": true,
 
   //Auto-show auto-completion after typing N word-chars (0: disabled)
-  //Option is for lexer-specific configs, not for user.json config.
+  //Option is (mostly) for lexer-specific configs.
   "autocomplete_autoshow_chars": 0,
 
   //Chars, which trigger auto-completion showing.
-  //Option is for lexer-specific configs, not for user.json config.
+  //Option is (mostly) for lexer-specific configs.
   //  E.g. if option is "@!" in config "lexer Nnn.json", then @ and !
   //  chars trigger auto-completion, in Nnn lexer.
   "autocomplete_trigger_chars": "",
 
   //When any of these chars is typed while showing completion listbox,
   //listbox enters selection, and typed char is appended too.
-  //Option is for lexer-specific configs, not for user.json config.
-  "autocomplete_commit_chars": " ,;/\\'\"",
+  //Option is (mostly) for lexer-specific configs.
+  "autocomplete_commit_chars": " ,;",
 
   //When any of these chars is typed while showing completion listbox,
   //listbox is closed, and typed char is appended.
@@ -1414,6 +1462,11 @@
 
   //If completion listbox has just single item, then commit it without showing menus.
   "autocomplete_commit_single_item": false,
+
+  //Delay (in msec) of closing the auto-completion listbox, when there are no matching words.
+  //If value=0, close the listbox immediately (but it gives flickering with LSP plugin,
+  //when you press Left/Right arrows with LSP listbox).
+  "autocomplete_closing_delay": 300,
 
   //Auto-pair some chars on typing.
   //Value must have some of supported chars without spaces:
@@ -1444,6 +1497,7 @@
 
   //[File]
   //Maximal file size, allowed to open, in Mb.
+  //Value is internally limited by 2047.
   "ui_max_size_open": 500,
 
   //Maximal file size, for which allowed to use lexers, in Mb.
@@ -1492,7 +1546,7 @@
   "ui_toolbar_theme": "default_24x24",
 
   //Show main menu bar.
-  //Note: this option takes effect only after program restart
+  //Note: option takes effect only after app restart.
   "ui_menu_show": true,
 
   //Top menu bar is themed (Windows only, not possible in other OS).
@@ -1501,6 +1555,12 @@
   //Font size for themed top menu bar (Windows only).
   //Note: too big value is not supported: font will overlap menuitem area.
   "ui_menu_themed_font_size": 9,
+
+  //When show sidebar's "copy of top menu" button (icon with 3 dots).
+  //  0: Always hide
+  //  1: Always show
+  //  2: Auto show/hide depending on "ui_menu_show" value
+  "ui_menu_button": 2,
 
   //Side-panel's visible state on program start.
   //  0: Restore state from history file
@@ -1521,23 +1581,24 @@
   "find_hotkey_find_first": "Alt+Enter",
   "find_hotkey_find_next": "F3",
   "find_hotkey_find_prev": "Shift+Enter",
-  "find_hotkey_replace": "Alt+Z",
-  "find_hotkey_replace_no_next": "Ctrl+Alt+Z",
-  "find_hotkey_replace_all": "Alt+A",
+  "find_hotkey_replace": "Ctrl+Alt+Z",
+  "find_hotkey_replace_no_next": "Ctrl+Alt+Shift+Z",
+  "find_hotkey_replace_all": "Ctrl+Alt+A",
   "find_hotkey_replace_global": "",
-  "find_hotkey_count_all": "Alt+O",
-  "find_hotkey_extract": "Alt+Q",
-  "find_hotkey_select_all": "Alt+E",
-  "find_hotkey_mark_all": "Alt+K",
-  "find_hotkey_op_regex": "Alt+R",
-  "find_hotkey_op_case": "Alt+C",
-  "find_hotkey_op_words": "Alt+W",
-  "find_hotkey_op_wrapped": "Alt+N",
-  "find_hotkey_op_in_sel": "Alt+X",
-  "find_hotkey_op_multiline": "Alt+M",
-  "find_hotkey_op_confirm_rep": "Alt+Y",
+  "find_hotkey_count_all": "Ctrl+Alt+O",
+  "find_hotkey_extract": "Ctrl+Alt+Q",
+  "find_hotkey_select_all": "Ctrl+Alt+E",
+  "find_hotkey_mark_all": "Ctrl+Alt+K",
+  "find_hotkey_op_regex": "Ctrl+Alt+R",
+  "find_hotkey_op_case": "Ctrl+Alt+C",
+  "find_hotkey_op_words": "Ctrl+Alt+W",
+  "find_hotkey_op_wrapped": "Ctrl+Alt+N",
+  "find_hotkey_op_in_sel": "Ctrl+Alt+X",
+  "find_hotkey_op_multiline": "Ctrl+Alt+M",
+  "find_hotkey_op_confirm_rep": "Ctrl+Alt+Y",
   "find_hotkey_op_tokens": "",
   "find_hotkey_op_hi": "",
+  "find_hotkey_op_prescase": "",
 
   //[Viewer]
   //Viewer text width in 'binary' mode.

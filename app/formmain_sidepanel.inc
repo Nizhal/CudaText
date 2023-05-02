@@ -44,7 +44,10 @@ begin
   MenuRecentsPopup(nil);
 
   Menu_Copy(MainMenu, PopupSidebarClone);
-  Pnt:= ToolbarSideTop.ClientToScreen(Point(0, 0));
+
+  //better show menu from top-left corner, coz otherwise,
+  //when sidebar is on the right, menu fly-outs overlap each other
+  Pnt:= PanelAll.ClientToScreen(Point(0, 0));
 
   UpdateMenuTheming(PopupSidebarClone);
   PopupSidebarClone.Popup(Pnt.X, Pnt.Y);

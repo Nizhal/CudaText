@@ -13,35 +13,24 @@ interface
 
 uses
   Classes, SysUtils, Graphics, Forms, Controls, Dialogs,
-  ExtCtrls, Menus, StrUtils, ComCtrls, Clipbrd,
+  ExtCtrls, Menus, ComCtrls,
   LCLIntf, LCLProc, LCLType, LazUTF8, LazFileUtils, FileUtil,
-  IniFiles,
-  ATTabs,
-  ATGroups,
-  ATScrollBar,
-  ATGauge,
   ATSynEdit,
-  ATSynEdit_Globals,
-  ATSynEdit_Finder,
-  ATSynEdit_Keymap_Init,
   ATSynEdit_Adapters,
   ATSynEdit_Adapter_EControl,
   ATSynEdit_Adapter_LiteLexer,
-  ATSynEdit_Carets,
+  ATSynEdit_Finder,
   ATSynEdit_Gaps,
-  ATSynEdit_Markers,
-  ATSynEdit_Commands,
-  ATSynEdit_Bookmarks,
-  ATSynEdit_CanvasProc,
-  ATSynEdit_WrapInfo,
+  ATSynEdit_Cmp_Form,
   ATStrings,
   ATStringProc,
-  ATStringProc_Separator,
-  ATStringProc_HtmlColor,
   ATButtons,
   ATBinHex,
-  ATStreamSearch,
   ATImageBox,
+  ATGauge,
+  ATScrollBar,
+  ATTabs,
+  ATGroups,
   BGRABitmap,
   BGRABitmapTypes,
   proc_appvariant,
@@ -63,9 +52,7 @@ uses
   ec_SyntAnal,
   ec_proc_lexer,
   ec_lexerlist,
-  formlexerstylemap,
-  at__jsonconf,
-  math;
+  at__jsonconf;
 
 type
   TAppFramePyEvent = function(AEd: TATSynEdit; AEvent: TAppPyEvent;
@@ -96,6 +83,20 @@ type
     tcrFromPlugin
     );
 
+  TAppStatusbarUpdateReason = (
+    sbrCaret,
+    sbrZoom,
+    sbrInsOvr,
+    sbrLexer,
+    sbrFocusEnter,
+    sbrFileOpen,
+    sbrFileReload,
+    sbrViewerScroll,
+    sbrPictureScroll
+    );
+
+  TAppFrameStatusbarEvent = procedure(Sender: TObject; AReason: TAppStatusbarUpdateReason) of object;
+
 const
   cAppTabCaptionReasonStr: array[TAppTabCaptionReason] of char = (
     'u',
@@ -123,9 +124,6 @@ type
     ButtonStop: TATButton;
   end;
 
-const
-  cFrameMaxEdIndex=1; //count of editors minus 1
-
 type
   { TEditorFrame }
 
@@ -144,13 +142,13 @@ type
     procedure TimerChangeTimer(Sender: TObject);
   private
     { private declarations }
-    FFormDummy: TFormDummy;
+    FFormDummy: TFormDummy; //this form is the actual Parent of editors; this is to support dlg_proc() for "Editor" python objects
     Adapter1: TATAdapterEControl;
     Adapter2: TATAdapterEControl;
     PanelInfo: TPanel;
     PanelNoHilite: TPanel;
-    NotifReloadControls: array[0..cFrameMaxEdIndex] of TAppFrameNotificationControls;
-    NotifDeletedControls: array[0..cFrameMaxEdIndex] of TAppFrameNotificationControls;
+    NotifReloadControls: array[0..1] of TAppFrameNotificationControls;
+    NotifDeletedControls: array[0..1] of TAppFrameNotificationControls;
     FTabCaption: string;
     FTabCaptionAddon: string;
     FTabCaptionUntitled: string;
@@ -173,13 +171,13 @@ type
     FOnChangeCaption: TNotifyEvent;
     FOnChangeSlow: TNotifyEvent;
     FOnProgress: TATFinderProgress;
-    FOnUpdateStatusbar: TNotifyEvent;
+    FOnUpdateStatusbar: TAppFrameStatusbarEvent;
     FOnUpdateState: TNotifyEvent;
-    FOnUpdateZoom: TNotifyEvent;
     FOnFocusEditor: TNotifyEvent;
     FOnEditorCommand: TATSynEditCommandEvent;
     FOnEditorChangeCaretPos: TNotifyEvent;
     FOnEditorScroll: TNotifyEvent;
+    FOnEditorPaint: TNotifyEvent;
     FOnSaveFile: TAppFrameStringEvent;
     FOnAddRecent: TNotifyEvent;
     FOnPyEvent: TAppFramePyEvent;
@@ -188,7 +186,6 @@ type
     FSplitPos: double;
     FSplitHorz: boolean;
     FActiveSecondaryEd: boolean;
-    FLocked: boolean;
     FTabColor: TColor;
     FTabFontColor: TColor;
     FTabPinned: boolean;
@@ -213,8 +210,10 @@ type
     FTabExtDeleted: array[0..1] of boolean;
     FCachedTreeview: array[0..1] of TTreeView;
     FLexerBackup: array[0..1] of TATAdapterHilite;
+    FReloadConfirms: array[0..1] of boolean;
     FLexerChooseFunc: TecLexerChooseFunc;
-    FLexerNameBackup: string;
+    FLexerNameBackup1: string;
+    FLexerNameBackup2: string;
     FBracketHilite: boolean;
     FBracketHiliteUserChanged: boolean;
     FBracketSymbols: string;
@@ -225,7 +224,9 @@ type
     FProgressForm: TForm;
     FProgressGauge: TATGauge;
     FProgressOldProgress: integer;
-    FProgressOldHandler: TNotifyEvent;
+    FProgressOldHandler: TATStringsProgressEvent;
+    FProgressButtonCancel: TATButton;
+    FProgressCancelled: boolean;
 
     procedure ApplyThemeToInfoPanel(APanel: TPanel);
     procedure BinaryOnKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -242,8 +243,7 @@ type
     procedure DoImageboxScroll(Sender: TObject);
     procedure DoOnChangeCaption;
     procedure DoOnUpdateState;
-    procedure DoOnUpdateZoom;
-    procedure DoOnUpdateStatusbar;
+    procedure DoOnUpdateStatusbar(AReason: TAppStatusbarUpdateReason);
     procedure EditorContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
     procedure EditorClickEndSelect(Sender: TObject; APrevPnt, ANewPnt: TPoint);
     procedure EditorClickMoveCaret(Sender: TObject; APrevPnt, ANewPnt: TPoint);
@@ -255,21 +255,24 @@ type
     procedure EditorOnChange(Sender: TObject);
     procedure EditorOnChangeModified(Sender: TObject);
     procedure EditorOnChangeCaretPos(Sender: TObject);
+    procedure EditorOnChangeCaretLine(Sender: TObject);
     procedure EditorOnChangeState(Sender: TObject);
     procedure EditorOnChangeBookmarks(Sender: TObject);
     procedure EditorOnChangeZoom(Sender: TObject);
     procedure EditorOnClick(Sender: TObject);
     procedure EditorOnClickGap(Sender: TObject; AGapItem: TATGapItem; APos: TPoint);
-    procedure EditorOnClickGutter(Sender: TObject; ABand, ALine: integer);
+    procedure EditorOnClickGutter(Sender: TObject; ABand, ALine: integer; var AHandled: boolean);
     procedure EditorOnClickDouble(Sender: TObject; var AHandled: boolean);
     procedure EditorOnClickLink(Sender: TObject; const ALink: string);
     procedure EditorOnClickMicroMap(Sender: TObject; AX, AY: integer);
     procedure EditorOnCommand(Sender: TObject; ACmd: integer; AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
     procedure EditorOnCommandAfter(Sender: TObject; ACommand: integer; const AText: string);
     procedure EditorOnDrawBookmarkIcon(Sender: TObject; C: TCanvas; ALineNum: integer; const ARect: TRect);
+    procedure EditorOnPaint(Sender: TObject);
     procedure EditorOnEnter(Sender: TObject);
     procedure EditorOnDrawLine(Sender: TObject; C: TCanvas; ALineIndex, AX, AY: integer;
       const AStr: atString; const ACharSize: TATEditorCharSize; constref AExtent: TATIntFixedArray);
+    procedure EditorOnDrawRuler(Sender: TObject; C: TCanvas; const ARect: TRect; var AHandled: boolean);
     procedure EditorOnCalcBookmarkColor(Sender: TObject; ABookmarkKind: integer; var AColor: TColor);
     procedure EditorOnHotspotEnter(Sender: TObject; AHotspotIndex: integer);
     procedure EditorOnHotspotExit(Sender: TObject; AHotspotIndex: integer);
@@ -281,7 +284,8 @@ type
     function GetCachedTreeview(Ed: TATSynEdit): TTreeView;
     function GetCommentString(Ed: TATSynEdit): string;
     function GetTextChangeSlow(EdIndex: integer): boolean;
-    procedure HandleStringsProgress(Sender: TObject);
+    procedure HandleProgressButtonCancel(Sender: TObject);
+    procedure HandleStringsProgress(Sender: TObject; var ACancel: boolean);
     procedure SetTextChangeSlow(EdIndex: integer; AValue: boolean);
     function GetEnabledCodeTree(Ed: TATSynEdit): boolean;
     function GetEnabledFolding: boolean;
@@ -322,7 +326,6 @@ type
     procedure SetFileName2(const AValue: string);
     procedure SetFileWasBig(Ed: TATSynEdit; AValue: boolean);
     procedure SetInitialLexer(Ed: TATSynEdit; AValue: TecSyntAnalyzer);
-    procedure SetLocked(AValue: boolean);
     procedure SetPictureScale(AValue: integer);
     procedure SetReadOnly(Ed: TATSynEdit; AValue: boolean);
     procedure SetTabCaptionAddon(const AValue: string);
@@ -395,6 +398,8 @@ type
     property TabIsPreview: boolean read GetIsPreview write SetIsPreview;
     property TabVisible: boolean read GetTabVisible write SetTabVisible;
     procedure UpdateCaptionFromFilename;
+    procedure UpdateLocked(Ed: TATSynEdit; AValue: boolean);
+    procedure UpdateLockedAll(AValue: boolean);
 
     property CachedTreeViewInited[Ed: TATSynEdit]: boolean read GetCachedTreeviewInited;
     property CachedTreeView[Ed: TATSynEdit]: TTreeView read GetCachedTreeview;
@@ -424,7 +429,6 @@ type
     procedure LexerBackupSave;
     procedure LexerBackupRestore;
 
-    property Locked: boolean read FLocked write SetLocked;
     property CommentString[Ed: TATSynEdit]: string read GetCommentString;
     property TabColor: TColor read FTabColor write SetTabColor;
     property TabFontColor: TColor read FTabFontColor write SetTabFontColor;
@@ -521,12 +525,12 @@ type
     property OnFocusEditor: TNotifyEvent read FOnFocusEditor write FOnFocusEditor;
     property OnChangeCaption: TNotifyEvent read FOnChangeCaption write FOnChangeCaption;
     property OnChangeSlow: TNotifyEvent read FOnChangeSlow write FOnChangeSlow;
-    property OnUpdateStatusbar: TNotifyEvent read FOnUpdateStatusbar write FOnUpdateStatusbar;
+    property OnUpdateStatusbar: TAppFrameStatusbarEvent read FOnUpdateStatusbar write FOnUpdateStatusbar;
     property OnUpdateState: TNotifyEvent read FOnUpdateState write FOnUpdateState;
-    property OnUpdateZoom: TNotifyEvent read FOnUpdateZoom write FOnUpdateZoom;
     property OnEditorCommand: TATSynEditCommandEvent read FOnEditorCommand write FOnEditorCommand;
     property OnEditorChangeCaretPos: TNotifyEvent read FOnEditorChangeCaretPos write FOnEditorChangeCaretPos;
     property OnEditorScroll: TNotifyEvent read FOnEditorScroll write FOnEditorScroll;
+    property OnEditorPaint: TNotifyEvent read FOnEditorPaint write FOnEditorPaint;
     property OnSaveFile: TAppFrameStringEvent read FOnSaveFile write FOnSaveFile;
     property OnAddRecent: TNotifyEvent read FOnAddRecent write FOnAddRecent;
     property OnPyEvent: TAppFramePyEvent read FOnPyEvent write FOnPyEvent;
@@ -543,6 +547,25 @@ procedure UpdateTabPreviewStyle(D: TATTabData; AValue: boolean);
 
 
 implementation
+
+uses
+  Math,
+  IniFiles,
+  StrUtils,
+  Clipbrd,
+  ATSynEdit_Globals,
+  ATSynEdit_Keymap_Init,
+  ATSynEdit_Carets,
+  ATSynEdit_Markers,
+  ATSynEdit_Commands,
+  ATSynEdit_Bookmarks,
+  ATSynEdit_CanvasProc,
+  ATSynEdit_WrapInfo,
+  ATStringProc_Separator,
+  ATStringProc_HtmlColor,
+  ATSynEdit_Cmp_RenderHTML,
+  ATStreamSearch,
+  formlexerstylemap;
 
 {$R *.lfm}
 
@@ -576,17 +599,17 @@ const
   cHistory_TabSplit    = '/split';
   cHistory_TabSplit_Mul = 1e5; //instead of float 0.6, save as int 0.6*1e5
   cHistory_TabCaption  = '/cap';
+  cHistory_Margin      = '/margin';
 
 var
   FLastTabId: integer = 0;
 
-function msgSuggestOptionsEditor: string;
+function GetMsgSuggestOptionsEditor: string;
 var
   ini: TIniFile;
-  fn: string;
-  s: string;
+  S, fn: string;
 begin
-  S:= '"Options Editor" provides the dialog - click here to open';
+  S:= msgSuggestOptEditor;
 
   fn:= AppFile_Language;
   if FileExists(fn) then
@@ -603,18 +626,37 @@ begin
 end;
 
 
+function MsgConfirmReload(const AFileName: string): boolean;
+begin
+  Result:= MsgBox(
+    msgConfirmFileChangedOutside+#10+AFileName+#10#10+msgConfirmReloadIt,
+    MB_OKCANCEL or MB_ICONWARNING)=ID_OK;
+end;
+
+
 procedure GetFrameLocation(Frame: TEditorFrame;
   out AGroups: TATGroups; out APages: TATPages;
   out ALocalGroupIndex, AGlobalGroupIndex, ATabIndex: integer);
 begin
-  Assert(Assigned(Frame.Parent));
+  //Parent=nil occurs when I close single ui-tab with Ctrl+W,
+  //then Tabs List plugin reacts to on_tab_move and calls ed.get_prop()
+  if Frame.Parent=nil then
+  begin
+    AGroups:= nil;
+    APages:= nil;
+    ALocalGroupIndex:= 0;
+    AGlobalGroupIndex:= 0;
+    ATabIndex:= 0;
+    exit;
+  end;
+
   APages:= Frame.GetTabPages;
   AGroups:= Frame.GetTabGroups;
   AGroups.FindPositionOfControl(Frame, ALocalGroupIndex, ATabIndex);
 
   AGlobalGroupIndex:= ALocalGroupIndex;
-  if AGroups.Tag<>0 then
-    Inc(AGlobalGroupIndex, High(TATGroupsNums) + AGroups.Tag);
+  if AGroups.IndexOfGroup<>0 then
+    Inc(AGlobalGroupIndex, High(TATGroupsNums) + AGroups.IndexOfGroup);
 end;
 
 procedure UpdateTabPreviewStyle(D: TATTabData; AValue: boolean);
@@ -715,7 +757,9 @@ begin
   Ed:= Sender as TATSynEdit;
 
   StateString:= ConvertShiftStateToString(KeyboardStateToShiftState);
+
   CancelAutocompleteAutoshow;
+  CloseFormAutoCompletion;
 
   if Ed.Markers.DeleteWithTag(UiOps.FindOccur_TagValue) then
     Ed.Update;
@@ -793,6 +837,8 @@ end;
 
 procedure TEditorFrame.EditorOnScroll(Sender: TObject);
 begin
+  CloseFormAutoCompletion;
+
   if Assigned(FOnEditorScroll) then
     FOnEditorScroll(Sender);
 
@@ -800,19 +846,54 @@ begin
 end;
 
 function TEditorFrame.GetTabPages: TATPages;
+var
+  P: TWinControl;
 begin
-  Result:= Parent as TATPages;
+  P:= Parent;
+  if Assigned(P) then
+    Result:= P as TATPages
+  else
+    Result:= nil;
 end;
 
 function TEditorFrame.GetTabGroups: TATGroups;
+var
+  P: TWinControl;
 begin
-  Result:= (Parent as TATPages).Owner as TATGroups;
+  P:= Parent;
+  if Assigned(P) then
+    Result:= (Parent as TATPages).Owner as TATGroups
+  else
+    Result:= nil;
 end;
 
 procedure TEditorFrame.DoShow;
 var
+  Ed: TATSynEdit;
   an: TecSyntAnalyzer;
+  iEd: integer;
 begin
+  for iEd:= 0 to 1 do
+  begin
+    if FReloadConfirms[iEd] then
+    begin
+      FReloadConfirms[iEd]:= false;
+      Ed:= EditorIndexToObj(iEd);
+      case UiOps.NotificationConfirmReload of
+        3:
+          begin
+            if MsgConfirmReload(Ed.FileName) then
+              DoFileReload(Ed);
+          end;
+        4:
+          begin
+            if (not Ed.Modified) or MsgConfirmReload(Ed.FileName) then
+              DoFileReload(Ed);
+          end;
+      end;
+    end;
+  end;
+
   //analyze file, when frame is shown for the 1st time
   if AppAllowFrameParsing and not FWasVisible then
   begin
@@ -855,7 +936,7 @@ begin
     Ed.AdapterForHilite:= Ada;
     FLexerBackup[EdIndex]:= nil;
     Ed.Update;
-    DoOnUpdateStatusbar; //replace lexer name 'none' to restored one
+    DoOnUpdateStatusbar(sbrLexer); //replace lexer name 'none' to restored one
   end;
 end;
 
@@ -983,11 +1064,12 @@ begin
   if Assigned(FOnEditorChangeCaretPos) then
     FOnEditorChangeCaretPos(Sender);
 
-  DoOnUpdateStatusbar;
+  DoOnUpdateStatusbar(sbrCaret);
 
   //support Primary Selection on Linux
   {$ifdef linux}
-  EditorCopySelToPrimarySelection(Ed, cMaxSelectedLinesForAutoCopy);
+  if ATEditorOptions.AutoCopyToPrimarySel then
+    EditorCopySelToPrimarySelection(Ed, cMaxSelectedLinesForAutoCopy);
   {$endif}
 
   //on_caret, now
@@ -997,6 +1079,14 @@ begin
   TimerCaret.Enabled:= false;
   TimerCaret.Interval:= UiOps.PyCaretSlow;
   TimerCaret.Enabled:= true;
+end;
+
+procedure TEditorFrame.EditorOnChangeCaretLine(Sender: TObject);
+var
+  Ed: TATSynEdit;
+begin
+  Ed:= Sender as TATSynEdit;
+  DoPyEvent(Ed, cEventOnCaretLine, []);
 end;
 
 procedure TEditorFrame.EditorOnHotspotEnter(Sender: TObject; AHotspotIndex: integer);
@@ -1175,6 +1265,45 @@ begin
 end;
 
 
+procedure TEditorFrame.EditorOnDrawRuler(Sender: TObject; C: TCanvas; const ARect: TRect; var AHandled: boolean);
+var
+  Ed: TATSynEdit;
+  Sep: TATStringSeparator;
+  SRulerText, SLine: string;
+  NTextX, NTextY, NStepY: integer;
+  bUseHTML: boolean;
+begin
+  Ed:= Sender as TATSynEdit;
+  if Ed.OptRulerText='' then exit;
+
+  C.Brush.Color:= Ed.Colors.RulerBG;
+  C.FillRect(ARect);
+
+  SRulerText:= Ed.OptRulerText;
+  bUseHTML:= SBeginsWith(SRulerText, '<html>');
+  if bUseHTML then
+    Delete(SRulerText, 1, Length('<html>'));
+
+  Sep.Init(SRulerText, #10);
+  NStepY:= 0;
+  SLine:= '';
+
+  while Sep.GetItemStr(SLine) do
+  begin
+    NTextX:= ARect.Left+Ed.RectGutter.Width;
+    NTextY:= ARect.Top+NStepY;
+
+    if bUseHTML then
+      CanvasTextOutHTML(C, NTextX, NTextY, SLine)
+    else
+      C.TextOut(NTextX, NTextY, SLine);
+
+    Inc(NStepY, Ed.TextCharSize.Y);
+  end;
+
+  AHandled:= true;
+end;
+
 function TEditorFrame.GetLineEnds(Ed: TATSynEdit): TATLineEnds;
 begin
   Result:= Ed.Strings.Endings;
@@ -1230,7 +1359,7 @@ procedure TEditorFrame.SetFileName(const AValue: string);
 begin
   if SameFileName(FFileName, AValue) then Exit;
   FFileName:= AValue;
-  AppGetFileProps(FFileName, FileProps[0]);
+  FileProps[0].Init(FFileName);
 end;
 
 procedure TEditorFrame.UpdateTabTooltip;
@@ -1267,7 +1396,7 @@ procedure TEditorFrame.SetFileName2(const AValue: string);
 begin
   if SameFileName(FFileName2, AValue) then Exit;
   FFileName2:= AValue;
-  AppGetFileProps(FFileName2, FileProps[1]);
+  FileProps[1].Init(FFileName2);
 end;
 
 procedure TEditorFrame.SetFileWasBig(Ed: TATSynEdit; AValue: boolean);
@@ -1311,12 +1440,38 @@ begin
   end;
 end;
 
-procedure TEditorFrame.SetLocked(AValue: boolean);
+procedure TEditorFrame.UpdateLocked(Ed: TATSynEdit; AValue: boolean);
+var
+  EdPair: TATSynEdit;
 begin
-  if AValue=FLocked then exit;
-  FLocked:= AValue;
+  if not EditorsLinked then
+    EdPair:= nil
+  else
+  if Ed=Ed1 then
+    EdPair:= Ed2
+  else
+  if Ed=Ed2 then
+    EdPair:= Ed1
+  else
+    EdPair:= nil;
 
-  if FLocked then
+  if AValue then
+  begin
+    Ed.BeginUpdate;
+    if Assigned(EdPair) then
+      EdPair.BeginUpdate;
+  end
+  else
+  begin
+    Ed.EndUpdate;
+    if Assigned(EdPair) then
+      EdPair.EndUpdate;
+  end;
+end;
+
+procedure TEditorFrame.UpdateLockedAll(AValue: boolean);
+begin
+  if AValue then
   begin
     Ed1.BeginUpdate;
     Ed2.BeginUpdate;
@@ -1605,7 +1760,7 @@ end;
 
 procedure TEditorFrame.EditorOnChangeZoom(Sender: TObject);
 begin
-  DoOnUpdateZoom;
+  DoOnUpdateStatusbar(sbrZoom);
   DoPyEventState(Sender as TATSynEdit, EDSTATE_ZOOM);
 end;
 
@@ -1620,7 +1775,7 @@ begin
   if AWithEvent then
     DoPyEventState(Ed, EDSTATE_MODIFIED);
 
-  DoOnUpdateStatusbar;
+  //DoOnUpdateStatusbar('modified'); //seems not needed, 2023.02.23
 end;
 
 procedure TEditorFrame.UpdatePinned(Ed: TATSynEdit; AWithEvent: boolean);
@@ -1632,6 +1787,11 @@ begin
     DoPyEventState(Ed, EDSTATE_PINNED);
 end;
 
+procedure TEditorFrame.EditorOnPaint(Sender: TObject);
+begin
+  if Assigned(FOnEditorPaint) then
+    FOnEditorPaint(Sender);
+end;
 
 procedure TEditorFrame.EditorOnEnter(Sender: TObject);
 var
@@ -1641,7 +1801,7 @@ begin
   if IsEd2<>FActiveSecondaryEd then
   begin
     FActiveSecondaryEd:= IsEd2;
-    DoOnUpdateStatusbar;
+    DoOnUpdateStatusbar(sbrFocusEnter);
   end;
 
   if Assigned(FOnFocusEditor) then
@@ -1703,6 +1863,7 @@ begin
         end;
       end;
 
+    cCommand_Undo,
     cCommand_KeyTab,
     cCommand_KeyEnter,
     cCommand_TextDeleteLine,
@@ -1821,6 +1982,14 @@ begin
     cCommand_ToggleWordWrapAlt:
       begin
         DoPyEventState(Ed, EDSTATE_WRAP);
+        //DoOnUpdateStatusbar('wrap'); //not needed, OnChangeState fires
+        exit;
+      end;
+
+    cCommand_ToggleOverwrite:
+      begin
+        OnMsgStatus(Self, msgStatusbarCellInsOvr[Ed.ModeOverwrite]);
+        DoOnUpdateStatusbar(sbrInsOvr);
         exit;
       end;
 
@@ -1967,11 +2136,11 @@ end;
 
 
 procedure TEditorFrame.DoOnResize;
-var
-  N: integer;
+//var
+//  N: integer;
 begin
-  //for debugging only
-  N:= Width;
+  ////for debugging only
+  //N:= Width;
 
   inherited;
 
@@ -2006,6 +2175,7 @@ begin
   ed.TabStop:= false;
   ed.OptUnprintedVisible:= EditorOps.OpUnprintedShow;
   ed.OptRulerVisible:= EditorOps.OpRulerShow;
+  ed.OptRulerHeightPercents:= EditorOps.OpRulerHeight;
   ed.OptBorderVisible:= false;
   ed.CommandLog.MaxCount:= EditorOps.OpCommandLogMaxCount;
 
@@ -2016,10 +2186,12 @@ begin
   ed.OnClickEndSelect:= @EditorClickEndSelect;
   ed.OnClickGap:= @EditorOnClickGap;
   ed.OnClickMicromap:= @EditorOnClickMicroMap;
+  ed.OnPaint:= @EditorOnPaint;
   ed.OnEnter:= @EditorOnEnter;
   ed.OnChange:= @EditorOnChange;
   ed.OnChangeModified:= @EditorOnChangeModified;
   ed.OnChangeCaretPos:= @EditorOnChangeCaretPos;
+  ed.OnChangeCaretLine:= @EditorOnChangeCaretLine;
   ed.OnChangeState:= @EditorOnChangeState;
   ed.OnChangeZoom:= @EditorOnChangeZoom;
   ed.OnChangeBookmarks:= @EditorOnChangeBookmarks;
@@ -2030,6 +2202,7 @@ begin
   ed.OnCalcBookmarkColor:= @EditorOnCalcBookmarkColor;
   ed.OnDrawBookmarkIcon:= @EditorOnDrawBookmarkIcon;
   ed.OnDrawLine:= @EditorOnDrawLine;
+  ed.OnDrawRuler:= @EditorOnDrawRuler;
   ed.OnKeyDown:= @EditorOnKeyDown;
   ed.OnKeyUp:= @EditorOnKeyUp;
   ed.OnDrawMicromap:= @EditorDrawMicromap;
@@ -2117,8 +2290,8 @@ begin
   Adapter1.AddEditor(Ed2);
 
   //load options
-  EditorApplyOps(Ed1, EditorOps, true, true, AApplyCentering, false);
-  EditorApplyOps(Ed2, EditorOps, true, true, AApplyCentering, false);
+  EditorApplyOps(Ed1, EditorOps, true, true, AApplyCentering);
+  EditorApplyOps(Ed2, EditorOps, true, true, AApplyCentering);
   EditorApplyTheme(Ed1);
   EditorApplyTheme(Ed2);
 
@@ -2143,6 +2316,8 @@ end;
 
 destructor TEditorFrame.Destroy;
 begin
+  CloseFormAutoCompletion;
+
   if Assigned(FBin) then
   begin
     FBin.OpenStream(nil, False); //ARedraw=False to not paint on Win desktop with DC=0
@@ -2247,6 +2422,7 @@ end;
 
 procedure TEditorFrame.ApplyThemeToInfoPanel(APanel: TPanel);
 begin
+  if APanel=nil then exit;
   APanel.Font.Name:= UiOps.VarFontName;
   APanel.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
   APanel.Color:= GetAppColor(apclEdMarkedRangeBg); //GetAppColor(apclListBg);
@@ -2296,13 +2472,20 @@ begin
     FBin.Redraw();
   end;
 
+  if Assigned(FImageBox) then
+  begin
+    FImageBox.Color:= GetAppColor(apclEdTextBg);
+  end;
+
   Splitter.Color:= GetAppColor(apclSplitMain);
 
-  if Assigned(PanelInfo) then
-    ApplyThemeToInfoPanel(PanelInfo);
+  ApplyThemeToInfoPanel(PanelInfo);
+  ApplyThemeToInfoPanel(PanelNoHilite);
 
-  if Assigned(PanelNoHilite) then
-    ApplyThemeToInfoPanel(PanelNoHilite);
+  ApplyThemeToInfoPanel(NotifReloadControls[0].Panel);
+  ApplyThemeToInfoPanel(NotifReloadControls[1].Panel);
+  ApplyThemeToInfoPanel(NotifDeletedControls[0].Panel);
+  ApplyThemeToInfoPanel(NotifDeletedControls[1].Panel);
 end;
 
 function TEditorFrame.IsEditorFocused: boolean;
@@ -2526,7 +2709,7 @@ end;
 
 procedure TEditorFrame.DoImageboxScroll(Sender: TObject);
 begin
-  DoOnUpdateStatusbar;
+  DoOnUpdateStatusbar(sbrPictureScroll);
 end;
 
 
@@ -2577,7 +2760,7 @@ begin
   if UiOps.InfoAboutOptionsEditor then
     if (CompareFilenames(AFileName, AppFile_OptionsUser)=0) or
       (CompareFilenames(AFileName, AppFile_OptionsDefault)=0) then
-      InitPanelInfo(PanelInfo, msgSuggestOptionsEditor, @PanelInfoClick, true);
+      InitPanelInfo(PanelInfo, GetMsgSuggestOptionsEditor, @PanelInfoClick, true);
 
   Lexer[Ed1]:= nil;
   if not EditorsLinked then
@@ -2649,10 +2832,15 @@ begin
       AOpenMode);
   end;
 
-  DoOnUpdateStatusbar;
+  DoOnUpdateStatusbar(sbrFileOpen);
 end;
 
-procedure TEditorFrame.HandleStringsProgress(Sender: TObject);
+procedure TEditorFrame.HandleProgressButtonCancel(Sender: TObject);
+begin
+  FProgressCancelled:= true;
+end;
+
+procedure TEditorFrame.HandleStringsProgress(Sender: TObject; var ACancel: boolean);
 const
   //avoid too many form updates
   cStepPercents = 8;
@@ -2665,28 +2853,39 @@ begin
   FProgressGauge.Progress:= St.ProgressValue;
   FProgressOldProgress:= St.ProgressValue;
   Application.ProcessMessages;
+  ACancel:= FProgressCancelled;
 end;
 
 procedure TEditorFrame.DoFileOpen_Ex(Ed: TATSynEdit; const AFileName: string;
   AAllowLoadHistory, AAllowLoadHistoryEnc, AAllowLoadBookmarks, AAllowLexerDetect,
   AAllowErrorMsgBox, AKeepScroll, AAllowLoadUndo: boolean; AOpenMode: TAppOpenMode);
 var
+  St: TATStrings;
   NFileSize: Int64;
+  LoadOptions: TATLoadStreamOptions;
 begin
+  St:= Ed.Strings;
   FProgressForm:= nil;
   if not AppFormShowCompleted then
   begin
     NFileSize:= FileSize(AFileName);
     if NFileSize>UiOps.MaxFileSizeWithoutProgressForm then
     begin
-      AppInitProgressForm(FProgressForm, FProgressGauge, Format('%s (%d Mb)', [
+      AppInitProgressForm(
+        FProgressForm,
+        FProgressGauge,
+        FProgressButtonCancel,
+        Format('%s (%d Mb)', [
           ExtractFileName(AFileName),
           //AppCollapseHomeDirInFilename(ExtractFileDir(AFileName)),
           NFileSize div (1024*1024)
           ]));
       FProgressOldProgress:= 0;
-      FProgressOldHandler:= Ed.Strings.OnProgress;
-      Ed.Strings.OnProgress:= @HandleStringsProgress;
+      FProgressOldHandler:= St.OnProgress;
+      FProgressButtonCancel.Caption:= msgButtonCancel;
+      FProgressButtonCancel.OnClick:= @HandleProgressButtonCancel;
+      FProgressCancelled:= false;
+      St.OnProgress:= @HandleStringsProgress;
       FProgressForm.Show;
       Application.ProcessMessages;
     end;
@@ -2694,34 +2893,43 @@ begin
 
   try
     try
+      LoadOptions:= [];
       if AKeepScroll then
-        Ed.Strings.EncodingDetect:= false;
-      Ed.LoadFromFile(AFileName, AKeepScroll);
-      Ed.Strings.EncodingDetect:= true;
+      begin
+        St.EncodingDetect:= false;
+        Include(LoadOptions, cLoadOpKeepScroll);
+      end;
+      UpdateLocked(Ed, true);
+      Ed.LoadFromFile(AFileName, LoadOptions);
       SetFileName(Ed, AFileName);
       UpdateCaptionFromFilename;
     finally
+      UpdateLocked(Ed, false);
+      St.EncodingDetect:= true;
       if Assigned(FProgressForm) then
       begin
-        Ed.Strings.OnProgress:= FProgressOldHandler;
+        St.OnProgress:= FProgressOldHandler;
         FProgressForm.Free;
         FProgressForm:= nil;
         FProgressGauge:= nil;
       end;
     end;
   except
-    if AAllowErrorMsgBox then
-      MsgBox(msgCannotOpenFile+#10+AFileName, MB_OK or MB_ICONERROR);
+    on E: Exception do
+    begin
+      if AAllowErrorMsgBox then
+        MsgBox(msgCannotOpenFile+#10+AFileName+#10+E.Message, MB_OK or MB_ICONERROR);
 
-    SetFileName(Ed, '');
-    UpdateCaptionFromFilename;
+      SetFileName(Ed, '');
+      UpdateCaptionFromFilename;
 
-    EditorClear(Ed);
-    exit
+      EditorClear(Ed);
+      exit
+    end;
   end;
 
   //turn off opts for huge files
-  FileWasBig[Ed]:= Ed.Strings.Count>EditorOps.OpWrapEnabledMaxLines;
+  FileWasBig[Ed]:= St.Count>EditorOps.OpWrapEnabledMaxLines;
 
   if AAllowLoadUndo then
     DoLoadUndo(Ed);
@@ -2918,6 +3126,20 @@ begin
   bNotifWasEnabled:= NotifEnabled;
   NotifEnabled:= false;
 
+  //don't save incorrect user.json
+  //don't save incorrect 'lexer NNN.json'
+  if SameFileName(SFileName, AppFile_OptionsUser) or
+     (
+     SameFileName(ExtractFileDir(SFileName), AppDir_Settings) and
+     SBeginsWith(ExtractFileName(SFileName), 'lexer ') and
+     SEndsWith(SFileName, '.json')
+     ) then
+    if not AppValidateJson(Ed.Text) then
+    begin
+      Ed.Modified:= true;
+      exit(false);
+    end;
+
   //EditorSaveFileAs is big:
   //handles save errors,
   //handles exception from encoding conversion (saves in UTF8 if exception)
@@ -2948,30 +3170,44 @@ begin
 
   if EditorsLinked then
   begin
-    AppGetFileProps(SFileName, FileProps[0]);
+    FileProps[0].Init(SFileName);
     FileProps[1]:= FileProps[0];
   end
   else
-    AppGetFileProps(SFileName, FileProps[EdIndex]);
+    FileProps[EdIndex].Init(SFileName);
 
   NotifEnabled:= bNotifWasEnabled or bNameChanged;
 end;
 
 procedure TEditorFrame.DoFileReload_DisableDetectEncoding(Ed: TATSynEdit);
 var
+  St: TATStrings;
   SFileName: string;
+  LoadOptions: TATLoadStreamOptions;
 begin
+  St:= Ed.Strings;
   SFileName:= GetFileName(Ed);
   if SFileName='' then exit;
+
   if Ed.Modified then
     if MsgBox(
       Format(msgConfirmReopenModifiedTab, [AppCollapseHomeDirInFilename(SFileName)]),
       MB_OKCANCEL or MB_ICONWARNING
       ) <> ID_OK then exit;
 
-  Ed.Strings.EncodingDetect:= false;
-  Ed.Strings.LoadFromFile(SFileName);
-  Ed.Strings.EncodingDetect:= true;
+  LoadOptions:= [];
+  if St.Encoding=cEncUTF8 then
+    Include(LoadOptions, cLoadOpAllowBadCharsOfLen1);
+
+  UpdateLocked(Ed, true);
+  try
+    St.EncodingDetect:= false;
+    St.LoadFromFile(SFileName, LoadOptions);
+    St.EncodingDetect:= true;
+  finally
+    UpdateLocked(Ed, false);
+  end;
+
   UpdateEds(true);
 end;
 
@@ -2988,6 +3224,8 @@ begin
   if SFileName='' then exit(false);
   EdIndex:= EditorObjToIndex(Ed);
   if EdIndex<0 then exit;
+
+  CloseFormAutoCompletion;
 
   if not FileExists(SFileName) then
   begin
@@ -3075,7 +3313,7 @@ begin
     false
     );
 
-  OnUpdateStatusbar(Self);
+  DoOnUpdateStatusbar(sbrFileReload);
 
   //fire 'on_change_slow' and disable its timer
   TimerChangeTimer(nil);
@@ -3176,7 +3414,8 @@ begin
   UpdateEds;
 end;
 
-procedure TEditorFrame.EditorOnClickGutter(Sender: TObject; ABand, ALine: integer);
+procedure TEditorFrame.EditorOnClickGutter(Sender: TObject; ABand, ALine: integer;
+  var AHandled: boolean);
 var
   Ed: TATSynEdit;
 begin
@@ -3187,10 +3426,14 @@ begin
     AppVariant(ConvertShiftStateToString(KeyboardStateToShiftState)),
     AppVariant(ALine),
     AppVariant(ABand)
-    ]).Val = evrFalse then exit;
+    ]).Val = evrFalse then
+  begin
+    AHandled:= true;
+    exit;
+  end;
 
   if ABand=Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagBookmarks) then
-    ed.BookmarkToggleForLine(ALine, 1, '', bmadOption, true, 0);
+    Ed.BookmarkToggleForLine(ALine, 1, '', bmadOption, true, 0);
 end;
 
 procedure TEditorFrame.EditorOnDrawBookmarkIcon(Sender: TObject; C: TCanvas; ALineNum: integer;
@@ -3318,10 +3561,10 @@ begin
   Ed2.Update;
 end;
 
-procedure TEditorFrame.DoOnUpdateStatusbar;
+procedure TEditorFrame.DoOnUpdateStatusbar(AReason: TAppStatusbarUpdateReason);
 begin
   if Assigned(FOnUpdateStatusbar) then
-    FOnUpdateStatusbar(Self);
+    FOnUpdateStatusbar(Self, AReason);
 end;
 
 procedure TEditorFrame.EditorContextPopup(Sender: TObject; MousePos: TPoint; var Handled: Boolean);
@@ -3340,12 +3583,6 @@ procedure TEditorFrame.DoOnUpdateState;
 begin
   if Assigned(FOnUpdateState) then
     FOnUpdateState(Self);
-end;
-
-procedure TEditorFrame.DoOnUpdateZoom;
-begin
-  if Assigned(FOnUpdateZoom) then
-    FOnUpdateZoom(Self);
 end;
 
 procedure TEditorFrame.EditorClickMoveCaret(Sender: TObject; APrevPnt, ANewPnt: TPoint);
@@ -3382,6 +3619,8 @@ end;
 
 procedure TEditorFrame.PaintMicromap(Ed: TATSynEdit; ACanvas: TCanvas; const ARect: TRect);
 begin
+  if Ed.Strings.Count>UiOps.MaxLinesForMicromapPaint then exit;
+
   if FMicromapBmp=nil then
     FMicromapBmp:= TBGRABitmap.Create;
   EditorPaintMicromap(Ed, ACanvas, ARect, FMicromapBmp);
@@ -3614,6 +3853,9 @@ begin
     else
       c.DeleteValue(path+cHistory_CodeTreeFilters);
   end;
+
+  if UiOps.HistoryItems[ahhMargin] then
+    c.SetDeleteValue(path+cHistory_Margin, Ed.OptMarginRight, EditorOps.OpMarginFixed);
 end;
 
 procedure _WriteStringToFileInHiddenDir(const fn, s: string);
@@ -3693,6 +3935,7 @@ procedure TEditorFrame.DoLoadHistoryEx(Ed: TATSynEdit; c: TJsonConfig;
 var
   str, str0, sFileName, sCaretString: string;
   Caret: TATCaretItem;
+  LoadOptions: TATLoadStreamOptions;
   NCaretPosX, NCaretPosY,
   NCaretEndX, NCaretEndY: integer;
   nTop, i: integer;
@@ -3757,9 +4000,14 @@ begin
       if sFileName<>'' then
         if not Ed.Modified then
         begin
+          LoadOptions:= [];
+          if Ed.Strings.Encoding=cEncUTF8 then
+            Include(LoadOptions, cLoadOpAllowBadCharsOfLen1);
+          UpdateLocked(Ed, true);
           Ed.Strings.EncodingDetect:= false;
-          Ed.LoadFromFile(sFileName);
+          Ed.LoadFromFile(sFileName, LoadOptions);
           Ed.Strings.EncodingDetect:= true;
+          UpdateLocked(Ed, false);
         end;
     end;
   end;
@@ -3856,6 +4104,10 @@ begin
     Ed.IsModifiedGutterFoldingVisible:= true;
   end;
 
+  NFlag:= c.GetValue(path+cHistory_Margin, -1);
+  if NFlag>=10 then
+    Ed.OptMarginRight:= NFlag;
+
   Ed.OptScaleFont:= c.GetValue(path+cHistory_FontScale, 0);
 
   if Assigned(Lexer[Ed]) then
@@ -3887,11 +4139,11 @@ begin
       UiOps.FindIndentHorz,
       UiOps.FindIndentVert,
       false,
-      true
+      false //ADoUnfold must be False, to fix issue #4564
       );
   end;
 
-  //solve CudaText #3288, so Undo jumps to initial caret pos
+  //solve issue #3288, so Undo jumps to initial caret pos
   Ed.Strings.ActionSaveLastEditionPos(NCaretPosX, NCaretPosY);
 
   FCodetreeFilter:= c.GetValue(path+cHistory_CodeTreeFilter, '');
@@ -4269,12 +4521,35 @@ begin
   if not TabExtDeleted[EdIndex] and TabExtModified[EdIndex] then
   begin
     case UiOps.NotificationConfirmReload of
+      0:
+        bShowPanel:= true;
       1:
         bShowPanel:= Ed.Modified or not Ed.Strings.UndoEmpty;
       2:
         bShowPanel:= Ed.Modified; //like Notepad++
+      3:
+        begin
+          if not Visible then
+            FReloadConfirms[EdIndex]:= true
+          else
+          if MsgConfirmReload(SFileName) then
+            DoFileReload(Ed);
+          exit;
+        end;
+      4:
+        begin
+          if not Visible then
+            FReloadConfirms[EdIndex]:= true
+          else
+          if (not Ed.Modified) or MsgConfirmReload(SFileName) then
+            DoFileReload(Ed);
+          exit;
+        end;
       else
-        bShowPanel:= true;
+        begin
+          bShowPanel:= true;
+          MsgLogConsole(Format('ERROR: Wrong value of option "ui_notif_confirm": %d', [UiOps.NotificationConfirmReload]));
+        end;
     end;
 
     if not bShowPanel then
@@ -4435,7 +4710,7 @@ end;
 
 procedure TEditorFrame.BinaryOnScroll(Sender: TObject);
 begin
-  DoOnUpdateStatusbar;
+  DoOnUpdateStatusbar(sbrViewerScroll);
 end;
 
 procedure TEditorFrame.BinaryOnProgress(const ACurrentPos,
@@ -4468,6 +4743,8 @@ end;
 
 procedure TEditorFrame.DoFileClose;
 begin
+  CloseFormAutoCompletion;
+
   //clear adapters
   Lexer[Ed1]:= nil;
   if not EditorsLinked then
@@ -4511,7 +4788,7 @@ var
   i: integer;
 begin
   if not Visible then exit;
-  for i:= 0 to cFrameMaxEdIndex do
+  for i:= 0 to 1 do
     if Assigned(NotifReloadControls[i].Panel) then
       if NotifReloadControls[i].Panel.Visible then
         NotifReloadControls[i].ButtonYes.SetFocus;
@@ -4535,7 +4812,7 @@ procedure TEditorFrame.DoHideNotificationPanels;
 var
   i: integer;
 begin
-  for i:= 0 to cFrameMaxEdIndex do
+  for i:= 0 to 1 do
   begin
     DoHideNotificationPanel(NotifReloadControls[i]);
     DoHideNotificationPanel(NotifDeletedControls[i]);
@@ -4710,19 +4987,22 @@ end;
 procedure TEditorFrame.CancelAutocompleteAutoshow;
 begin
   FTextCharsTyped:= 0;
-  AppRunAutocomplete:= false;
-  AppRunAutocompleteInEditor:= nil;
+  AppRunAutocomplete(Editor, false);
 end;
 
 procedure TEditorFrame.LexerBackupSave;
 begin
-  if FLexerNameBackup<>'' then
+  if FLexerNameBackup1<>'' then
     raise Exception.Create('Unexpected non-empty Frame.LexerNameBackup');
-  FLexerNameBackup:= LexerName[Ed1];
+  FLexerNameBackup1:= LexerName[Ed1];
 
   Lexer[Ed1]:= nil;
+
   if not EditorsLinked then
+  begin
+    FLexerNameBackup2:= LexerName[Ed2];
     Lexer[Ed2]:= nil;
+  end;
 
   //fix crash: lexer is active in passive tab, LoadLexerLib deletes all lexers, user switches tab
   LexerInitial[Ed1]:= nil;
@@ -4731,8 +5011,16 @@ end;
 
 procedure TEditorFrame.LexerBackupRestore;
 begin
-  LexerName[Ed1]:= FLexerNameBackup;
-  FLexerNameBackup:= '';
+  LexerName[Ed1]:= FLexerNameBackup1;
+  if not EditorsLinked then
+    LexerName[Ed2]:= FLexerNameBackup2;
+
+  FLexerNameBackup1:= '';
+  FLexerNameBackup2:= '';
+
+  //fix for: passive tabs have lexer turned off, after API call lexer_proc(LEXER_REREAD_LIB,'')
+  if not Visible then
+    FWasVisible:= false;
 end;
 
 

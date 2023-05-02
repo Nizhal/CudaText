@@ -296,7 +296,12 @@ begin
   DoStatusbarTextByTag(AStatus, StatusbarTag_InsOvr, S);
 
   //------
-  DoStatusbarTextByTag(AStatus, StatusbarTag_SelMode, msgStatusbarCellColumnMarks[Ed.OptMouseColumnSelectionWithoutKey]);
+  S:= msgStatusbarCellColumnMarks[Ed.OptMouseColumnSelectionWithoutKey];
+  if Ed.ModeReadOnly then
+    S+= ' RO';
+  DoStatusbarTextByTag(AStatus, StatusbarTag_SelMode, S);
+
+  //------
   DoStatusbarTextByTag(AStatus, StatusbarTag_WrapMode, msgStatusbarWrapStates[Ord(Ed.OptWrapMode)]);
 
   N:= Ed.OptScaleFont;
@@ -549,6 +554,9 @@ begin
 
   ATFlatTheme.FontName:= UiOps.VarFontName;
   ATFlatTheme.FontSize:= UiOps.VarFontSize;
+  ATFlatTheme.MonoFontName:= EditorOps.OpFontName;
+  ATFlatTheme.MonoFontSize:= EditorOps.OpFontSize;
+  //ATFlatTheme.FontQuality:= EditorOps.OpFontQuality; //not helpful
   ATFlatTheme.ScalePercents:= ATEditorScalePercents;
   ATFlatTheme.ScaleFontPercents:= ATEditorScaleFontPercents;
 
@@ -691,8 +699,8 @@ end;
 procedure TfmMain.DoApplyFrameOps(F: TEditorFrame; const Op: TEditorOps; AForceApply: boolean);
 begin
   if F=nil then exit;
-  EditorApplyOps(F.Ed1, Op, AForceApply, not F.TabSizeChanged, Groups.Mode=gmOne, false);
-  EditorApplyOps(F.Ed2, Op, AForceApply, not F.TabSizeChanged, Groups.Mode=gmOne, false);
+  EditorApplyOps(F.Ed1, Op, AForceApply, not F.TabSizeChanged, Groups.Mode=gmOne);
+  EditorApplyOps(F.Ed2, Op, AForceApply, not F.TabSizeChanged, Groups.Mode=gmOne);
 
   F.Adapter[F.Ed1].DynamicHiliteEnabled:= Op.OpLexerDynamicHiliteEnabled;
   F.Adapter[F.Ed1].DynamicHiliteMaxLines:= Op.OpLexerDynamicHiliteMaxLines;
@@ -722,49 +730,115 @@ begin
   TAppMenuProps(mi.Tag).CommandString:= AHint;
 end;
 
-procedure TfmMain.UpdateMenuItemHotkey(mi: TMenuItem; cmd: integer);
+procedure TfmMain.UpdateMenuItemHotkey(mi: TMenuItem; ACmd: integer; AllowSetShortcut: boolean=true);
 begin
   if not Assigned(mi) then exit;
 
   if mi.Tag=0 then
     mi.Tag:= PtrInt(TAppMenuProps.Create(Self));
 
-  TAppMenuProps(mi.Tag).CommandCode:= cmd;
+  TAppMenuProps(mi.Tag).CommandCode:= ACmd;
   mi.OnClick:= @MenuMainClick;
 
   {$if not defined (LCLQt5) and not defined(LCLQt6)}
   //seems Qt5 version has slowdown because of MainMenu hotkeys?
+  if AllowSetShortcut then
+  begin
+    //if Copy/Paste/SelectAll hotkeys set in MainMenu, Qt5 version cannot handle them in Console/Find/Replace
+    if (ACmd<>cCommand_ClipboardCopy) and
+      (ACmd<>cCommand_ClipboardPaste) and
+      (ACmd<>cCommand_ClipboardCut) and
+      (ACmd<>cCommand_Undo) and
+      (ACmd<>cCommand_Redo) and
+      (ACmd<>cCommand_SelectAll) then
+      mi.ShortCut:= AppKeymapMain.GetShortcutFromCommand(ACmd);
 
-  //if Copy/Paste/SelectAll hotkeys set in MainMenu, Qt5 version cannot handle them in Console/Find/Replace
-  if (cmd<>cCommand_ClipboardCopy) and
-    (cmd<>cCommand_ClipboardPaste) and
-    (cmd<>cCommand_ClipboardCut) and
-    (cmd<>cCommand_Undo) and
-    (cmd<>cCommand_Redo) and
-    (cmd<>cCommand_SelectAll) then
-    mi.ShortCut:= AppKeymapMain.GetShortcutFromCommand(cmd);
-
-  //don't set Esc here: for OSX/ Qt, else Esc blocked in Find/ Goto/ closing app
-  if mi.Shortcut=AppShortcutEscape then
-    mi.ShortCut:= 0;
-  //don't allow Shift+Tab in menu: it blocks tabbing in Find/Replace
-  if mi.Shortcut=AppShortcutShiftTab then
-    mi.ShortCut:= 0;
+    //don't set Esc here: for OSX/ Qt, else Esc blocked in Find/ Goto/ closing app
+    if mi.Shortcut=AppShortcutEscape then
+      mi.ShortCut:= 0;
+    //don't allow Shift+Tab in menu: it blocks tabbing in Find/Replace
+    if mi.Shortcut=AppShortcutShiftTab then
+      mi.ShortCut:= 0;
+  end;
   {$endif}
 end;
 
-procedure TfmMain.UpdateMenuItemAltObject(mi: TMenuItem; cmd: integer);
-  //
-  procedure DoSave(mi: TMenuItem; var save: TATMenuItemsAlt); inline;
+
+procedure TfmMain.UpdateMenuItem_SetShortcutFromProps(mi: TMenuItem);
+var
+  NCmd: integer;
+  Obj: TObject;
+begin
+  if not Assigned(mi) then exit;
+  if mi.Count>0 then exit;
+  if mi.Tag=0 then exit;
+  if (mi.Tag>0) and (mi.Tag<=1000) then exit; //prevent crash on special Tag values, e.g. 27
+
+  Obj:= TObject(mi.Tag);
+  if not (Obj is TAppMenuProps) then exit;
+
+  NCmd:= TAppMenuProps(Obj).CommandCode;
+  if NCmd<=0 then exit;
+
+  //if Copy/Paste/SelectAll hotkeys set in MainMenu, Qt5 version cannot handle them in Console/Find/Replace
+  if (NCmd<>cCommand_ClipboardCopy) and
+    (NCmd<>cCommand_ClipboardPaste) and
+    (NCmd<>cCommand_ClipboardCut) and
+    (NCmd<>cCommand_Undo) and
+    (NCmd<>cCommand_Redo) and
+    (NCmd<>cCommand_SelectAll) then
+    mi.ShortCut:= AppKeymapMain.GetShortcutFromCommand(NCmd);
+
+  //don't set Esc here
+  if mi.Shortcut=AppShortcutEscape then
+    mi.ShortCut:= 0;
+
+  //don't allow Shift+Tab in menu
+  if mi.Shortcut=AppShortcutShiftTab then
+    mi.ShortCut:= 0;
+end;
+
+
+procedure TfmMain.UpdateMenuItem_SetShortcutsRecursively(AMenuItem: TMenuItem; AMaxMenuLevel: integer);
+const
+  NMenuLevel: integer = 0;
+var
+  mi: TMenuItem;
+  i: integer;
+begin
+  for i:= 0 to AMenuItem.Count-1 do
   begin
-    if save.active0 then save.item0:= mi else save.item1:= mi;
+    mi:= AMenuItem.Items[i];
+    if (mi.Count>0) and (NMenuLevel<AMaxMenuLevel) then
+    begin
+      Inc(NMenuLevel);
+      try
+        UpdateMenuItem_SetShortcutsRecursively(mi, AMaxMenuLevel);
+      finally
+        Dec(NMenuLevel);
+      end;
+    end
+    else
+      UpdateMenuItem_SetShortcutFromProps(mi);
+  end;
+end;
+
+
+procedure TfmMain.UpdateMenuItemAltObject(mi: TMenuItem; ACmd: integer);
+  //
+  procedure DoSave(mi: TMenuItem; var save: TATMenuItemsAlt);
+  begin
+    if save.active0 then
+      save.item0:= mi
+    else
+      save.item1:= mi;
     save.active0:= not save.active0;
   end;
   //
 begin
-  //MsgLogConsole('cmd'+inttostr(cmd));
-  if cmd>0 then
-  case cmd of
+  //MsgLogConsole('cmd'+inttostr(ACmd));
+  if ACmd>0 then
+  case ACmd of
     cCommand_ToggleWordWrap : DoSave(mi, mnuViewWrap_Alt);
     cCommand_ToggleLineNums : DoSave(mi, mnuViewNums_Alt);
     cCommand_ToggleFolding : DoSave(mi, mnuViewFold_Alt);
@@ -925,12 +999,6 @@ begin
   UpdateMenuItemHotkey(mnuViewMinimap, cCommand_ToggleMinimap);
   UpdateMenuItemHotkey(mnuViewMicromap, cCommand_ToggleMicromap);
 
-  UpdateMenuItemHotkey(mnuViewUnpriShow, cCommand_ToggleUnprinted);
-  UpdateMenuItemHotkey(mnuViewUnpriSpaces, cCommand_ToggleUnprintedSpaces);
-  UpdateMenuItemHotkey(mnuViewUnpriSpacesTail, cCommand_ToggleUnprintedSpacesTrailing);
-  UpdateMenuItemHotkey(mnuViewUnpriEnds, cCommand_ToggleUnprintedEnds);
-  UpdateMenuItemHotkey(mnuViewUnpriEndsDet, cCommand_ToggleUnprintedEndDetails);
-
   UpdateMenuItemHotkey(mnuViewFullscr, cmd_ToggleFullScreen);
   UpdateMenuItemHotkey(mnuViewDistFree, cmd_ToggleDistractionFree);
   UpdateMenuItemHotkey(mnuViewSidebar, cmd_ToggleSidebar);
@@ -947,7 +1015,6 @@ begin
   UpdateMenuItemHotkey(mnuOpUser, cmd_OpsOpenUser);
   UpdateMenuItemHotkey(mnuOpDefaultUser, cmd_OpsOpenDefaultAndUser);
   UpdateMenuItemHotkey(mnuOpLexer, cmd_OpsOpenLexerSpecific);
-  //UpdateMenuItemHotkey(mnuOpKeys, cmd_HelpHotkeys);
 
   UpdateMenuItemHotkey(mnuFontText, cmd_OpsFontText);
   UpdateMenuItemHotkey(mnuFontUi, cmd_OpsFontUi);
@@ -958,6 +1025,7 @@ begin
   UpdateMenuItemHotkey(mnuOpLexMap, cmd_DialogLexerStyleMap);
   UpdateMenuItemHotkey(mnuOpThemeUi, cmd_DialogThemeUi);
   UpdateMenuItemHotkey(mnuOpThemeSyntax, cmd_DialogThemeSyntax);
+  UpdateMenuItemHotkey(mnuOpUnprinted, cmd_DialogUnprinted);
   UpdateMenuItemHotkey(mnuOpThemes, cmd_ChooseThemeUI);
   UpdateMenuItemHotkey(mnuOpLangs, cmd_ChooseTranslation);
 
@@ -1015,12 +1083,6 @@ begin
   UpdateMenuItemChecked(mnuViewRuler, mnuViewRuler_Alt, Ed.OptRulerVisible);
   UpdateMenuItemChecked(mnuViewMinimap, mnuViewMinimap_Alt, Ed.OptMinimapVisible);
   UpdateMenuItemChecked(mnuViewMicromap, mnuViewMicromap_Alt, Ed.OptMicromapVisible);
-
-  UpdateMenuItemChecked(mnuViewUnpriShow, mnuViewUnpriShow_Alt, Ed.OptUnprintedVisible);
-  UpdateMenuItemChecked(mnuViewUnpriSpaces, mnuViewUnpriSpaces_Alt, Ed.OptUnprintedSpaces);
-  UpdateMenuItemChecked(mnuViewUnpriSpacesTail, mnuViewUnpriSpacesTail_Alt, Ed.OptUnprintedSpacesTrailing);
-  UpdateMenuItemChecked(mnuViewUnpriEnds, mnuViewUnpriEnds_Alt, Ed.OptUnprintedEnds);
-  UpdateMenuItemChecked(mnuViewUnpriEndsDet, mnuViewUnpriEndsDet_Alt, Ed.OptUnprintedEndsDetails);
 end;
 
 procedure TfmMain.UpdateMenuChecks_Global;
@@ -1190,82 +1252,6 @@ begin
     AppCodetreeState.SelLine:= NSelLine;
     if AppCodetreeState.SelLine>=0 then
       DoPyEvent_AppState(APPSTATE_CODETREE_SET_SELECTION);
-  end;
-end;
-
-procedure TfmMain.UpdateMenuEnc(AMenu: TMenuItem);
-  //
-  procedure DoAdd(AMenu: TMenuItem; const AGroup, AName: string; AReloadFile: boolean);
-  var
-    mi, miSub: TMenuItem;
-    GroupNice: string;
-    //enc: TEncConvId;
-    n: integer;
-  begin
-    miSub:= nil;
-    if AGroup='eu' then GroupNice:= msgEncEuropean else
-     if AGroup='as' then GroupNice:= msgEncAsian else
-      if AGroup='mi' then GroupNice:= msgEncMisc
-       else GroupNice:= AGroup;
-
-    if GroupNice<>'' then
-    begin
-      n:= AMenu.IndexOfCaption(GroupNice);
-      if n<0 then
-      begin
-        mi:= TMenuItem.Create(Self);
-        mi.Caption:= GroupNice;
-        AMenu.Add(mi);
-        n:= AMenu.IndexOfCaption(GroupNice);
-      end;
-      miSub:= AMenu.Items[n]
-    end;
-
-    if miSub=nil then miSub:= AMenu;
-    mi:= TMenuItem.Create(Self);
-    mi.Caption:= AName;
-
-    {
-    //check availability of Asian encodings (others are always available)
-    if (AGroup='as') and (AName<>'') then
-    try
-      enc:= EncConvFindEncoding(AName, eidUTF8);
-      if enc=eidUTF8 then
-        mi.Enabled:= false;
-    except
-      mi.Enabled:= false;
-    end;
-    }
-
-    if AReloadFile then
-      mi.OnClick:= @MenuEncWithReloadClick
-    else
-      mi.OnClick:= @MenuEncNoReloadClick;
-
-    miSub.Add(mi);
-  end;
-  //
-var
-  miReload, miNoReload: TMenuItem;
-  i: integer;
-begin
-  if AMenu=nil then exit;
-  AMenu.Clear;
-
-  miReload:= TMenuItem.Create(Self);
-  miReload.Caption:= msgEncReloadAs;
-  miReload.Hint:= 'enc_reload';
-  miNoReload:= TMenuItem.Create(Self);
-  miNoReload.Caption:= msgEncConvertTo;
-  miNoReload.Hint:= 'enc_noreload';
-
-  AMenu.Add(miReload);
-  AMenu.Add(miNoReload);
-
-  for i:= Low(AppEncodings) to High(AppEncodings) do
-  begin
-    DoAdd(miReload, AppEncodings[i].Sub, AppEncodings[i].Name, true);
-    DoAdd(miNoReload, AppEncodings[i].Sub, AppEncodings[i].Name, false);
   end;
 end;
 

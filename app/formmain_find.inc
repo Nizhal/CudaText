@@ -137,7 +137,7 @@ begin
       Frame.TabCaption:= msgFinderRegexMatchesNumbered;
       Frame.TabCaptionReason:= tcrUnsavedSpecial;
       Ed:= Frame.Ed1;
-      Ed.Strings.LoadFromStrings(Matches, cEndUnix);
+      Ed.Strings.LoadFromStrings(Matches, cEndUnix, false);
       Ed.UpdateWrapInfo(true, false); //AForceUpdate=True to fix #4609
       Ed.Update;
       Ed.DoEventChange;
@@ -336,6 +336,7 @@ begin
     FFinder.OptFromCaret:= (Res=afoFindNext) or (Res=afoFindPrev) or (Res=afoReplace);
     FFinder.OptConfirmReplace:= chkConfirm.Checked;
     FFinder.OptTokens:= TATFinderTokensAllowed(bTokens.ItemIndex);
+    FFinder.OptPreserveCase:= chkPreserveCase.Checked;
     bHiliteAll:= chkHiAll.Checked;
   end;
 
@@ -578,6 +579,7 @@ begin
   fmFind.chkConfirm.Checked:= FFinder.OptConfirmReplace;
   fmFind.chkWrap.Checked:= FFinder.OptWrapped;
   fmFind.bTokens.ItemIndex:= Ord(FFinder.OptTokens);
+  fmFind.chkPreserveCase.Checked:= FFinder.OptPreserveCase;
 
   if UiOps.FindSuggestInSelection and bMultiLineSel then
   begin
@@ -867,8 +869,10 @@ begin
   if AFinder.OptWords then Result:= Result+msgFinderHintWords+Sep;
   if AFinder.OptBack then Result:= Result+msgFinderHintBack+Sep;
   if AFinder.OptWrapped then Result:= Result+msgFinderHintWrapped+Sep;
+  if AFinder.IsSearchWrapped then Result:= Result+msgFinderHintSearchWrapped+Sep;
   if AFinder.OptInSelection then Result:= Result+msgFinderHintInSel+Sep;
   if AFinder.OptFromCaret then Result:= Result+msgFinderHintFromCaret+Sep;
+  if AFinder.OptPreserveCase then Result:= Result+msgFinderHintPresCase+Sep;
   if SEndsWith(Result, Sep) then
     SetLength(Result, Length(Result)-Length(Sep));
   Result:= ' ('+Result+')';
@@ -1173,7 +1177,7 @@ var
   oFind, oRep,
   oFindHist, oRepHist,
   bCase, bWord, bRegex, bRegexSubst, bCfm,
-  bInSel, bWrap, bMulLine, bHiAll, oTokens: PPyObject;
+  bInSel, bWrap, bMulLine, bHiAll, bPresCase, oTokens: PPyObject;
 begin
   with AppPython.Engine do
   begin
@@ -1193,6 +1197,7 @@ begin
     bWrap:= ReturnNone;
     bMulLine:= ReturnNone;
     bHiAll:= ReturnNone;
+    bPresCase:= ReturnNone;
     oTokens:= ReturnNone;
 
     if Assigned(fmFind) then
@@ -1210,10 +1215,11 @@ begin
       bWrap:= PyBool_FromLong(Ord(fmFind.chkWrap.Checked));
       bMulLine:= PyBool_FromLong(Ord(fmFind.chkMulLine.Checked));
       bHiAll:= PyBool_FromLong(Ord(fmFind.IsHiAll));
+      bPresCase:= PyBool_FromLong(Ord(fmFind.chkPreserveCase.Checked));
       oTokens:= PyLong_FromLong(Ord(fmFind.bTokens.ItemIndex));
     end;
 
-    Result:= Py_BuildValue('{sOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsO}',
+    Result:= Py_BuildValue('{sOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsO}',
       'find', PyUnicodeFromString(FFinder.StrFind),
       'rep', PyUnicodeFromString(FFinder.StrReplace),
 
@@ -1232,6 +1238,7 @@ begin
       'op_insel', PyBool_FromLong(Ord(FFinder.OptInSelection)),
       'op_wrap', PyBool_FromLong(Ord(FFinder.OptWrapped)),
       'op_tokens', PyLong_FromLong(Ord(FFinder.OptTokens)),
+      'op_prescase', PyBool_FromLong(Ord(FFinder.OptPreserveCase)),
 
       'op_case_d', bCase,
       'op_word_d', bWord,
@@ -1242,7 +1249,8 @@ begin
       'op_wrap_d', bWrap,
       'op_mulline_d', bMulLine,
       'op_tokens_d', oTokens,
-      'op_hi_d', bHiAll
+      'op_hi_d', bHiAll,
+      'op_prescase_d', bPresCase
       );
   end;
 end;
@@ -1338,6 +1346,8 @@ begin
         FFinder.OptWrapped:= AppStrToBool(SValue);
       'op_tokens':
         FFinder.OptTokens:= TATFinderTokensAllowed(StrToIntDef(SValue, 0));
+      'op_prescase':
+        FFinder.OptPreserveCase:= AppStrToBool(SValue);
 
       'op_case_d':
         begin
@@ -1427,6 +1437,14 @@ begin
             fmFind.DoOnChange;
           end;
         end;
+      'op_prescase_d':
+        begin
+          if Assigned(fmFind) then
+          begin
+            fmFind.chkPreserveCase.Checked:= AppStrToBool(SValue);
+            fmFind.DoOnChange;
+          end;
+        end;
     end;
   end;
 end;
@@ -1476,6 +1494,7 @@ begin
     FFinder.OptInSelection:= chkInSel.Checked;
     FFinder.OptConfirmReplace:= chkConfirm.Checked;
     FFinder.OptTokens:= TATFinderTokensAllowed(bTokens.ItemIndex);
+    FFinder.OptPreserveCase:= chkPreserveCase.Checked;
   end;
 end;
 

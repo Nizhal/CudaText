@@ -36,36 +36,54 @@ end;
 procedure TfmMain.HandleTimerCommand(Ed: TATSynEdit; CmdCode: integer; CmdInvoke: TATEditorCommandInvoke);
 var
   Frame: TEditorFrame;
-  EdGrp: TATGroups;
+  EdGroup: TATGroups;
+  EdPages: TATPages;
   NIndex: integer;
   NColor: TColor;
 begin
   Frame:= TGroupsHelper.GetEditorFrame(Ed);
+  EdGroup:= nil;
+  EdPages:= nil;
 
-  //support floating groups
   if Assigned(Frame) then
-    EdGrp:= Frame.GetTabGroups
-  else
-    EdGrp:= Groups;
+    case CmdCode of
+      cmd_FileClose,
+      cmd_FileCloseOtherThis,
+      cmd_FileCloseOtherAll:
+      begin
+        EdGroup:= Frame.GetTabGroups;
+        EdPages:= Frame.GetTabPages;
+        if EdGroup=nil then exit;
+      end
+    end;
 
   case CmdCode of
 
     cmd_FileClose:
       begin
-        EdGrp.CloseTabs(tabCloseCurrent, false, true);
+        CloseFormAutoCompletion;
 
-        Frame:= CurrentFrame;
-        if Assigned(Frame) then
-          Frame.SetFocus
-        else
-        if FrameCount>0 then
-          TGroupsHelper.ForceFrameVisible(Frames[0])
-        else
-          raise Exception.Create('No frames left after "Close tab"');
+        if Assigned(EdPages) then
+        begin
+          NIndex:= EdPages.Tabs.FindTabByObject(Frame);
+          if NIndex>=0 then
+            EdPages.Tabs.DeleteTab(NIndex, true, true);
+
+          Frame:= CurrentFrame;
+          if Assigned(Frame) then
+            Frame.SetFocus
+          else
+          if FrameCount>0 then
+            TGroupsHelper.ForceFrameVisible(Frames[0])
+          else
+            raise Exception.Create('No frames left after "Close tab"');
+        end;
       end;
 
     cmd_FileCloseAll:
       begin
+        CloseFormAutoCompletion;
+
         DoCloseAllTabs(false);
 
         Frame:= CurrentFrame;
@@ -80,16 +98,22 @@ begin
 
     cmd_FileCloseOtherThis:
       begin
-        AppClosingTabs:= true;
-        EdGrp.CloseTabs(tabCloseOthersThisPage, false, false);
-        AppClosingTabs:= false;
+        if Assigned(EdGroup) then
+        begin
+          AppClosingTabs:= true;
+          EdGroup.CloseTabs(tabCloseOthersThisPage, false, false);
+          AppClosingTabs:= false;
+        end;
       end;
 
     cmd_FileCloseOtherAll:
       begin
-        AppClosingTabs:= true;
-        EdGrp.CloseTabs(tabCloseOthersAllPages, false, false);
-        AppClosingTabs:= false;
+        if Assigned(EdGroup) then
+        begin
+          AppClosingTabs:= true;
+          EdGroup.CloseTabs(tabCloseOthersAllPages, false, false);
+          AppClosingTabs:= false;
+        end;
       end;
 
     cmd_FileCloseAndDelete:
@@ -245,6 +269,9 @@ begin
 
     cmd_DialogCharMap:
       DoDialogCharMap;
+
+    cmd_DialogUnprinted:
+      DoDialogUnprinted(Ed);
 
     cmd_ShowMainMenuAsPopup:
       DoSidebar_MainMenuClick(nil);
@@ -513,10 +540,13 @@ begin
     cmd_GroupActivateFloat3:
       DoFormFocus(FFormFloatGroups3, true);
 
-    cmd_MoveTabToGroupNext:
-      Groups.MoveCurrentTabToNext(true);
+    cmd_MoveTabToGroupNext,
     cmd_MoveTabToGroupPrev:
-      Groups.MoveCurrentTabToNext(false);
+      begin
+        Groups.MoveCurrentTabToNext(CmdCode=cmd_MoveTabToGroupNext);
+        UpdateCaption_RealWork;
+        UpdateTabsActiveColor(CurrentFrame);
+      end;
 
     cmd_MoveTabToGroup1:
       DoMoveTabToGroup(0, true);
@@ -571,18 +601,15 @@ begin
 
     cmd_MenuEnc:
       begin
-        InitPopupEnc;
-        MenuShowAtEditorCorner(PopupEnc, CurrentEditor);
+        DoDialogMenuEncodings;
       end;
     cmd_MenuEnds:
       begin
-        InitPopupEnds;
-        MenuShowAtEditorCorner(PopupEnds, CurrentEditor);
+        DoDialogMenuEnds;
       end;
     cmd_MenuLexers:
       begin
-        InitPopupLex;
-        MenuShowAtEditorCorner(PopupLex, CurrentEditor);
+        DoDialogLexerMenu;
       end;
 
     cmd_SetTabColor:
@@ -768,7 +795,10 @@ begin
   //handle commands cmd_
   case ACommand of
     cCommand_ToggleWordWrap,
-    cCommand_ToggleWordWrapAlt:
+    cCommand_ToggleWordWrapAlt,
+    cCommand_ColSelectWithoutKey_On,
+    cCommand_ColSelectWithoutKey_Off,
+    cCommand_ColSelectWithoutKey_Toggle:
       begin
         UpdateStatusbar;
         AHandled:= false;
@@ -1182,10 +1212,14 @@ begin
 
     cmd_Encoding_utf8bom_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf8_WithBom, false); AHandled:= true; exit end;
     cmd_Encoding_utf8nobom_NoReload: begin SetFrameEncoding(Ed, cEncNameUtf8_NoBom, false); AHandled:= true; exit end;
-    cmd_Encoding_utf16le_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf16LE_WithBom, false); AHandled:= true; exit end;
-    cmd_Encoding_utf16be_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf16BE_WithBom, false); AHandled:= true; exit end;
-    cmd_Encoding_utf32le_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf32LE_WithBom, false); AHandled:= true; exit end;
-    cmd_Encoding_utf32be_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf32BE_WithBom, false); AHandled:= true; exit end;
+    cmd_Encoding_utf16LE_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf16LE_NoBom, false); AHandled:= true; exit end;
+    cmd_Encoding_utf16BE_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf16BE_NoBom, false); AHandled:= true; exit end;
+    cmd_Encoding_utf16LEbom_NoReload:begin SetFrameEncoding(Ed, cEncNameUtf16LE_WithBom, false); AHandled:= true; exit end;
+    cmd_Encoding_utf16BEbom_NoReload:begin SetFrameEncoding(Ed, cEncNameUtf16BE_WithBom, false); AHandled:= true; exit end;
+    cmd_Encoding_utf32LE_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf32LE_NoBom, false); AHandled:= true; exit end;
+    cmd_Encoding_utf32BE_NoReload:   begin SetFrameEncoding(Ed, cEncNameUtf32BE_NoBom, false); AHandled:= true; exit end;
+    cmd_Encoding_utf32LEbom_NoReload:begin SetFrameEncoding(Ed, cEncNameUtf32LE_WithBom, false); AHandled:= true; exit end;
+    cmd_Encoding_utf32BEbom_NoReload:begin SetFrameEncoding(Ed, cEncNameUtf32BE_WithBom, false); AHandled:= true; exit end;
     cmd_Encoding_cp1250_NoReload:    begin SetFrameEncoding(Ed, cEncConvNames[eidCP1250], false); AHandled:= true; exit end;
     cmd_Encoding_cp1251_NoReload:    begin SetFrameEncoding(Ed, cEncConvNames[eidCP1251], false); AHandled:= true; exit end;
     cmd_Encoding_cp1252_NoReload:    begin SetFrameEncoding(Ed, cEncConvNames[eidCP1252], false); AHandled:= true; exit end;
@@ -1196,6 +1230,8 @@ begin
     cmd_Encoding_cp1257_NoReload:    begin SetFrameEncoding(Ed, cEncConvNames[eidCP1257], false); AHandled:= true; exit end;
     cmd_Encoding_cp1258_NoReload:    begin SetFrameEncoding(Ed, cEncConvNames[eidCP1258], false); AHandled:= true; exit end;
     cmd_Encoding_mac_NoReload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCPMac], false); AHandled:= true; exit end;
+    cmd_Encoding_koi8r_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidKOI8R], false); AHandled:= true; exit end;
+    cmd_Encoding_koi8u_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidKOI8U], false); AHandled:= true; exit end;
     cmd_Encoding_iso1_NoReload:      begin SetFrameEncoding(Ed, cEncConvNames[eidISO1], false); AHandled:= true; exit end;
     cmd_Encoding_iso2_NoReload:      begin SetFrameEncoding(Ed, cEncConvNames[eidISO2], false); AHandled:= true; exit end;
     cmd_Encoding_iso3_NoReload:      begin SetFrameEncoding(Ed, cEncConvNames[eidISO3], false); AHandled:= true; exit end;
@@ -1219,13 +1255,20 @@ begin
     cmd_Encoding_cp936_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP936], false); AHandled:= true; exit end;
     cmd_Encoding_cp949_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP949], false); AHandled:= true; exit end;
     cmd_Encoding_cp950_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidCP950], false); AHandled:= true; exit end;
+    cmd_Encoding_cns_NoReload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCNS], false); AHandled:= true; exit end;
+    cmd_Encoding_gb2312_NoReload:    begin SetFrameEncoding(Ed, cEncConvNames[eidGB2312], false); AHandled:= true; exit end;
+    cmd_Encoding_euckr_NoReload:     begin SetFrameEncoding(Ed, cEncConvNames[eidEUC_KR], false); AHandled:= true; exit end;
 
     cmd_Encoding_utf8bom_Reload:     begin SetFrameEncoding(Ed, cEncNameUtf8_WithBom, true); AHandled:= true; exit end;
     cmd_Encoding_utf8nobom_Reload:   begin SetFrameEncoding(Ed, cEncNameUtf8_NoBom, true); AHandled:= true; exit end;
-    cmd_Encoding_utf16le_Reload:     begin SetFrameEncoding(Ed, cEncNameUtf16LE_WithBom, true); AHandled:= true; exit end;
-    cmd_Encoding_utf16be_Reload:     begin SetFrameEncoding(Ed, cEncNameUtf16BE_WithBom, true); AHandled:= true; exit end;
-    cmd_Encoding_utf32le_Reload:     begin SetFrameEncoding(Ed, cEncNameUtf32LE_WithBom, true); AHandled:= true; exit end;
-    cmd_Encoding_utf32be_Reload:     begin SetFrameEncoding(Ed, cEncNameUtf32BE_WithBom, true); AHandled:= true; exit end;
+    cmd_Encoding_utf16LE_Reload:     begin SetFrameEncoding(Ed, cEncNameUtf16LE_NoBom, true); AHandled:= true; exit end;
+    cmd_Encoding_utf16BE_Reload:     begin SetFrameEncoding(Ed, cEncNameUtf16BE_NoBom, true); AHandled:= true; exit end;
+    cmd_Encoding_utf16LEbom_Reload:  begin SetFrameEncoding(Ed, cEncNameUtf16LE_WithBom, true); AHandled:= true; exit end;
+    cmd_Encoding_utf16BEbom_Reload:  begin SetFrameEncoding(Ed, cEncNameUtf16BE_WithBom, true); AHandled:= true; exit end;
+    cmd_Encoding_utf32LE_Reload:     begin SetFrameEncoding(Ed, cEncNameUtf32LE_NoBom, true); AHandled:= true; exit end;
+    cmd_Encoding_utf32BE_Reload:     begin SetFrameEncoding(Ed, cEncNameUtf32BE_NoBom, true); AHandled:= true; exit end;
+    cmd_Encoding_utf32LEbom_Reload:  begin SetFrameEncoding(Ed, cEncNameUtf32LE_WithBom, true); AHandled:= true; exit end;
+    cmd_Encoding_utf32BEbom_Reload:  begin SetFrameEncoding(Ed, cEncNameUtf32BE_WithBom, true); AHandled:= true; exit end;
     cmd_Encoding_cp1250_Reload:      begin SetFrameEncoding(Ed, cEncConvNames[eidCP1250], true); AHandled:= true; exit end;
     cmd_Encoding_cp1251_Reload:      begin SetFrameEncoding(Ed, cEncConvNames[eidCP1251], true); AHandled:= true; exit end;
     cmd_Encoding_cp1252_Reload:      begin SetFrameEncoding(Ed, cEncConvNames[eidCP1252], true); AHandled:= true; exit end;
@@ -1236,6 +1279,8 @@ begin
     cmd_Encoding_cp1257_Reload:      begin SetFrameEncoding(Ed, cEncConvNames[eidCP1257], true); AHandled:= true; exit end;
     cmd_Encoding_cp1258_Reload:      begin SetFrameEncoding(Ed, cEncConvNames[eidCP1258], true); AHandled:= true; exit end;
     cmd_Encoding_mac_Reload:         begin SetFrameEncoding(Ed, cEncConvNames[eidCPMac], true); AHandled:= true; exit end;
+    cmd_Encoding_koi8r_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidKOI8R], true); AHandled:= true; exit end;
+    cmd_Encoding_koi8u_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidKOI8U], true); AHandled:= true; exit end;
     cmd_Encoding_iso1_Reload:        begin SetFrameEncoding(Ed, cEncConvNames[eidISO1], true); AHandled:= true; exit end;
     cmd_Encoding_iso2_Reload:        begin SetFrameEncoding(Ed, cEncConvNames[eidISO2], true); AHandled:= true; exit end;
     cmd_Encoding_iso3_Reload:        begin SetFrameEncoding(Ed, cEncConvNames[eidISO3], true); AHandled:= true; exit end;
@@ -1259,6 +1304,9 @@ begin
     cmd_Encoding_cp936_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP936], true); AHandled:= true; exit end;
     cmd_Encoding_cp949_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP949], true); AHandled:= true; exit end;
     cmd_Encoding_cp950_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidCP950], true); AHandled:= true; exit end;
+    cmd_Encoding_cns_Reload:         begin SetFrameEncoding(Ed, cEncConvNames[eidCNS], true); AHandled:= true; exit end;
+    cmd_Encoding_gb2312_Reload:      begin SetFrameEncoding(Ed, cEncConvNames[eidGB2312], true); AHandled:= true; exit end;
+    cmd_Encoding_euckr_Reload:       begin SetFrameEncoding(Ed, cEncConvNames[eidEUC_KR], true); AHandled:= true; exit end;
   end;
 
   //handle other cmd_ commands
