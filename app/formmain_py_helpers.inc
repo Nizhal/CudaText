@@ -2,7 +2,7 @@
 
 
 procedure TfmMain.DoPyCommand(const AModule, AMethod: string;
-  const AParams: TAppVariantArray; AInvoke: TATEditorCommandInvoke);
+  const AParams: TAppVariantArray; AInvoke: TATCommandInvoke);
 var
   Frame: TEditorFrame;
   Ed: TATSynEdit;
@@ -45,7 +45,7 @@ begin
 end;
 
 
-procedure TfmMain.DoPyCommand_ByPluginIndex(AIndex: integer; AInvoke: TATEditorCommandInvoke);
+procedure TfmMain.DoPyCommand_ByPluginIndex(AIndex: integer; AInvoke: TATCommandInvoke);
 var
   F: TEditorFrame;
   CurLexer: string;
@@ -78,10 +78,11 @@ function TfmMain.DoPyEvent(AEd: TATSynEdit; AEvent: TAppPyEvent;
   const AParams: TAppVariantArray): TAppPyEventResult;
 const
   cTheseEventsStoppedByTrue = [cEventOnComplete, cEventOnConsoleComplete, cEventOnFuncHint{, cEventOnTabSwitch}];
+  cTheseEventsStoppedByNonEmptyString = [cEventOnFuncHint];
   cTheseEventsNeedGroupingUndo = [cEventOnComplete, cEventOnSnippet];
-  cTheseEventsDontRequireFrame = [cEventOnSnippet, cEventOnDeleteFile, cEventOnSidebarPopup];
+  cTheseEventsDontRequireFrame = [cEventOnSnippet, cEventOnStart, cEventOnStart2, cEventOnExit, cEventOnDeleteFile, cEventOnSidebarPopup];
   cTheseEventsAlwaysLazy = [cEventOnExit];
-  cTheseEventsIgnoreCurrentLexer = [cEventOnLexer, cEventOnStart, cEventOnExit, cEventOnDeleteFile, cEventOnSidebarPopup];
+  cTheseEventsIgnoreCurrentLexer = [cEventOnLexer, cEventOnStart, cEventOnStart2, cEventOnExit, cEventOnDeleteFile, cEventOnSidebarPopup];
 var
   SCurLexer, KeyForFilter: string;
   bNeedGroup: boolean;
@@ -129,19 +130,18 @@ begin
   case AEvent of
     cEventOnKey:
       begin
-        //key code is 1st int parameter
+        //key is 1st int parameter
         KeyForFilter:= IntToStr(AParams[0].Int);
       end;
     cEventOnOpen:
       begin
-        //filename is attached to editor's frame
-        if Assigned(Frame) then
-          KeyForFilter:= Copy(ExtractFileExt(Frame.GetFileName(AEd)), 2, MaxInt);
+        //key is file extension without leading dot
+        KeyForFilter:= Copy(ExtractFileExt(AEd.FileName), 2);
       end;
     cEventOnOpenBefore:
       begin
-        //filename is 1st parameter
-        KeyForFilter:= Copy(ExtractFileExt(AParams[0].Str), 2, MaxInt);
+        //key is filename, it is 1st parameter
+        KeyForFilter:= Copy(ExtractFileExt(AParams[0].Str), 2);
       end;
   end;
 
@@ -183,6 +183,10 @@ begin
         if Result.Val=evrTrue then
           if AEvent in cTheseEventsStoppedByTrue then Exit;
 
+        //non-empty string for some events means "stop processing this event"
+        if AEvent in cTheseEventsStoppedByNonEmptyString then
+          if (Result.Val=evrString) and (Result.Str<>'') then Exit;
+
         //False means "stop processing this event".
         //It's used e.g. for on_complete, on_key - first plugin which returned False,
         //stops event processing in other plugins.
@@ -210,9 +214,10 @@ begin
 end;
 
 
-function TfmMain.RunTreeHelper(Frame: TEditorFrame; Tree: TTreeView): boolean;
+function TfmMain.RunTreeHelper(Frame: TEditorFrame; ATree: TTreeView;
+  AllowPascalHelpers, AllowPythonHelpers: boolean): boolean;
 var
-  Ed: TATSynEdit;
+  Ed, Ed2: TATSynEdit;
   CurLexer, CurFilename: string;
   TreeData: PPyObject;
   ParamFilename, ParamText: PPyObject;
@@ -222,18 +227,26 @@ begin
   Result:= false;
 
   Ed:= Frame.Editor;
+  if Frame.EditorsLinked then
+    Ed2:= Frame.EditorBrother
+  else
+    Ed2:= nil;
+
   CurLexer:= Frame.LexerName[Ed];
   if CurLexer='' then exit;
 
-  //don't run tree-helper on huge files
+  //don't run helper on huge files
   if Ed.Strings.Count > EControlOptions.MaxLinesWhenParserEnablesFolding then exit;
 
-  //Pascal tree-helpers
-  Result:= DoCodetree_ApplyTreeHelperInPascal(Ed, Tree, CurLexer);
-  if Result then exit;
+  //Pascal helpers
+  if AllowPascalHelpers then
+  begin
+    Result:= DoCodetree_ApplyTreeHelperInPascal(Ed, Ed2, ATree, CurLexer);
+    if Result then exit;
+  end;
 
-  //Python tree-helpers
-  if not AppPython.Inited then exit;
+  //Python helpers
+  if AllowPythonHelpers and AppPython.Inited and Assigned(ATree) then
   with AppPython.Engine do
     for NHelper:= 0 to AppTreeHelpers.Count-1 do
     begin
@@ -249,7 +262,7 @@ begin
         try
           //refresh CodeTree only if TreeData is list
           if PyObject_TypeCheck(TreeData, PyList_Type) then
-            DoCodetree_ApplyTreeHelperResults(Tree, TreeData);
+            DoCodetree_ApplyTreeHelperResults(ATree, TreeData);
         finally
           Py_DECREF(TreeData);
         end;
@@ -263,22 +276,123 @@ begin
 end;
 
 
+function ParsePythonCallback_DotCommand(const AStr: string; out APart1, APart2: string): boolean;
+var
+  NLen, NPosDot, i: integer;
+begin
+  Result:= false;
+  APart1:= '';
+  APart2:= '';
+
+  NLen:= Length(AStr);
+  if NLen<3 then exit;
+
+  i:= 1;
+  while (i<=NLen) and IsCharWordA(AStr[i]) do Inc(i);
+  if (i>=NLen) or (AStr[i]<>'.') then exit;
+
+  NPosDot:= i;
+  Inc(i);
+  while (i<=NLen) and IsCharWordA(AStr[i]) do Inc(i);
+  if i<=NLen then exit;
+
+  APart1:= Copy(AStr, 1, NPosDot-1);
+  APart2:= Copy(AStr, NPosDot+1, MaxInt);
+  Result:= true;
+end;
+
+
+function ParsePythonCallback_CommaCommand(const AStr: string; out APart1, APart2, APart3: string): boolean;
+// regex '(\w+),(\w+)(,(.+))?$'
+var
+  NLen, NSep, i: integer;
+begin
+  Result:= false;
+  APart1:= '';
+  APart2:= '';
+  APart3:= '';
+
+  NLen:= Length(AStr);
+  if NLen<3 then exit;
+
+  i:= 1;
+  while (i<=NLen) and IsCharWordA(AStr[i]) do Inc(i);
+  if (i>=NLen) or (AStr[i]<>',') then exit;
+
+  NSep:= i;
+  Inc(i);
+  while (i<=NLen) and IsCharWordA(AStr[i]) do Inc(i);
+  if i>NLen then
+  begin
+    APart1:= Copy(AStr, 1, NSep-1);
+    APart2:= Copy(AStr, NSep+1, MaxInt);
+  end
+  else
+  begin
+    if AStr[i]<>',' then exit;
+    APart1:= Copy(AStr, 1, NSep-1);
+    APart2:= Copy(AStr, NSep+1, i-NSep-1);
+    APart3:= Copy(AStr, i+1, MaxInt);
+  end;
+
+  Result:= true;
+end;
+
+
+function ParsePythonCallback_3Prefixes(const AStr, APrefix1, APrefix2, APrefix3: string;
+  out APart1, APart2, APart3: string): boolean;
+//   cRegex_SignCommand = 'module=(.+?);cmd=(.+?);(info=(.+?);)?$';
+var
+  NLen, NSep1, NSep2: integer;
+  LenPrefix1, LenPrefix2, LenPrefix3: integer;
+begin
+  Result:= false;
+  APart1:= '';
+  APart2:= '';
+  APart3:= '';
+
+  NLen:= Length(AStr);
+  LenPrefix1:= Length(APrefix1);
+  LenPrefix2:= Length(APrefix2);
+  LenPrefix3:= Length(APrefix3);
+
+  if NLen<LenPrefix1+LenPrefix2+LenPrefix3+4 then exit;
+  if not EndsStr(';', AStr) then exit;
+  if not StartsStr(APrefix1, AStr) then exit;
+
+  NSep1:= PosEx(';'+APrefix2, AStr, LenPrefix1);
+  if NSep1=0 then exit;
+  APart1:= Copy(AStr, LenPrefix1+1, NSep1-LenPrefix1-1);
+  if APart1='' then exit;
+
+  NSep2:= PosEx(';'+APrefix3, AStr, NSep1+LenPrefix2);
+  if NSep2>0 then
+  begin
+    APart2:= Copy(AStr, NSep1+1+LenPrefix2, NSep2-NSep1-LenPrefix2-1);
+    APart3:= Copy(AStr, NSep2+1+LenPrefix3, NLen-NSep2-LenPrefix3-1);
+  end
+  else
+  begin
+    NSep2:= PosEx(';', AStr, NSep1+LenPrefix2);
+    if NSep2=0 then exit;
+    APart2:= Copy(AStr, NSep1+1+LenPrefix2, NSep2-NSep1-LenPrefix2-1);
+  end;
+  if APart2='' then exit;
+
+  Result:= true;
+end;
+
+
 function DoPyCallbackFromAPI_2(const ACallback: string;
   AEd: TATSynEdit;
   const AParams: TAppVariantArray): TAppPyEventResult;
-const
-  cRegex_DotCommand = '([a-z_]\w*)\.([a-z_]\w*)$';
 var
-  RegexParts: TRegexParts;
   SModule, SFunc: string;
 begin
   Result:= Default(TAppPyEventResult);
 
-  if SRegexFindParts(cRegex_DotCommand, ACallback, RegexParts) then
+  if ParsePythonCallback_DotCommand(ACallback, SModule, SFunc) then
   begin
-    SModule:= RegexParts[1].Str;
-    SFunc:= RegexParts[2].Str;
-
     Result:= AppPython.RunEvent(SModule, SFunc, AEd, AParams, false);
     exit;
   end;
@@ -286,22 +400,17 @@ begin
   MsgLogConsole(Format(msgCallbackBad, [ACallback]));
 end;
 
+
 function DoPyCallbackFromAPI(const ACallback: string;
   const AParamVars: TAppVariantArray;
   const AParamNames: array of string): boolean;
 const
-  cRegex_DotCommand = '([a-z_]\w*)\.([a-z_]\w*)$';
-  cRegex_SignCommand = 'module=(.+?);cmd=(.+?);(info=(.+?);)?$';
-  cRegex_SignFunc = 'module=(.+?);func=(.+?);(info=(.+?);)?$';
-  cRegex_CommaCommand = '([a-z_]\w*),([a-z_]\w*)(,(.+))?$'; //compatible with menu_proc, with 3rd param
-  cPrefixModule = 'module=';
   cPrefixExec = 'exec=';
 var
   FParamObjs: array of PPyObject;
   FParamNames: array of string;
   FParamVars: TAppVariantArray;
   SModule, SFunc, SParam, SInfo: string;
-  RegexParts: TRegexParts;
   Obj: PPyObject;
   i: integer;
 begin
@@ -320,22 +429,15 @@ begin
   end;
 
   //-----------------------------------------------------
-  if SRegexFindParts(cRegex_DotCommand, ACallback, RegexParts) then
+  if ParsePythonCallback_DotCommand(ACallback, SModule, SFunc) then
   begin
-    SModule:= RegexParts[1].Str;
-    SFunc:= RegexParts[2].Str;
-
     Result:= AppPython.RunCommand(SModule, SFunc, AParamVars);
     exit;
   end;
 
   //-----------------------------------------------------
-  if SBeginsWith(ACallback, cPrefixModule) and SRegexFindParts(cRegex_SignCommand, ACallback, RegexParts) then
+  if ParsePythonCallback_3Prefixes(ACallback, 'module=', 'cmd=', 'info=', SModule, SFunc, SInfo) then
   begin
-    SModule:= RegexParts[1].Str;
-    SFunc:= RegexParts[2].Str;
-    SInfo:= RegexParts[4].Str;
-
     if SInfo<>'' then
     begin
       FParamVars:= nil;
@@ -353,12 +455,8 @@ begin
   end;
 
   //-----------------------------------------------------
-  if SBeginsWith(ACallback, cPrefixModule) and SRegexFindParts(cRegex_SignFunc, ACallback, RegexParts) then
+  if ParsePythonCallback_3Prefixes(ACallback, 'module=', 'func=', 'info=', SModule, SFunc, SInfo) then
   begin
-    SModule:= RegexParts[1].Str;
-    SFunc:= RegexParts[2].Str;
-    SInfo:= RegexParts[4].Str;
-
     FParamObjs:= nil;
     SetLength(FParamObjs, Length(AParamVars));
     for i:= 0 to Length(AParamVars)-1 do
@@ -391,12 +489,8 @@ begin
   end;
 
   //-----------------------------------------------------
-  if SRegexFindParts(cRegex_CommaCommand, ACallback, RegexParts) then
+  if ParsePythonCallback_CommaCommand(ACallback, SModule, SFunc, SParam) then
   begin
-    SModule:= RegexParts[1].Str;
-    SFunc:= RegexParts[2].Str;
-    SParam:= RegexParts[4].Str;
-
     if SParam<>'' then
       FParamVars:= [AppVariant(SParam)]
     else
@@ -449,7 +543,7 @@ begin
   MsgStatus(msgRescannedAllPlugins);
 end;
 
-procedure TfmMain.DoPyRunLastPlugin(AInvoke: TATEditorCommandInvoke);
+procedure TfmMain.DoPyRunLastPlugin(AInvoke: TATCommandInvoke);
 var
   Params: TAppVariantArray;
 begin
@@ -494,6 +588,6 @@ var
 begin
   SSplitByChar(AModuleAndMethod, ',', SModule, SMethod);
   if (SModule<>'') and (SMethod<>'') then
-    DoPyCommand(SModule, SMethod, [], cInvokeAppInternal);
+    DoPyCommand(SModule, SMethod, [], TATCommandInvoke.AppInternal);
 end;
 

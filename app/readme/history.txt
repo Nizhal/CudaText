@@ -3,10 +3,200 @@
   - fixed
   * changed
 
+1.205.0 (2023/12)
+
++ add: updated TRegExpr engine to 1.182; it now supports \K
++ add: option "auto_fold_comments" now makes ranges not only for 'comments' but also for 'strings', ie any multi-line string literals (thanks @victorel-petrovich)
++ add: new option "find_hotkey_more" can change Find dialog hotkey of "..." button
+* change: Find dialog: changed hotkey of "..." button from Ctrl+Alt+dot to Ctrl+Alt+D because Ctrl+Alt+dot is used in Slovak keyboard layout (thanks @vidovan)
+- fix: could not load broken UTF-8 text at all, but app must be able to auto-reload it in encoding cp1252 (thanks @zeuwas)
+- fix: picture viewer: statusbar wasn't updated on Ctrl+MouseWheel (thanks @xBZZZZ)
+
+1.204.0 (2023/12)
+
++ add: new option "autocomplete_commit_on_enter" (thanks @DUOLabs333)
++ add: text viewer: it can change word-wrap mode in its 'text' mode (not correct with UTF-8 viewer encoding, sorry)
++ add: on editing with ui-tab splitted, carets/markers in the 2nd half must auto-adjust like in the 1st half (thanks @mix-7)
++ add: folded state is now restored from session for built-in tree-helpers too
++ add: reworked IME dialog in Gtk2 version (patch by @rasberryrabbit)
+* change: text viewer: disabled selection with UTF-8 encoding due to unsolved problems with selection rendering in UTF-8
+- fix: URL highlight must catch paired brackets (...) but ignore single closing bracket, because URLs are included in () in Markdown
+- fix: built-in tree-helpers didn't affect the 2nd half of splitted ui-tab (thanks @mix-7)
+- fix: macOS: icon size was too big for macOS 11+ (thanks @xiongyihui @JairoMartinezA)
+- fix: macOS: text viewer was blurry on Retina (thanks @papirosko)
+
+1.203.0 (2023/11)
+
+built-in tree-helpers:
++ add: tree-helper for Markdown supports _proper_ folding, considers header levels
++ add: tree-helper for MediaWiki supports _proper_ folding
++ add: tree-helper for reStructuredText supports _proper_ folding
++ add: tree-helper for 'Ini files ^' supports folding
++ add: new tree-helper for WikidPad, so you must remove Python tree-helper
++ add: new tree-helper for Textile, so you must remove Python tree-helper
+
++ add: reduced flickering in paired (splitted) editor, on editing big files with lexer (thanks @mix-7)
++ add: lexer Python: support f-strings with inner quotes from Python 3.12
+* change: disabled automatic unfolding of blocks above the editing line, in Python; it was irritating sometimes (and bad if unfolding block height is bigger than screen height); it reverts fix from 1.167.5 2022/07 (thanks @victorel-petrovich)
+- fix: must scroll to new caret position after some folding actions (thanks @mix-7)
+
+1.202.1 (2023/11)
+
+* change: deleted option "lexer_postpone_until_shown"
++ add: new command "folding: select block(s) at caret(s)"
+- fix: regression in 1.196: sometimes on doing 'Undo' lexer parser stops working with broken highlight
+
+1.202.0 (2023/11)
+
++ add: new option "fold_underline_size" to change look of folding-underline (thanks @victorel-petrovich)
++ add: with "fold_style" 3...4, click on folded line text must not unfold the block (thanks @victorel-petrovich)
++ add: single click on folding rectangle-mark is now ignored because we must react to double-click on it
++ add: Go To dialog remembers last input, per each editor-tab, and value now saves to session (thanks @faerot)
++ add: Wiki topic https://wiki.freepascal.org/CudaText_VS_other_editors#CudaText_vs_Notepad.2B.2B
+* change: theme "Zeus" was renamed to "Zeu" and removed to Addons Manager
+- fix: command "find current word next" fails with words of length=1 (thanks @faerot)
+- fix: editing of Markdown/reST/WikidPad header with folded previous header makes irritating unfolding of previous header (thanks @mix-7)
+- fix: regression: crash on double-click the Output panel with the "Runner" plugin output
+
+1.201.0 (2023/10)
+
+* change: changed submenu "File / Line ends >" to menu-like dialog
++ add: new 3 commands (in the Command Palette) to focus 3 floating groups
++ add: new option "ui_tab_padding2" to set right padding (thanks @faerot)
++ add: commands "focus next group"/"focus previous group" support floating-groups too (thanks @faerot)
++ add: support more 'ligatures' in lexers JS / Python (thanks @faerot)
++ add: Project Manager: "Focus in file manager": correctly open files with $ or " or \ in path; respect default file manager; don't freeze until file manager exits (patch by @xBZZZZ)
++ add: allow commands "tabulation size: set to N" to be in macros
+- fix: macOS: regression with 'full-screen mode'
+
+1.200.0 (2023/10)
+
++ add: big files (10Mb+) are saved _much_ faster
++ add: Addons Manager removes section from packages.ini on uninstalling lexer
++ add: Lexer Detecter writes lexer version to packages.ini (thanks @ildarkhasanshin)
+- fix: when clicking between main window and floating groups, code-tree was not updated (thanks @SamC)
+- fix: regression: options "ui_font_output_name"/"ui_font_output_size" were ignored (thanks @ildarkhasanshin)
+- fix: if plugin sets ui-tab title ~15K characters, app freezes (thanks @ildarkhasanshin)
+- fix: if bookmarks were only auto-shifted by edition above them, they could be not auto-saved (thanks @itsmyname)
+- fix: Lexer Detecter missed detection of VBScript
+
+1.199.0 (2023/09)
+
++ add: update TRegExpr engine to 1.169; see change log: https://github.com/andgineer/TRegExpr/blob/master/History.txt
++ add: option "ui_session_max_text"
++ add: option "ui_session_max_undo"
++ add: Find dialog: new hotkey Ctrl+Alt+dot for '...' button (thanks @MiroslavMatas)
++ add: Command Palette item "toggle window always on top" works for floating groups too (thanks @SamC)
+* change: portable releases now have the folder "cudatext" in the root
+* change: Shift+click with selection works more like in VSCode (thanks @pintassilgo)
+* change: *BSD versions: do not call 'pkexec', instead only show a message-box, like IntelliJ (thanks @alex0x08 from linux.org.ru)
+- fix: new bookmarks were not auto-saved when ui-tab was not closed before exit (thanks @itsmyname)
+- fix: Qt5 version: Find dialog: click on a button looses dialog focus (thanks @pintassilgo)
+- fix: regression in 1.172: option "key_left_right_swap_sel_and_select" didn't work 
+
+1.198.0 (2023/09)
+
++ add: update TRegExpr engine from 1.158 to 1.163; see change log: https://github.com/andgineer/TRegExpr/blob/master/History.txt
++ add: Wiki topic https://wiki.freepascal.org/CudaText_plugins#How_to_run_formatter_ESLint_on_saving
++ add: Wiki topic https://wiki.freepascal.org/CudaText_plugins#How_to_bind_a_hotkey_to_insert_a_snippet
++ add: Wiki topic https://wiki.freepascal.org/CudaText_plugins#Config_Toolbar
++ add: double-click on 'preview' tab makes it 'normal' (thanks @ThaiDat)
+- fix: LSP tooltip was not shown in 'floating' groups
+- fix: few editor properties ('tabulation size', 'tabulation by spaces', 'saving: force final EOL', 'saving: trim line ends') were reset on tab-switching: from values set by EditorConfig plugin, to values from user.json (thanks @ildarkhasanshin)
+- fix: "ui_tab_recent_on_close":true didn't work in 'floating' groups
+- fix: on opening picture by "File/Open", background color remained fixed white (thanks @bbslipers)
+- fix: workaround for Windows save-as dialog bug: dialog can suggest bad filename for filter 'All files', like 'name.lua.yml' instead of 'name.lua' when YAML lexer is active (thanks @bbslipers)
+- fix: lexer reST: better rule for '|' in tables
+
+1.197.0 (2023/08)
+
+* change: if "ui_reopen_session":true, don't automatically add all opened files to 'recents' on exit, like in Sublime (thanks @mix-7)
+* change: previously, with "undo_limit":5000 deleting of 7000 selected lines was clearing the Undo; now, deleting selection of 7000 lines is considered as "one action" and it is always storing in Undo; this is much slower on big selections, but Undo is important (thanks @mix-7)
++ add: font of code-tree can be additionally scaled, added option "ui_tree_font_scale" (thanks @reregaga)
++ add: text search shows additional confirmation when 'wrapped search' is off and search reaches the edge of the document (thanks @d0vgan)
++ add: when text search silently wraps at document edge (because of Find dialog option "O"), Find dialog input field can blink (this is off by default); added option: "find_wrapped_blinking" (thanks @d0vgan)
++ add: themed scrollbars: add coloring of mouse-over scrollbar arrows (thanks @reregaga)
++ add: commands "move tab to group 3 / 4 / 5 / 6" (thanks @reregaga)
++ add: Project Manager: command "Add to project: folder of the current file" (thanks @reregaga)
++ add: Project Manager: context menu item "Copy path relative to project" (thanks @reregaga)
+- fix: "List index" error when selecting big block by Ctrl+Shift+End and typing/inserting (thanks @mix-7)
+- fix: couple of minor UI issues in the Find dialog (thanks @reregaga)
+- fix: Linux/Unix: when owner of file is 'root' with 'rw-r--r--', and owner of file's dir is 'user', app could not save the file (thanks @timur-g)
+- fix: Linux/Unix: the case "opening file has no R permission" leads to program error, especially when user chooses binary viewer
+- fix: sometimes 'function hint' in AutoIt_Helper plugin is blocked (thanks @veksha)
+- fix: bad painting of macro-recording border with "minimap_at_left":true
+- fix: lexer Bash: fix string-rule, fix HereDoc-rule
+
+1.196.0 (2023/07)
+
++ add: plugin Tabs List: allow Tab-key to change the focus
+* change: if in JSON lexer, user folds block which last line is ending with "{", this last line is excluded from folding (thanks @reregaga)
+* change: delete option "tab_max_pos_expanded" (it is now max possible value 1024)
+- fix: on 'find next' (F3) app forced focus to the Find dialog (thanks @adoeller)
+- fix: regression with plugin Insert Pics, because of "show_last_line_on_top" default changed (thanks @herbrot)
+- fix: small regression when EOL mark appeared on last line when not needed, on deleting multi-line selection (fixed by @ThaiDat)
+- fix: Windows: Chinese IME may crash (thanks @actforjason, fixed by @rasberryrabbit)
+- fix: irritating scrolling when user clicks top N lines, when "caret_proximity_vert":N (thanks @hiiamboris)
+- fix: not nice indentation when Options Editor saves user.json (thanks @reregaga)
+- fix: Find/Replace dialog: empty Find field after typing text and pressing Ctrl+Enter
+
+1.195.0 (2023/05)
+
++ add: combobox inputs have the embedded X icon to clear text; code-tree X button was removed
++ add: code-tree filter field handles several space-separated words
++ add: faster paint caret if it's 'empty inside' (thanks @veksha)
++ add: Addon Manager has option (only in settings/cuda_addonman.json) to set SourceForge mirror (thanks @pintassilgo)
++ add: Tabs List plugin has new 'filter' input (thanks @mix-7)
++ add: Tabs List / Snippet Panel plugins support horizontal scrolling by Shift+mouse_wheel (thanks @iconv)
++ add: Char Map dialog: grid cells have equal width; font size increased (thanks @iconv)
++ add: option "show_indent_lines" (thanks @Vivalzar)
+- fix: Tabs List plugin did not react to change "tab modified"->"tab unmodified" (thanks @iconv)
+- fix: lexer Markdown: fix $ rule, $$ rule (thanks @veksha)
+- fix: if code-tree filter was empty on exiting, history of code-tree filters was not restored on next run (thanks @mix-7)
+- fix: changed "font_size" was not applied to autocompletion listbox (thanks @veksha)
+
+* change: set default hotkeys for "current document font size: bigger/smaller" to Ctrl+NumPlus / Ctrl+NumMinus
+* change: lexer PHP was removed to add-ons
+* change: default of "show_last_line_on_top" changed to False, default of "ui_tab_switcher_dialog" changed to False, default of "bracket_highlight" changed to True (thanks @z4ziggy)
+* change: Windows: in full-screen mode, app now hides the main menu bar (to fix missing bottom ~20 pixels, it is Lazarus bug)
+* change: delete option "max_line_len_for_accurate_width" (internal value is 1024 now)
+
+1.194.4 (2023/05)
+
++ add: minimap handles Shift+click and middle-click, it allows to revert to the old behaviour of minimap click which existed before version 1.190.0 (thanks @pintassilgo)
++ add: scrollbars now react to Shift+click and middle-click - this makes direct jump to clicked position, like with option "scrollbar_click_jump" (thanks @veksha)
++ add: showing of unprinted "wrapped line-part marks" now respects the option "show unprinted only in selection" (thanks @Vivalzar)
++ add: support for lexer MDX, its very special rules: it allows {...} blocks with nesting of curly brackets, it allows <...> blocks with nesting of angle brackets
++ add: better find Python library on first startup, for Linux with /usr/lib64 and /usr/lib
+- fix: Addon Manager was deleting the old plugin folder, even if download of update fails
+- fix: regression in C/C++ lexers
+
+1.194.0 (2023/05)
+
+drag&drop:
+  + add: now it's possible to drag&drop text block from one ui-tab to another, without using 2+ groups: drag through the ui-tabs area
+  + add: drag&drop of single-line selection is allowed into single-line fields (Console input, Code-Tree filter)
+  + add: drag&drop of text: drop-marker is shown also when dragging to another ui-tab
+  + add: drag&drop of ui-tab: drop-marker is shown also when dragging to another tab-group
+
++ add: change of lexer is recorded to macros (thanks @veksha)
++ add: Project Manager supports old Python 3.4 (thanks @de77)
++ add: lexers C/C++: highlight illegal numeric suffixes
++ add: lexer Batch: many improvements
+
+1.193.3 (2023/05)
+
+* change: replaced 2 options "lexer_dynamic_hilite" / "lexer_dynamic_hilite_max_lines" with single option "dynamic_highlight"; changed the default to 4000, ie it's now enabled by default
+* change: removed space-char from option "autocomplete_commit_chars"
++ add: new option "ui_statusbar_hint_lines" allows to set the statusbar hint height; also statusbar last cell now reacts to click (thanks @pintassilgo)
++ add: lexer Bash: added 'dynamic highlight' rules for blocks: if/fi, case/esac, do/done
+- fix: Windows: missed repaint on auto-deleting pair bracket (thanks @veksha)
+- fix: sometimes auto-completion was hiding on user typing (thanks @veksha)  
+
 1.193.0 (2023/05)
 
 core changes for huge documents:
-  * change: Undo-list is cleared when any action touches line with length>100K
+  * change: Undo-list is cleared when any action touches a line with length>100K; added the option for this: "max_line_len_for_undo"
   + add: caret must move OK in line with length up to 2G
   + add: if file has line with length>2G, don't crash but show nice error message on opening
   - fix: caret up/down moving over huge lines worked very slow
@@ -16,7 +206,8 @@ core changes for huge documents:
   - fix: bad handling of error "too many lines in file"
 
 * change: don't save document's text to session, if text size>50M
-- fix: app always copied the selection to 'primary selection' on Unix, ignoring "auto_copy_clp" option
++ add: option "max_line_len_brackets"
+- fix: app always copied the selection to 'primary selection' on Unix, ignoring the "auto_copy_clp" option
 - fix: regression since 2022/07: lexer-specific config is not applied to all N>1 files with the same lexer (thanks @veksha)
 
 1.192.0 (2023/04)
@@ -444,7 +635,7 @@ core changes for huge documents:
 - fix: Linux: file 'ast.py' in the current folder was breaking many plugins (thanks @veksha)
 - fix: lexer Bash: wrong highlight in '~/.local' (thanks @eltonfabricio10)
 
-1.167.5 (2022/07)                                              
+1.167.5 (2022/07)
 
 + add: use translated button captions in message-boxes, both internal and API (thanks @hexaae)
 + add: wiki page https://wiki.freepascal.org/CudaText_VS_other_editors

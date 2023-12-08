@@ -404,7 +404,7 @@ class DialogMK2:
                         item = _col_cfg[i]
                         colname,w = item
                         if not isinstance(w, int)  and  not (isinstance(w, str)
-                                                                and re.match('^\d+px$', w)):
+                                                                and re.match(r'^\d+px$', w)):
                             print(_('NOTE: {}: invalid column width format: {}')
                                         .format(self.title, item))
                             _col_cfg[i] = (colname,100)
@@ -1133,12 +1133,11 @@ class DialogMK2:
         # set scope
         if not is_opt_modified: # do not switch scope automatically if value of that scope was not changed yet.
             new_scope = 'u' # user scope
-            active_scoped_val = (
-                new_scope,
-                self.optman.get_opt_scope_value(self._cur_opt, new_scope, is_ui=False)
-                # if user scope has None value, get default
-                or self.optman.get_opt_scope_value(self._cur_opt, 'def', is_ui=False)
-            )
+            scope_value = self.optman.get_opt_scope_value(self._cur_opt, new_scope, is_ui=False)
+            # if user scope has None value, get default
+            if scope_value is None:
+                scope_value = self.optman.get_opt_scope_value(self._cur_opt, 'def', is_ui=False)
+            active_scoped_val = (new_scope,scope_value)
         new_scope_name = self._scope_captions[new_scope]
         with ignore_edit(self.h, self.scope_ed):
             self.scope_ed.set_text_all(new_scope_name)
@@ -1632,6 +1631,7 @@ class ValueEds:
 
         self._hide_val_ed(h)
         _n = self._wgt_ind(h, M.WGT_NAME__EDIT, show=True) # ~resets wgt props
+        self._current_type = 'str'
         self.val_edit.set_text_all('')
 
     def get_name(self, id_ctl):

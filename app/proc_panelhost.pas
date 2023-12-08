@@ -75,8 +75,8 @@ type
     FormFloatBounds: TRect;
     ShowTitleForSide: boolean;
     ShowTitleForBottom: boolean;
-    OnShow: TNotifyEvent;
-    OnHide: TNotifyEvent;
+    OnBeforeToggle: TNotifyEvent;
+    OnAfterToggle: TNotifyEvent;
     OnCommand: TAppPanelOnCommand;
     OnCloseFloatForm: TCloseEvent;
     OnGetTranslatedTitle: TAppPanelOnGetTitle;
@@ -159,7 +159,7 @@ begin
   Splitter:= TSplitter.Create(FOwner);
   Splitter.Align:= Align;
   Splitter.Parent:= PanelRoot;
-  Splitter.MinSize:= 100;
+  Splitter.MinSize:= 0;
 
   UpdateSplitter;
 end;
@@ -236,6 +236,9 @@ var
 begin
   if GetVisible=AValue then exit;
 
+  if Assigned(OnBeforeToggle) then
+    OnBeforeToggle(Self);
+
   PanelGrouper.Visible:= AValue;
   if Floating then
   begin
@@ -275,15 +278,10 @@ begin
 
       UpdateTitle;
     end;
-
-    if Assigned(OnShow) then
-      OnShow(Self);
-  end
-  else
-  begin
-    if Assigned(OnHide) then
-      OnHide(Self);
   end;
+
+  if Assigned(OnAfterToggle) then
+    OnAfterToggle(Self);
 
   UpdateButtons;
 end;
@@ -597,9 +595,9 @@ begin
       alLeft:
         Splitter.Left:= PanelGrouper.Width;
       alBottom:
-        Splitter.Top:= PanelGrouper.Top-8;
+        Splitter.Top:= 0;
       alRight:
-        Splitter.Left:= PanelGrouper.Left-8;
+        Splitter.Left:= 0;
       else
         begin end;
     end;

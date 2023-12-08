@@ -200,11 +200,11 @@ begin
     SParseFilenameWithTwoNumbers(SParam, NLine, NColumn);
 
     //if folder, open it in ProjManager
-    if DirectoryExistsUTF8(SParam) then
+    if DirectoryExists(SParam) then
     begin
       Application.ProcessMessages; //fix issue #3928
 
-      DoFolderOpen(SParam, bFirstFolder, cInvokeAppInternal);
+      DoFolderOpen(SParam, bFirstFolder, TATCommandInvoke.AppInternal);
       bFirstFolder:= false;
     end
     else
@@ -311,13 +311,13 @@ begin
 end;
 
 procedure TfmMain.HandleOtherInstance(Sender: TObject;
-  ParamCount: Integer; const Parameters: array of String);
+  AParamCount: Integer; const AParameters: array of String);
 begin
   if not IsAllowedToOpenFileNow then exit;
 
   DoLoadCommandParams(
-    Parameters,
-    GetFileOpenOptionsString(ParamCount)
+    AParameters,
+    GetFileOpenOptionsString(AParamCount)
     );
 
   if WindowState=wsMinimized then

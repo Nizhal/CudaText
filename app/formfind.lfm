@@ -10,16 +10,16 @@ object fmFind: TfmFind
   ClientWidth = 963
   FormStyle = fsStayOnTop
   KeyPreview = True
+  ShowHint = True
+  ShowInTaskBar = stNever
+  LCLVersion = '3.99.0.0'
+  Scaled = False
   OnClose = FormClose
   OnCreate = FormCreate
   OnHide = FormHide
   OnKeyDown = FormKeyDown
   OnResize = FormResize
   OnShow = FormShow
-  ShowHint = True
-  ShowInTaskBar = stNever
-  LCLVersion = '2.3.0.0'
-  Scaled = False
   object PanelOps: TATPanelSimple
     Left = 0
     Height = 118
@@ -194,9 +194,10 @@ object fmFind: TfmFind
       OnKeyDown = edFindKeyDown
       OnChange = edFindChange
       OnCommand = edFindCommand
+      OnCommandAfter = edFindCommandAfter
       WantTabs = False
-      OptScrollStyleHorz = aessHide
-      OptScrollStyleVert = aessHide
+      OptScrollStyleHorz = Hide
+      OptScrollStyleVert = Hide
       OptScrollIndentCaretHorz = 0
       OptShowURLs = False
       OptShowMouseSelFrame = False
@@ -208,10 +209,11 @@ object fmFind: TfmFind
       OptMarginRight = 1000
       OptUnprintedVisible = False
       OptMouseDragDrop = False
-      OptMouseMiddleClickAction = mcaNone
+      OptMouseMiddleClickAction = None
       OptMouseWheelZooms = False
       OptAllowReadOnly = False
       OptUndoLimit = 200
+      OptComboboxShowX = True
     end
     object edRep: TATComboEdit
       AnchorSideLeft.Control = edFind
@@ -238,8 +240,8 @@ object fmFind: TfmFind
       OnKeyDown = edFindKeyDown
       OnCommand = edFindCommand
       WantTabs = False
-      OptScrollStyleHorz = aessHide
-      OptScrollStyleVert = aessHide
+      OptScrollStyleHorz = Hide
+      OptScrollStyleVert = Hide
       OptScrollIndentCaretHorz = 0
       OptShowURLs = False
       OptShowMouseSelFrame = False
@@ -251,10 +253,11 @@ object fmFind: TfmFind
       OptMarginRight = 1000
       OptUnprintedVisible = False
       OptMouseDragDrop = False
-      OptMouseMiddleClickAction = mcaNone
+      OptMouseMiddleClickAction = None
       OptMouseWheelZooms = False
       OptAllowReadOnly = False
       OptUndoLimit = 200
+      OptComboboxShowX = True
     end
     object PanelBtn: TATPanelSimple
       AnchorSideLeft.Control = edFind

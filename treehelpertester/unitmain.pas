@@ -69,6 +69,9 @@ begin
     NodeParent:= nil;
     NLevelPrev:= 1;
 
+    Ed.Fold.Clear;
+    Ed.Fold.ClearLineIndexer(Ed.Strings.Count);
+
     Result:= TreeHelperInPascal(Ed, ALexer, Data);
     if Result and (Data.Count>0) then
     begin
@@ -104,6 +107,8 @@ begin
         Node.ImageIndex:= NIcon;
         Node.SelectedIndex:= NIcon;
 
+        Ed.Fold.Add(NX1+1, NY1, NX2+1, NY2, false, STitle);
+
         NLevelPrev:= NLevel;
       end;
     end;
@@ -121,17 +126,25 @@ begin
   if OpenDialog1.Execute then
   begin
     FFileName:= OpenDialog1.FileName;
-    Ed.LoadFromFile(FFileName);
+    Ed.LoadFromFile(FFileName, []);
 
     case ExtractFileExt(FFileName) of
       '.md':
         FLexer:= 'Markdown';
-      '.wiki':
+      '.wiki',
+      '.mediawiki':
         FLexer:= 'MediaWiki';
+      '.wikidpad':
+        FLexer:= 'WikidPad';
       '.rst':
         FLexer:= 'reStructuredText';
+      '.textile',
+      '.tx':
+        FLexer:= 'Textile';
+      '.ini':
+        FLexer:= 'Ini files ^';
       else
-        FLexer:= 'none'
+        FLexer:= '-'
     end;
 
     Label1.Caption:= Format('File "%s", Lexer "%s"', [ExtractFileName(FFileName), FLexer]);
@@ -162,7 +175,15 @@ begin
   begin
     Info:= TMyTreeInfo(Node.Data);
     Ed.DoCaretSingle(Info.X1, Info.Y1, -1, -1);
-    Ed.DoGotoCaret(cEdgeTop);
+    Ed.DoShowPos(
+      Point(Info.X1, Info.Y1),
+      10,
+      10,
+      true,
+      false,
+      false
+      );
+    Ed.Update;
   end;
 end;
 

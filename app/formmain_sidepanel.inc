@@ -112,7 +112,7 @@ end;
 
 
 procedure TfmMain.CodeTreeFilter_OnCommand(Sender: TObject; ACmd: integer;
-  AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
+  AInvoke: TATCommandInvoke; const AText: string; var AHandled: boolean);
 var
   Ed: TATComboEdit;
   F: TEditorFrame;
@@ -144,7 +144,7 @@ begin
   if ACallback<>'' then
   begin
     SSplitByChar(ACallback, '.', SModule, SMethod);
-    DoPyCommand(SModule, SMethod, [], cInvokeAppSidebar);
+    DoPyCommand(SModule, SMethod, [], TATCommandInvoke.AppSidebar);
   end;
 end;
 
@@ -158,9 +158,21 @@ begin
   UpdateMenuItemChecked(mnuViewSide, mnuViewSide_Alt, false);
 end;
 
-procedure TfmMain.DoSidebar_OnShowHide(Sender: TObject);
+procedure TfmMain.DoSidebar_OnBeforeToggle(Sender: TObject);
+var
+  Frame: TEditorFrame;
 begin
-  UpdateEditorShowCaret;
+  Frame:= CurrentFrame;
+  Frame.IsCaretInViewBeforeToggle:= Frame.Editor.IsCaretOnVisibleRect;
+end;
+
+procedure TfmMain.DoSidebar_OnAfterToggle(Sender: TObject);
+var
+  Frame: TEditorFrame;
+begin
+  Frame:= CurrentFrame;
+  if Frame.IsCaretInViewBeforeToggle then
+    UpdateEditorShowCaret;
 end;
 
 procedure TfmMain.DoSidebar_OnContextPopup(const ACaption: string);

@@ -1,149 +1,118 @@
-=Introduction=
-
-CudaText is a cross-platform text editor, written in Lazarus.
-
-* Syntax highlighting for a lot of languages: [[#List_of_lexers|300+ lexers]]
+{| class="wikitable" style="border: 3px groove #78797a; font-size: 1.04em; font-weight: 600; margin: 0 auto 2em; text-align: center; width: 67vw;"
+ |+ CudaText documentation subpages
+ |- style="padding: 0.1em 1em;"
+ | style="background-color: #edeeef; border: none; width: 25%;" | [[CudaText API|API]]
+ | style="background-color: #d5d6d7; border: none; width: 25%;" | [[CudaText VS other editors|Comparisons with other text editors]]
+ | style="background-color: #edeeef; border: none; width: 25%;" | [[CudaText plugins|Plug-ins]]
+ | style="background-color: #d5d6d7; border: none; width: 25%;" | [[CudaText files formats|Supported file formats]]
+|}
+{| class="plainlinks" style="border: 3px ridge #00212b; border-collapse: collapse; border-spacing: 0; box-shadow: 6px 5px 6px 1px rgba(44, 91, 71, 0.80); font-variant: small-caps; font-weight: 600; margin: 2em auto; text-align: center; width: 60%;"
+ | style="background-color: #005d75; color: #cf7233; font-size: 1.275rem; line-height: 1.15; padding: 0.2em 1em; width: fit-content;" | External Links
+ | style="background-color: #fdf6e3; border: 2px solid #fff; color: #586e75; font-size: 1.25rem; line-height: 1.1; padding: 0 1em 0.2em; width: 20%;" | [https://cudatext.github.io/ project homepage]
+ | style="background-color: #eee8d5; border: 2px solid #fff; color: #657b83; font-size: 1.33rem; line-height: 1.1; padding: 0 1em 0.2em; width: 20%;" | [https://sourceforge.net/projects/cudatext/files/release/ ''Downloads'']
+ | style="background-color: #fdf6e3; border: 2px solid #fff; color: #586e75; font-size: 1.25rem; line-height: 1.1; padding: 0 1em 0.2em; width: 20%;" | [https://github.com/Alexey-T/CudaText github repository]
+ | style="background-color: #eee8d5; border: 2px solid #fff; color: #657b83; font-size: 1.225rem; font-weight: 500; line-height: 1.1; padding: 0 1em 0.2em; width: 25%;" | [https://github.com/Alexey-T ''other required lazarus packages'']
+|}
+'''CudaText''' is a cross-platform text editor, written in Object Pascal language using the Lazarus IDE, with a focus on performance and a broad featureset, which includes:
+{{Columns-start|num=3}}
+* Syntax highlighting for [[#List_of_lexers|300+ languages]]
 * Multi-carets, multi-selections
 * Code folding
-* Code-tree (list of functions/classes/etc, if lexer supports this)
+* Code-tree (list of functions/classes/etc., if lexer-supported)
 * Search/replace with regular expressions
-* Support for many encodings
+{{Column|num=3}}
 * Command palette
 * Configs in JSON files
 * Interface- and syntax-themes
+* Support for many encodings
 * Based on the [[ATSynEdit]] engine
-* Extendable by Python plugins, e.g. supports Language Server Protocol (LSP) via plugin
-
-Features for HTML/CSS coding:
-
+* Extensibility via Python plug-ins, e.g. <abbr title="Language Server Protocol">LSP</abbr> support
+{{Column|num=3}}
 * Built-in HTML and CSS auto-completion
-* HTML tags completion with Tab-key
-* HTML color code underlining
+* HTML tag completion with {{Keystroke|⭾ Tab}}
 * HTML tooltips on mouse-over
+* Hex color code underlining
 * Viewer for picture files (jpeg, png, gif, bmp, ico, webp)
+{{Columns-end}}
 
-Screenshot on Windows:
+== UI elements ==
+[[File:cudatext.png|thumb|right|480px|Screenshot on Windows]]
+[[File:cudatext-ui-elements.png|border|left|CudaText UI Elements]]
+<div style="clear: both;"></div>
+{{Columns-start}}
+; ed : Main editor field.
+; gut : Gutter, contains several columns for the active editor: bookmark icons, line numbers, folding icons, line-state marks. 
+; tabs : UI-tabs, to switch between different documents.
+; map : Mini-map (left side), which is shown here together with micro-map (thin bar on the right side).
+; tree : Code-tree, shows 'symbols' from the active document (functions, classes, structs etc) in the tree view.
+; filt : Filtering input field for the code-tree. Leaves only those items which contain entered text.
+{{Column}}
+; tb : Toolbar: buttons for some commands. Hidden by default. Configurable via plugin Config Toolbar.
+; sb : Sidebar. Vertical bar with buttons to activate different parts of the '''side panel''': Code-Tree (built-in), Project Manager (plugin), Snippet Panel (plugin) etc. Sidebar buttons on the bottom half activate parts of the '''bottom (horizontal) panel''': Console panel, Output panel etc. Plugins can add buttons to sidebar, for example the bottom black icon is the ExTerminal plugin.
+; cons : Console. One of the bottom panels. You can activate others (Output and Validate panels) via sidebar.
+; stat : Statusbar. Has several cells to show some current states.
+; bre : Breadcrumb bar. It is a plugin which needs to be installed in Addons Manager.
+{{Columns-end}}
 
-[[File:cudatext.png]]
+== Configuration ==
+The CudaText configuration system uses JSON files: call menu item "Options | Settings - default" and you'll see the default configuration values. Copy lines from this file to the file displayed by selecting the menu item "Options | Settings - user" and edit the values there to customize your user configuration &mdash; this is the actual configuration file, the default configuration is provided solely to use as a reference.
 
-=UI elements=
+Note: You can copy the JSON comments from the default file into your user configuration, too. In the user config, include useful lines inside the curly braces <code>{ }</code>, this is JSON formatting. Trailing commas on the final key:value pair before a closing brace (<code>}</code>) are allowed here.
+{{Columns-start|num=2}}
+; Default config : File "settings_default/default.json". Can be opened via menu item "Options / Settings-default". CudaText doesn't use this file, it's only for user reference. CudaText only opens this file by the command, and this file is parsed by plugin "Options Editor".
+; Hotkeys config : File "settings/keys.json". Special dialog allows to change all hotkeys in CudaText. You should not edit this config file. Dialog is called from "Help / Command palette" by F9. Dialog allows to set 1st and 2nd hotkeys for any command (except dynamically added commands to change lexer).
+; Plugin configs : Files "settings/cuda_*". Plugins store their settings in there, and files can be in any format (most used are JSON and INI). Good quality plugins provide menu items in "Options / Settings-plugins" to open their config file, or to show configuration dialog.
+; History files : Files "settings/history*.json". Don't edit them. Mentioned here because sometimes users need to delete their history files (dialog positions, recent files list etc, recent search strings etc).
+{{Column|num=2}}
+; User config : File "settings/user.json". Can be opened via menu item "Options / Settings-user".
+; User lexer-specific configs : Files "settings/lexer NNN.json". It is layer which is read after user config, when user activates some lexer. E.g. if you open C file, config file "lexer C.json" is read. You should not write "ui_" options to lexer specific configs (it may give weird effects on changing lexer), and some other global options.<ul><li>For (None) lexer, config file is named "lexer -.json".</li><li>For lite lexers, config files are named with suffix, e.g. "lexer XML ^.json"</li></ul>
+; Default lexer-specific configs : Files "settings_default/lexer NNN.json". It is layer which is read after user config, but before lexer specific config. CudaText provides several such files, with useful defaults.
+; Lexer-specific hotkeys configs : Files "settings/keys lexer NNN.json". Each such config contains hotkeys for one lexer only.
+{{Columns-end}}
 
-[[File:cudatext-ui-elements.png]]
-
-On the above picture you see UI elements:
-
-;ed: Main editor field.
-
-;gut: Gutter, contains several columns for the active editor: bookmark icons, line numbers, folding icons, line-state marks. 
-
-;tabs: UI-tabs, to switch between different documents.
-
-;map: Mini-map (left side), which is shown here together with micro-map (thin bar on the right side).
-
-;tree: Code-tree, shows 'symbols' from the active document (functions, classes, structs etc) in the tree view.
-
-;filt: Filtering input field for the code-tree. Leaves only those items which contain entered text.
-
-;tb: Toolbar: buttons for some commands. Hidden by default. Configurable via plugin Config Toolbar.
-
-;sb: Sidebar. Has upper and bottom parts, bottom part has buttons to control bottom panels. Plugins can add buttons here, e.g. bottom black button is ExTerminal plugin.
-
-;cons: Console. One of the bottom panels. You can activate others (Output and Validate panels) via sidebar.
-
-;stat: Statusbar. Has several cells to show some current states.
-
-;bre: Breadcrumb bar. It is a plugin which needs to be installed in Addons Manager.
-
-= Additional wiki pages =
-
-See also additional wiki pages:
-
-* [[CudaText VS other editors]]
-* [[CudaText plugins]]
-* [[CudaText API]]
-* [[CudaText files formats]]
-
-= Download =
-
-* Homepage: http://cudatext.github.io/
-* Downloads: https://sourceforge.net/projects/cudatext/files/release/
-* Main GitHub repository: https://github.com/Alexey-T/CudaText . Account https://github.com/Alexey-T contains other required Lazarus packages.
-
-= Configs =
-
-CudaText has configuration system in JSON files: call menu item "Options / Settings - default" and you'll see the '''default config'''. You should copy lines from this file to the file from "Options / Settings - user" and edit this '''user config''' - this is the actual config file. Default config is not read by CudaText, it's only to show possible options.
-
-You can copy JSON comments too. In the user config, include useful lines in the curly braces "{ }", this is JSON format. Trailing comma before "}" is allowed here.
-
-;'''User config''': File "settings/user.json". Can be opened via menu item "Options / Settings-user".
-;'''Default config''': File "settings_default/default.json". Can be opened via menu item "Options / Settings-default". CudaText doesn't use this file, it's only for user reference. CudaText only opens this file by the command, and this file is parsed by plugin "Options Editor".
-;'''Lexer specific configs''': Files "settings/lexer NNN.json". It is layer which is read after user config, when user activates some lexer. E.g. if you open C file, config file "lexer C.json" is read. You should not write "ui_" options to lexer specific configs (it may give weird effects on changing lexer), and some other global options.
-* For (None) lexer, config file is named "lexer -.json".
-* For lite lexers, config files are named with suffix, e.g. "lexer XML ^.json".
-;'''Default lexer specific configs''': Files "settings_default/lexer NNN.json". It is layer which is read after user config, but before lexer specific config. CudaText provides several such files, with useful defaults.
-;'''Hotkeys config''': File "settings/keys.json". Special dialog allows to change all hotkeys in CudaText. You should not edit this config file. Dialog is called from "Help / Command palette" by F9. Dialog allows to set 1st and 2nd hotkeys for any command (except dynamically added commands to change lexer).
-;'''Plugin configs''': Files "settings/cuda_*". Plugins store their settings in there, and files can be in any format (most used are JSON and INI). Good quality plugins provide menu items in "Options / Settings-plugins" to open their config file, or to show configuration dialog.
-;'''History files''': Files "settings/history*.json". Don't edit them. Mentioned here because sometimes users need to delete their history files (dialog positions, recent files list etc, recent search strings etc).
-
-== File types config ==
-
-Section "detect" in user.json. '''Specifies mapping from "file name" to "lexer name"'''.
-
-<syntaxhighlight lang="javascript">
-{
-  .....other settings
-  
+=== File types ===
+{| style="border-collapse: collapse; float: right; margin-left: 3em; margin-right: 3em; width: 20vw;"
+ |+ ''Example configuration blocks in'' <code>user.json</code>
+ | style="margin: 0; padding: 0" | <syntaxhighlight lang="json" style="margin: 0;">{
+  …
   "detect": {
     "*.mht": "HTML",
     "myconfig.conf": "Nginx",
     ".profile": "Bash script",
   },
-  
-  .....other settings
-}
-</syntaxhighlight>
-
-* Key name: File mask. Must be full name without path, or extension with leading "*." like "*.ext", or double extension like "*.ext1.ext2". More complex masks are not yet supported.
-* Key value: Lexer name. Value "-" means "don't activate lexer".
-
-Another method to specify this mapping is dialog "Lexer properties", in which you can add extension or name+extension to a lexer. But dialog is more limited: it saves option to the lexer file (data/lexlib/lexername.lcf), so setting will be reset on reinstalling lexer.
-
-== Detection by first file line ==
-
-Section "detect_line" in user.json. '''Allows to detect lexer by first line of file.'''
-
-<syntaxhighlight lang="javascript">
-{
-  .....other settings
-    
+  …
+}</syntaxhighlight>
+ |-
+ | style="margin: 0; padding: 0;" | <syntaxhighlight lang="json" style="margin: 0;">{
+  …
   "detect_line": {
     "<html.*": "HTML",
     "<!DOCTYPE.*": "HTML",
     "<\\?xml.*": "XML",
   },
+  …
+}</syntaxhighlight>
+|}
+The key:value pairs in the <code>"detect"</code> object in <code>user.json</code> specify mappings from "filename" to "lexer name".
+* Each key name represents a filename mask. It must match the full filename without path, or an extension with leading <code>*.</code> like <code>*.ext</code>, or a double extension like <code>*.ext1.ext2</code>. More complex masks are not yet supported.
+* Each key value must map to a lexer name. A value of <code>-</code> prevents all automatic lexer activation.
 
-  .....other settings
-}
-</syntaxhighlight>
+Another method to specify these mappings is the "Lexer properties" dialog where you can add extension or name+extension assignments to a specific lexer, however it has limitations; notably, since it saves the custom mappings to the lexer file itself (located in <code>data/lexlib/<var>lexername</var>.lcf</code>), those settings will be erased upon re-installation of the lexer or (if it is among the preinstalled lexers) updating to a new version of CudaText.
 
-* Key name: Reg-ex for the first file line. Case sensitive, but you can use (?i) modifier in reg-ex. Note that this is a reg-ex, using syntax similar to Perl reg-ex, so for example "#" char must be escaped with a backslash, and instead of file-mask "*" you must write ".*". Also note that current implemenation cannot handle forward slashes "/" good, so escape these slashes or use "." instead of them.
-* Key value: Lexer name. Value "-" means "don't activate lexer".
+=== Language detection by first line regex ===
+The key:value pairs in the <code>"detect_line"</code> object in <code>user.json</code> create rule definitions that trigger lexer activation based on the contents of the first line of a file.
+* Key name: A case-sensitive (you can use the <code>(?i)</code> modifier to disable case-sensitivity) regular expression evaluated using the first line of the file. Note that this is a regular expression using syntax similar to <abbr title="Perl-Compatible Regular Expression">PCRE</abbr>, so for example the <code>#</code> character must be escaped with a backslash, and instead of a simple <code>*</code> filemask, you must use <code>.*</code>. Also note that the current implementation cannot handle forward slashes "/" well, so escape them or use a <code>.</code> wildcard instead.
+* Key value: Lexer name. As noted earlier, a value of <code>-</code> means "don't activate a lexer".
 
 CudaText has several default values:
+* <syntaxhighlight lang="json" inline>"<\?xml .+": "XML"</syntaxhighlight>
+* <syntaxhighlight lang="json" inline>"\#!\/bin\/(ba)?sh": "Bash script"</syntaxhighlight>
+* <syntaxhighlight lang="json" inline>"\#!\/usr\/bin\/env (ba)?sh": "Bash script"</syntaxhighlight>
+* <syntaxhighlight lang="json" inline>"\#!\/usr\/bin\/env python\d*": "Python"</syntaxhighlight>
 
-* "<\?xml .+": "XML"
-* "\#!\/bin\/(ba)?sh": "Bash script"
-* "\#!\/usr\/bin\/env (ba)?sh": "Bash script"
-* "\#!\/usr\/bin\/env python\d*": "Python"
-
-== Grouping in Plugins menu ==
-
-Section "plugin_groups" in user.json. '''Configures grouping in the Plugins menu''', e.g. allows to put all "HTML ..." and "CSS ..." menu items into "Web" submenu. Example:
-
-<syntaxhighlight lang="javascript">
-{
-  ....other settings
-    
+=== Plugins menu custom groupings ===
+<syntaxhighlight lang="json" style="float: right; margin-left: 3em; margin-right: 3em; width: 20vw;">{
+  …
   "plugin_groups": {
     "CSS .+": "Web",
     "HTML .+": "Web",
@@ -151,240 +120,202 @@ Section "plugin_groups" in user.json. '''Configures grouping in the Plugins menu
     "Config.+": "Config",
     "Option.+": "Config",
   },
-  
-  ....other settings
-}
-</syntaxhighlight>
+  …
+}</syntaxhighlight>
+The "plugin_groups" object in <code>user.json</code> allows configuring custom groupings in the Plugins menu, e.g. putting all "HTML …" and "CSS …" menu items into a "Web" submenu. For example:
+* Key name: A regular expression for the top level of the menu name, e.g. if the menu name in a plugin's <code>install.inf</code> is <code>"CSS Utils\Misc\Action"</code>, the top level is <code>"CSS Utils"</code>.
+* Key value: The group name; the <code>\</code> character provides the ability make nested sub-menus.
 
-* Key name: regular expression for the first part of menu name. E.g. if menu name in install.inf is "CSS Utils\Misc\Action", then first part is "CSS Utils".
-* Key value: group name, it can be with "\" char to make several levels.
-
-==Location of folders 'settings', 'py', 'data'==
-
-CudaText distributions are portable, if the executable file is located near the "data" sub-folder. So the distribution for Windows is portable (executable "cudatext.exe" is located near "data"), and distibutions from .xz archives are portable too.
+=== Location of 'settings', 'py', 'data' folders ===
+CudaText distributions are portable, if the executable file is located near the "data" sub-folder. So the distribution for Windows is portable (executable "cudatext.exe" is located near "data"), and distributions from .xz archives are portable too.
 
 Not portable CudaText:
-
 * Linux: .deb package, which installs binary file to "usr/bin/cudatext" and several data folders to "/usr/share/cudatext".
 * macOS: package, which installs to the "Applications" system folder.
 * Haiku.
 
 For not portable usage, folder "settings" is created here:
-
 * Linux, *BSD, Solaris: ~/.config/cudatext, or $XDG_CONFIG_HOME/cudatext if this OS variable is set
 * macOS: ~/Library/Application Support/CudaText
 * Haiku: /boot/home/config/settings/cudatext
 
-= Command line parameters =
-
+== Command line flags/arguments ==
 Usage:
 
- cudatext [ key ... ] filename ...
+ cudatext [ flag … ] filename …
 
-Supported keys:
+Supported flags:
+{{Columns-start}}
+; <code>-h</code>/<code>--help</code> : Show command-line help and exit.
+; <code>-v</code>/<code>--version</code> : Show application version and exit.
+<dt id="tack-z"><code>-z=<var>value</var></code></dt>
+<dd id="tack-z">Open files from command-line in internal viewer, using given viewer mode:<ul>
+<li><code>-z=<var>text</var></code> &mdash; Text mode with variable line length, single-byte encodings</li>
+<li><code>-z=<var>binary</var></code> &mdash; Text mode with fixed line length, single-byte encodings</li>
+<li><code>-z=<var>hex</var></code> &mdash; Hexadecimal mode, single-byte encodings</li>
+<li><code>-z=<var>unicode</var></code> &mdash; Text mode with variable line length, UTF-16 LE/BE encodings</li>
+<li><code>-z=<var>uhex</var></code> &mdash; Hexadecimal mode, UTF-16 LE/BE encodings</li></ul></dd>
+; <code>-r</code> : Open files from command-line in read-only mode.
+; <code>-n</code> : Ignore option "ui_one_instance", and open new app window.
+; <code>-nsl</code> : Don't load last session on start.
+; <code>-nss</code> : Don't save last session on exit.
+; <code>-ns</code> : Shortcut to "-nsl" together with "-nss".
+; <code>-nh</code> : Don't load saved file history (caret, selection, scroll position, etc.).
+; <code>-nn</code> : Don't suggest to create new file if command-line filename is not found.
+{{Column}}
+; <code>-e=<var>value</var></code> : Open all files from command-line in given encoding.
+; <code>-el</code> : Show possible encoding names and exit.
+; <code>-s=<var>folder</var></code> : Specify full path of the "settings" folder, which contains all configuration files.
+; <code>-i</code> : Read the contents of stdin to a new document (Linux-only). It can be used in a Linux shell like: <syntaxhighlight lang="shell" inline>ls -l | cudatext -i</syntaxhighlight>
+; <code>-verbose</code> : Copy Python messages from Console panel to stdout (Linux-only).
+; <code>-id=<var>name</var></code> : Set a "group" for single-instance mode, so that an instance of "group1" will not interfere with instances of "group2" (Linux-only). The default id is <code>cudatext.0</code>.
+; <code>-w=<var>left|top|width|height</var></code> : Set the position/size of the main window. Up to 4 numbers can be specified, and any number can be skipped to keep its previous value.
+; <code>-c=<var>cuda_module,method_name</var></code> : Run the specified command plugin on startup. The command plugin is only applied to the currently active editor tab, so make sure you don't pass multiple filenames in the command line, and that the current session doesn't have multiple files. It is often used along with the <code>-n</code> and/or <code>-ns</code> flags. Need to learn the name of a "cuda_module"? It is the name of subfolder under the "py" folder. Likewise, to discover the "method_name" look for the value of the <code>method=</code> key in the <code>py/cuda_module/install.inf</code> file.
+; <code>-p=<var>cuda_module#param1#param2…</var></code> : Run the specified plugin, and pass to its "on_cli" event the specified param strings. The number of params must be expected by the plugin, e.g. the Differ plugin supports "on_cli" and expects two filenames. If params contain spaces, you must double-quote that entire command-line flag beginning with -p, as in <code>"-p=…"</code>.
+{{Columns-end}}
 
-* -h, --help - Show command-line help and exit.
-* -v, --version - Show application version and exit.
-* -z=value - Open files from command-line in internal viewer, using given viewer mode:
-** -z=text - Text mode with variable line length, single-byte encodings
-** -z=binary - Text mode with fixed line length, single-byte encodings
-** -z=hex - Hexadecimal mode, single-byte encodings
-** -z=unicode - Text mode with variable line length, UTF-16 LE/BE encodings
-** -z=uhex - Hexadecimal mode, UTF-16 LE/BE encodings
-* -r - Open files from command-line in read-only mode.
-* -e=value - Open all files from command-line in given encoding.
-* -el - Show possible encoding names and exit.
-* -n - Ignore option "ui_one_instance", and open new app window.
-* -nsl - Don't load last session on start.
-* -nss - Don't save last session on exit.
-* -ns - Shortcut to "-nsl" together with "-nss".
-* -nh - Don't load saved file history (caret, selection, scroll position, etc).
-* -nn - Don't suggest to create new file if command-line filename is not found.
-* -s=folder - Specify full path of the "settings" folder, which contains all configuration files.
-* -i - Read the contents of stdin to a new document. Unix only. It can be used in Unix shell like: "ls -l | cudatext -i".
-* -verbose - Copy Python messages from Console panel to stdout. Unix only.
-* -id=name - Set "group" for single-instance mode, so that program with one "group" will not interfere and find instances with another "group". Unix only. Default value is "cudatext.0".
-* -w=left,top,width,height - Set position/size of the main window. Up to 4 numbers should be specified, any number can be skipped to keep previous value.
-* -c=cuda_module,method_name - Run the specified command plugin on startup. It runs the command plugin for the currently active editor tab, so make sure you don't pass multiple filenames in the command line, and current session doesn't have multiple files. So, it is good to use together with "-n" and/or "-ns" params. How to know the "cuda_module"? It is the name of subfolder under "py" folder. How to know "method_name"? It is the value of "method=" key in the "py/cuda_module/install.inf" file.
-* -p=cuda_module#param1#param2... - Run the specified plugin, and pass to its "on_cli" event specified param strings. Count of params must be expected by plugin, e.g. Differ plugin supports "on_cli" and expects 2 filenames. If params contain spaces, you must double-quote the part of the command-line beginning with -p: "-p=......".
+'''Notes:'''
+* Filenames can be passed with numeric values specifying the line no. or line/column nos. for the initial placement of the caret with this syntax: <code>:<var>line</var></code> or <code>:<var>line</var>:<var>column</var></code>
+* Folders can be specified too, they will be opened as a "project" in the Project Manager.
+* Project files (<code>*.cuda-proj</code>) can be loaded from the command line.
+* Session files (<code>*.cuda-session</code>) can be loaded, too, even without the Session Manager plugin.
+* Non-existing filename can be specified, CudaText will ask if you wish to create the file.
+* File masks with the <code>*</code> wildcard are supported, e.g. <syntaxhighlight lang="shell" inline>cudatext test/t*.htm*</syntaxhighlight> will work.
+* Zip filenames can be specified, if they are zipped CudaText add-ons (zip file must contain "install.inf" in proper format).
 
-Notes:
+On macOS, you cannot run "cudatext" from the Terminal out of the box, but you can create an alias "cudatext" like this: <syntaxhighlight lang="shell" inline>alias cudatext=open\ /Applications/CudaText.app\ --args</syntaxhighlight>
 
-* Filenames can be with ":line" or ":line:column" suffix to place caret.
-* Folders can be specified too. They will be opened as a "project" in the Project Manager.
-* Project files (.cuda-proj) can be loaded.
-* Session files (.cuda-session) can be loaded, if Session Manager installed.
-* Non-existing file name can be specified, program will ask to create it.
-* File masks with "*" symbol are supported, e.g. command "cudatext test/t*.htm*" will work.
+== Mouse shortcuts ==
+{{Note|For macOS, use the {{Keystroke|Cmd ⌘}} key instead of the {{Keystroke|Ctrl}} key in all of the mouse shortcuts listed below.}}
+[[File:atsynedit-carets.gif|frame|right|Multi-carets in action]]
 
-On macOS you cannot run "cudatext" from Terminal, but you can open Terminal and create the alias for "cudatext".
+=== Multi-carets ===
+Multi-carets are several carets at once. All carets work together for many editing commands: caret moving, text typing, deleting, selection with keyboard.
+* {{Keystroke|Ctrl}}+Left click - Add/remove caret.
+* {{Keystroke|Ctrl}}+Middle click - Add/remove caret.
+* {{Keystroke|Ctrl}}+Left click and drag - Add caret with selection.
+* {{Keystroke|Ctrl}}+{{Keystroke|Shift}}+Left click - Add column of vertically-aligned carets, from the previous caret position to the clicked line.
 
- alias cudatext=open\ /Applications/CudaText.app\ --args
+<span id="Dragging" style="font-size: 1.17em; font-weight: 700;">Dragging</span>
+* {{Keystroke|⎇ Alt}}+drag - Make '''[[#Behaviour of column selection|column selection]]'''.
+* Drag on Gutter line numbers - Select text by entire lines.
+* Double left-click and immediately drag - Select text by words.
 
-= Mouse shortcuts =
+<span id="Clicks" style="font-size: 1.17em; font-weight: 700;">Clicks</span>
+* Double left-click - Select clicked word; this behavior can be customized as described in '''[[#How to select extra symbols by double-click|§ How to select extra symbols by double-click]]''' using the <code>nonword_chars</code> option.
+* Triple left-click - Select entire line (block is limited by newline characters).
+* Middle-click - Configurable by option <code>mouse_middle_click</code>, choices are:<br /><ol start="0" style="list-style-type: none; margin-left: 1.6em;"><li>'''(0)''' Nothing.</li><li>'''(1)''' Start "browser scrolling" mode: circle mark appears and mouse moving around this mark auto-scrolls text in 4 directions; speed of scrolling depends on distance of cursor from circle mark (any click to turn off).</li><li>'''(2)''' Paste from clipboard. This mimics Linux apps behaviour.</li><li>'''(3)''' Call "Go to definition" command.</li></ol>
+* Click on Back/Forward mouse buttons - These clicks do nothing by default, but they produce keyboard actions <samp>BrowserBack</samp>/<samp>BrowserForward</samp> (extended keys on Windows keyboards), and so they can be assigned in the hotkeys setup dialog ({{Keystroke|F9}} in the Command Palette). For example, {{Keystroke|Ctrl}}+Back produces {{Keystroke|Ctrl}}+<samp>BrowserBack</samp> keyboard action.
 
-Note for macOS: use Command key instead of Ctrl key, in all the mouse shortcuts listed here.
+<span id="Miscellaneous" style="font-size: 1.17em; font-weight: 700;">Miscellaneous</span>
+* {{Keystroke|⇧ Shift}}+{{Keystroke|⎇ Alt}}+Left-click - Make vertical (column) selection, from the first caret to the clicked position.
+* {{Keystroke|⇧ Shift}}+Scroll mouse wheel - Scroll text horizontally.
+* {{Keystroke|Ctrl}}+Scroll mouse wheel (with option <syntaxhighlight lang="json" inline>mouse_wheel_zoom: true</syntaxhighlight>) - Zoom text in/out.
+* {{Keystroke|Ctrl}}+Scroll mouse wheel (in the picture viewer) - Zoom picture in/out.
+* {{Keystroke|⇧ Shift}}+Left-click on gutter line number - Select lines, from first caret position to the index of clicked line.
 
-Multi-carets:
+<span id="Drag-drop of selected text block" style="font-size: 1.17em; font-weight: 700;">Drag-drop of selected text block</span>
+* Dragging inside single document: if {{Keystroke|Ctrl}} is pressed during the drop (you should press {{Keystroke|Ctrl}} after dragging is started), block will be copied (not moved) to the pointed position.
+* Dragging to a different document (see '''[[#Groups of tabs|§ Groups of tabs]]'''): if {{Keystroke|Ctrl}} is pressed during the drop, block will be moved (otherwise it will be copied).
 
-* Ctrl+click - Add/remove caret.
-* Ctrl+wheel click - Add/remove caret.
-* Ctrl+drag - Add caret with selection.
-* Ctrl+Shift+click - Add column of vertically aligned carets, from previous caret position to the clicked line.
+The command "Go to definition" can be called by different mouse shortcuts: by {{Keystroke|Ctrl}}+{{Keystroke|⎇ Alt}}+Left-click (default), {{Keystroke|⎇ Alt}}+Left-click, etc.; this depends on the <code>mouse_goto_definition</code> option.
 
-Dragging:
-
-* Alt+drag - Make column selection. See [[#Behaviour of column selection]].
-* drag on gutter's line numbers - Select text by entire lines.
-* double-click and immediately drag - Select text by words.
-
-Clicks:
-
-* double-click - Select clicked word. See the option "nonword_chars".
-* triple-click - Select entire line (block is limited by newline characters).
-
-* wheel click - Configurable by option "mouse_middle_click", choices are:
-** Start "browser scrolling" mode: circle mark appears and mouse moving around this mark auto-scrolls text in 4 directions; speed of scrolling depends on distance of cursor from circle mark (any click to turn off).
-** Paste from clipboard. This mimics Linux apps behaviour.
-** Call "Go to definition" command.
-** Nothing.
-
-* click on Extra1/Extra2 mouse buttons - these clicks do nothing by default, but they produce keyboard actions BrowserBack/BrowserForward (extended keys on Windows keyboards), and so they can be assigned in the hotkeys setup dialog (F9 in the Command Palette). For example, Ctrl+Extra1 produces Ctrl+BrowserBack keyboard action.
-
-Misc:
-
-* Shift+Alt+click - Make vertical (column) selection, from the first caret to the clicked position.
-* Shift+ scroll mouse wheel - Scroll text horizontally.
-* Ctrl+ scroll mouse wheel (with option "mouse_wheel_zoom":true) - Zoom text in/out.
-* Ctrl+ scroll mouse wheel (in the picture viewer) - Zoom picture in/out.
-* Shift+click on gutter line number - Select lines, from 1st caret position to the index of clicked line.
-
-Drag-drop of selected text block:
-
-* Dragging inside single document: if Ctrl is pressed during the drop (you should press Ctrl after dragging is started), block will be copied (not moved) to the pointed position.
-* Dragging to a different document (see [[#Groups of tabs]]): if Ctrl is pressed during the drop, block will be moved (otherwise it will be copied).
-
-Command "Go to definition" can be called by different mouse shortcuts: by Ctrl+Alt+click (default), Alt+click, etc, this depends on option "mouse_goto_definition".
-
-= Multi-carets =
-
-Multi-carets are several carets at once. All carets work together for many editing commands: caret moving, text typing, deleting, selection with keyboard. See "Mouse shortcuts", how to add/remove carets.
-
-Animation:
-
-[[File:atsynedit-carets.gif]]
-
-==Multi-selections==
-If you add caret with Ctrl+click, caret has no selection. If you add caret with Ctrl+drag, caret will have selection. You can add selections to carets later, by Shift+arrows, Shift+Home, Shift+End etc.
+== Multi-selections ==
+[[File:atsynedit-sel.gif|thumb|right|562px|Multi-selection feature]]
+If you place a caret with {{Keystroke|Ctrl}}+Left-click, the caret has no selection, whereas if you add a caret with {{Keystroke|Ctrl}}+Drag, the caret will have a selection. You can add selections to carets later, by {{Keystroke|⇧ Shift}}+{{Keystroke|◀}}/{{Keystroke|▲}}/{{Keystroke|▼}}/{{Keystroke|▶}}/{{Keystroke|Home}}/{{Keystroke|End}}, etc.
 
 Multi-selections are handled specially on copy/paste. If you copy selections, then move carets, then paste, paste will insert clipboard lines into carets: line-1 at caret-1, line-2 at caret-2 etc (only if carets count equals to lines count in clipboard, otherwise result is different).
 
-Animation shows this:
-
-[[File:atsynedit-sel.gif]]
-
-==Commands with selections==
-
-Clipboard commands work with multi-carets and multi-selections the special way.
-Also "Delete char" commands (Delete/Backspace keys) works the special way.
-
+=== Commands with selections ===
+Clipboard commands work with multi-carets and multi-selections the special way. Also "Delete char" commands ({{Keystroke|Del ⌦}}/{{Keystroke|⌫ Backspace}} keys) works the special way.
 {| class="wikitable"
-|-
-! Command
-! Behaviour, when there're no selections
-! Behaviour, when at least one selection present
-|-
-| Copy to clipboard
-| Copies entire lines, containing carets. Ignores multiple carets on a same line.
-| Copies only selections text. Ignores carets without selections.
-|-
-| Cut to clipboard
-| Similarly to "Copy" without selections.
-| Similarly to "Copy" with selections.
-|-
-| Paste from clipboard
-| colspan="2" | First, selections are cleared (deleted). Then, command pastes text into each caret position. Special case is when clipboard lines count equals to carets count - in this case, first line is inserted at first caret, second line is inserted at 2nd caret, etc.
-|-
-| Delete char left (Backspace) / Delete char right
-| Deletes one char at each caret position.
-| Deletes only selections text. Ignores carets without selections.
+ |-
+ ! scope="col" | Command
+ ! scope="col" | Behaviour with no selections
+ ! scope="col" | Behaviour with at least one selection
+ |-
+ | Copy to clipboard
+ | Copies entire lines, containing carets. Ignores multiple carets on a same line.
+ | Copies only selections text. Ignores carets without selections.
+ |-
+ | Cut to clipboard
+ | Similarly to "Copy" without selections.
+ | Similarly to "Copy" with selections.
+ |-
+ | Paste from clipboard
+ | colspan="2" | First, selections are cleared (deleted). Then, command pastes text into each caret position. Special case is when clipboard lines count equals to carets count - in this case, first line is inserted at first caret, second line is inserted at 2nd caret, etc.
+ |-
+ | Delete char left (Backspace) / Delete char right
+ | Deletes one char at each caret position.
+ | Deletes only selections text. Ignores carets without selections.
 |}
 
-= Lexers =
+== Lexers ==
+{| style="border-collapse: collapse; float: right;"
+ | style="vertical-align: top;" | [[File:cudatext-zip-install-prompt.png|thumb|right|Zip add-on package install prompt]]
+ | [[File:cudatext-lexer-library.png|thumb|right|320px|CudaText lexer library]]
+|}
+Syntax highlighters in CudaText are called ''lexers'', and are compatible with the SynWrite editor (which is frozen). The Lexer engine itself is borrowed from [http://www.econtrol.ru/syntedit.html EControl.ru], with modifications by Alexey Torgashin. The primary modification is the addition of support for folding code blocks in Python and other languages with indentation-based folding, while others include the porting from Delphi to Free Pascal along with various optimizations. EControl.ru's original lexer engine is closed source, but CudaText's version is open source, with the permission from EControl.ru.
+* The '''<samp>Lexer properties</samp>''' dialog provides access to the configurable properties of the current lexer (selected via the status bar). Those properties are: lexer name, file types, commenting style, token colors, font styles (bold/italic/underline) and token borders.
+* The '''<samp>Lexer library</samp>''' dialog shows a list of the installed lexers, which reside in the folder <code>data/lexlib</code>. This dialog has the following hotkeys:
+{| style="border-collapse: collapse; margin-left: 3.5em; width: 50vw;"
+ ! style="padding-bottom: 0.2em; width: 10%;" | {{Keystroke|Enter ⏎}}
+ | style="padding-bottom: 0.2em; width: 40%;" | same as "Configure" button
+ ! style="padding-bottom: 0.2em; width: 8%;" | {{Keystroke|Del ⌦}}
+ | style="padding-bottom: 0.2em; width: 42%;" | same as "Delete" button
+ |-
+ ! style="padding-top: 0.2em; width: 8%;" | {{Keystroke|⎋ Esc}}
+ | style="padding-top: 0.2em; width: 42%;" | Close the <samp>Lexer library</samp> dialog
+|}
 
-Syntax highlighters in CudaText are called lexers. Lexers are compatible with SynWrite editor (which is frozen). Lexer engine by EControl.ru is used, with modifications by Alexey Torgashin. Main modification is support for folding in Python and other syntaxes with indentation-based folding. Other modifications are porting from Delphi to Free Pascal and optimizations. EControl.ru's original lexer engine is closed source, but CudaText's version is open source, with the permission from EControl.ru.
-
-* Dialog "Lexer properties" allows to config props of current lexer (selected via statusbar panel in CudaText). You can config: lexer name, file types, commenting for language, colors of tokens, font-styles (bold/italic/underline), borders around tokens.
-* Dialog "Lexer library" shows list of installed lexers. Dialog shows lexers which are in the folder "data/lexlib".
-
-[[File:cudatext-lexer-library.png]]
-
-Dialog "Lexer library" has hotkeys:
-
-* Enter: same as "Configure" button
-* Delete: same as "Delete" button
-* Space: same as "Hide/Show" button
-* Esc: close dialog
-
-== Lexers on SourceForge ==
-
-Preinstalled lexer library has limited set of lexers.
-All other lexers are [https://sourceforge.net/projects/cudatext/files/addons/lexers/ hosted on CudaText.SF.net].
-You can download the [https://sourceforge.net/projects/cudatext/files/addons_all/ entire add-ons pack] too.
+=== Lexers on SourceForge ===
+CudaText installs with a limited set of lexers. All other lexers are available as [https://sourceforge.net/projects/cudatext/files/addons/lexers/ individual downloads hosted on cudatext.sf.net] or collectively as part of the [https://sourceforge.net/projects/cudatext/files/addons_all/ complete add-ons package], too.
 
 To install "lexer.*.zip" (or any add-on ZIP file) in CudaText: open this ZIP file via "File / Open", CudaText will suggest to install it.
 
-[[File:cudatext-zip-install-prompt.png]]
-
-== List of lexers ==
-
-The following lexers (counting only important ones) exist for SynWrite and CudaText.
-Most of them are located in the Addons Manager "Install" list.
-
-* 1C
-* ABAP
-* Abaqus Keywords
-* ABC Notation
-* ActionScript
-* Acu Cobol
-* Ada
-* Adept
-* Adobe Flash
-* Amazon Ion
-* AMPL
-* AngelScript
-* ANSYS APDL
-* ANTLR
-* Apache config
-* Apache Hive
-* Apache Pig
-* AppleScript
-* Arduino
-* AsciiDoc
-* Assembly
-* Assembly ARM
-* Assembly AVR
-* Assembly FASM
-* Assembly GNU
-* Assembly JWASM
-* Assembly MASM x86
-* Assembly MIPS
-* Assembly Motorola 68k
-* Assembly NASM x86
-* Assembly PowerPC
-* Assembly RISC-V
-* Assembly SHARC DSP
-* Assembly SPARC
-* Assembly STM32
-* Assembly Z80 SjASM
-* Assembly Z80 RGBDS
+=== List of lexers ===
+The following lexers (counting only important ones) exist for CudaText. They are available through the Addons Manager's '''<samp>Install…</samp>''' command.
+{{Columns-start|num=3|class=plainlinks}}
+* [https://1c-dn.com/1c_enterprise/1c_programming_language/ 1C:Enterprise script]
+* [https://learning.sap-press.com/abap <abbr title="Advanced Business Application Programming">ABAP</abbr>]
+* [https://www.3ds.com/products-services/simulia/products/abaqus/ Abaqus Keywords]
+* [https://abcnotation.com/ abc notation]
+* [https://help.adobe.com/en_US/as3/learn/index.html ActionScript]
+* [https://www.microfocus.com/en-us/products/acucobol-gt/overview ACUCOBOL]
+* [http://www.ada-auth.org/standards/rm12_w_tc1/html/RM-TTL.html Ada]
+* [https://www.met.reading.ac.uk/clouds/adept <abbr title="Automatic Differentiation using Expression Templates">Adept</abbr>]
+* [https://amazon-ion.github.io/ion-docs/ Amazon Ion]
+* [https://ampl.com/ <abbr title="A Mathematical Programming Language">AMPL</abbr>]
+* [https://www.angelcode.com/angelscript/ AngelScript]
+* [https://www.antlr.org/ <abbr title="ANother Tool for Language Recognition">ANTLR</abbr>]
+* [https://www.ansys.com/blog/what-is-apdl <abbr title="Ansys Parametric Design Language">APDL</abbr>]
+* [https://developer.apple.com/library/archive/documentation/AppleScript/Conceptual/AppleScriptLangGuide/introduction/ASLR_intro.html AppleScript]
+* [https://www.arduino.cc/reference/en/ Arduino]
+* [https://asciidoc.org/ AsciiDoc]
+* [[wikipedia:Assembly language|Assembly (ASM)]]:
+** [https://developer.arm.com/documentation/102438/0100/Learning-about-assembly-language ARM Assembly (armasm)]
+** [https://ww1.microchip.com/downloads/en/DeviceDoc/40001917A.pdf AVR Assembly (AVRASM2)]
+** [https://flatassembler.net/ Flat Assembly (fasm)]
+** [https://sourceware.org/binutils/docs-2.41/as.html GNU Assembly (as/gas)]
+** [https://www.japheth.de/JWasm/Manual.html JWasm Assembly]
+** [https://learn.microsoft.com/en-us/cpp/assembler/masm/microsoft-macro-assembler-reference?view=msvc-170 Microsoft Macro Assembler x86/x64 (MASM)]
+** [https://web.cse.ohio-state.edu/~crawfis.3/cse675-02/Slides/MIPS%20Instruction%20Set.pdf MIPS Assembly]
+** [http://68k.hax.com/ Motorola 68000 Assembly]
+** [https://www.nasm.us Netwide Assembly x86 (NASM)]
+** Assembly PowerPC
+** Assembly RISC-V
+** Assembly SHARC DSP
+** Assembly SPARC
+** Assembly STM32
+** Assembly Z80 SjASM
+** Assembly Z80 RGBDS
 * Astro
 * Asymptote
 * Autoconf M4
 * AutoHotkey
 * AutoIt
 * Automake
-* Automation Basic (B&R Automation Studio)
+* Automation Basic<br />(B&R Automation Studio)
 * AviSynth
 * AWK
 * Ballerina
@@ -426,6 +357,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Dockerfile
 * DOORS DXL
 * DotENV
+* EdgeQL-ESDL
 * Eiffel
 * Elixir
 * Elm
@@ -436,7 +368,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Factor
 * Falcon
 * Fish
-* FIX Message (Financial Information eXchange)
+* FIX Message<br />(Financial Information eXchange)
 * Forth
 * Fortran
 * FoxPro
@@ -446,6 +378,7 @@ Most of them are located in the Addons Manager "Install" list.
 * GAMS
 * GDScript
 * Gemini (web pages)
+{{Column|num=3}}
 * Gherkin (Cucumber; Behat)
 * GHS.com MULTI IDE (3 lexers)
 * GLSL
@@ -464,19 +397,21 @@ Most of them are located in the Addons Manager "Install" list.
 * Hare
 * Haskell
 * Haxe
-* HCL (HashiCorp configuration language)
+* HCL (HashiCorp Configuration Language)
+* [https://cwiki.apache.org/confluence/display/Hive/LanguageManual HiveQL (Apache Hive)]
 * HJSON
 * HLSL
 * HTML
-* HTML Diafan
-* HTML Django DTL
-* HTML Embedded JS
-* HTML Handlebars
-* HTML Laravel Blade
-* HTML Liquid
-* HTML Mustache
-* HTML Ruby-ERB
-* HTML Smarty
+** HTML Diafan
+** HTML Django DTL
+** HTML Embedded JS
+** HTML Handlebars
+** HTML Laravel Blade
+** HTML Liquid
+** HTML Mustache
+** HTML Ruby-ERB
+** HTML Smarty
+* [https://httpd.apache.org/docs/2.4/configuring.html httpd.conf (Apache HTTP Server)]
 * IDL files
 * IDL language
 * Informix 4GL
@@ -489,7 +424,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Java
 * Java Velocity
 * JavaScript
-* JavaScript Babel/ React JSX
+* JavaScript Babel/React JSX
 * JCL
 * Jinja2
 * JQ
@@ -516,6 +451,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Markdown
 * MATLAB
 * Maya
+* MDX (Markdown with JSX)
 * MediaWiki
 * Meson
 * Metafont
@@ -525,6 +461,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Modelica
 * Modula-2
 * Modula-3
+* Mojo
 * Monkey
 * MSVS Solution
 * MusicBrainz Picard Tagger Script
@@ -545,6 +482,7 @@ Most of them are located in the Addons Manager "Install" list.
 * OpenCL
 * OpenEdge
 * OpenSCAD
+{{Column|num=3}}
 * Org-mode
 * Papyrus (for Skyrim game)
 * Parser3
@@ -555,7 +493,9 @@ Most of them are located in the Addons Manager "Install" list.
 * Perl
 * PHP
 * PICL
+* [https://pig.apache.org/docs/r0.17.0/start.html#pl-statements Pig Latin (Apache Pig)]
 * Pike
+* Pixilang
 * PKGBUILD
 * PL/SQL
 * PlantUML
@@ -585,7 +525,7 @@ Most of them are located in the Addons Manager "Install" list.
 * Rexx
 * RON
 * RPG/IV
-* RTF (RichText)
+* RTF (Rich Text)
 * Ruby
 * Rust
 * Sass
@@ -608,14 +548,18 @@ Most of them are located in the Addons Manager "Install" list.
 * Standard ML
 * Stata
 * Strace
+* Structured Text (IEC 61131-3)
 * Stylus
 * Svelte
 * Swift
+* SystemTap
 * T-SQL
 * TAGML
 * TakeCommand
 * Tcl/Tk
 * Textile
+* ToDo (for plugin "Plain Tasks")
+* Todo.txt (format from todotxt.org)
 * TOML
 * Tree
 * Twig
@@ -646,35 +590,26 @@ Most of them are located in the Addons Manager "Install" list.
 * ZenScript (MineTweaker)
 * Zephir
 * Zig
+{{Columns-end}}
 
-== Lexers editing ==
+=== Lexers modification and creation ===
+[[File:cudatext-lexer-editor-dlg.png|thumb|right|480px|alt=SynWrite "Lexer properties" dialog|Screenshot of SynWrite's "Lexer properties" dialog]]
+You can modify/create lexers. But not in CudaText. Install [https://cudatext.github.io/synwrite/ SynWrite] (Windows program, which can be run under Wine on Linux). There, you have lexer editor dialog.
+* First, install your lexer to SynWrite. From the lexer's .zip package, copy files lexername.lcf and lexername.cuda-lexmap into SynWrite's "data\lexlib" folder.
+* In SynWrite, call "Lexer properties" dialog and edit all you need.
+* In SynWrite, install "ExLexer" addon. Then call "ExLexer" from the "Plugins" menu, choose needed lexer to export. You will have exported .zip file.
+* In CudaText open this .zip file, confirm installation of lexer.
 
-You can modify/create lexers. But not in CudaText. Install SynWrite (needed Wine on Linux) and in it you have lexer editor dialog.
-
-* In SynWrite call menu "Options / Addons manager / Install", install needed lexer from web. SynWrite lexer-library must have lexer before you edit it.
-* In SynWrite call "Lexer prop" dialog and edit all you need. Or make new lexer.
-* In SynWrite install "ExLexer" addon. Call it in "Plugins" menu, select needed lexer. You have exported zip file.
-* In CudaText open this zip file. Confirm installation of lexer.
-
-Screenshot of SynWrite dialog:
-
-[[File:cudatext-lexer-editor-dlg.png]]
-
-== Lexers editing - styles only ==
-
-For full-featured lexer editing, you must use SynWrite as described in the topic above.
-CudaText itself allows to edit only lexer styles, ie colors/ borders/ font-style (bold/italic/strikeout) of lexer styles. How to do that:
-
+=== Lexers editing - styles only ===
+For full-featured lexer editing, you must use SynWrite as described in the topic above. CudaText itself allows to edit only lexer styles, ie colors/ borders/ font-style (bold/italic/strikeout) of lexer styles. How to do that:
 * Activate some lexer for the current document.
 * Call CudaText menu "Options / Lexers / Lexer properties", dialog "Lexer properties" will open.
 * In the "Lexer properties" dialog, activate "Styles" tab, it has UI to customize styles in the active lexer. This UI is enabled only when lexer themes are Off, ie option "ui_lexer_themes":false.
 
 By default that option is On so UI is disabled. If you enable the UI, you can customize all lexer styles. Configuration will be saved to the files "settings/*.cuda-lexops". These files are auto-loaded by CudaText on start.
 
-== How to setup styles of hidden sublexer ==
-
+=== How to setup styles of hidden sublexer ===
 Some lexers are distributed in packages together with sub-lexer, and sub-lexer is hidden. Example: "HTML Django" with sub-lexer "HTML Django internal" (the second one isn't visible in the Lexers menu, so it's called hidden). Users, which have option "ui_lexer_themes" off, want to configure styles of all lexers. How to access hidden ones?
-
 * Open "Lexer library" dialog (menu: Options / Lexer / Lexer library).
 * In dialog, focus needed lexer, press "Configure" button
 * Dialog "Lexer properties" will open for selected lexer
@@ -682,12 +617,8 @@ Some lexers are distributed in packages together with sub-lexer, and sub-lexer i
 
 You can change visibility of lexer in SynWrite lexer editor (the checkbox will write line "Internal = True" at the end of .lcf file).
 
-==How to create distributive of new lexer==
-
-In SynWrite, you've created .lcf file in folder SynWrite/Data/LexLib.
-If you configured "Commenting" options, also file .cuda-lexmap is created.
-Now you need to create .zip installation of lexer, for both editors: SynWrite, CudaText.
-
+=== How to create distributive of new lexer ===
+In SynWrite, you've created .lcf file in folder SynWrite/Data/LexLib. If you configured "Commenting" options, also file .cuda-lexmap is created. Now you need to create .zip installation of lexer, for both editors: SynWrite, CudaText.
 * In lexer file, replace system colors to usual colors: replace "clWindowText" to "clBlack" (clWindowText may be light on CudaText on Linux); replace "clInfoText" and "clInfoBk" too.
 * In SynWrite, in Addon Manager, install plugin "ExLexer".
 * In SynWrite, run menu item "Plugins / ExLexer", to create .zip for your lexer.
@@ -697,22 +628,26 @@ Now you need to create .zip installation of lexer, for both editors: SynWrite, C
 * In prev step, you configured .cuda-lexmap file, in folder CudaText/data/lexlib. Copy this file to zip installation of your lexer.
 * Zip must contain: install.inf, .lcf file(s), .cuda-lexmap file per each lexer.
 
-==Lite lexers==
+=== Lite lexers ===
+Lite lexers are lexers is special format (internally it's JSON file), with very limited features. They don't support code-tree, folding, don't support multi-line comments, don't have rich highlighting (e.g. background highlight of string `12+$var` with additional highlight for 12 and $var inside). And they don't keep tokens information in memory (positions of found tokens in text). Lite lexers process only lines visible on screen, not all document lines. So, they work fast for any file size.
 
-Lite lexers are lexers is special format (internally it's JSON file), with very limited features. They don't support code-tree, folding, don't support multi-line comments, don't have rich highlighting (e.g. background highlight of string `12+$var` with additional highlight for 12 and $var inside). And they don't keep tokens information in memory (positions of found tokens in text). But they work very fast for any file size (note: lines longer than 4K chars are not parsed). Lite lexers process only lines visible on screen, not all document lines.
+Limitation: on lines longer than 4K chars, only first 4K chars have the syntax highlighting.
 
-Lite lexers have the " ^" suffix in name. Currently few lexers are preinstalled: XML ^, JSON ^, Log files ^, SQL ^. You can also choose them, from the usual lexers menu (they are visible by suffix).
+Lite lexers have the " ^" suffix in name. You can activate lite lexers from the usual lexers menu. Several lite lexers are preinstalled:
+* Ini files ^
+* JSON ^
+* Log files ^
+* SQL ^
+* XML ^
 
-Lite lexers are auto used for big files, if file size is bigger than option "ui_max_size_lexer". And for small files, if normal lexer not found (e.g. "SQL ^" is used also for small files, because "normal" SQL lexer is not preinstalled).
+Lite lexers are automatically activated for big files, when file size is bigger than option "ui_max_size_lexer". For example, for small sized JSON files normal "JSON" lexer is activated, but for huge JSON files - lite lexer "JSON ^" is automatically activated. Lite lexers are activated for small files, if normal lexer for file-extension is not found. For example, "SQL ^" is used for small SQL files, because "normal" SQL lexer is not preinstalled.
 
 How to change styles in lite lexers? For example, "Log files ^" uses styles "Id"/"Id2", and you want to change that? It's easy:
-
 * open the file: [CudaText]/data/lexliblite/Log files.cuda-litelexer
 * find and edit styles names
 * all possible styles are listed in the CudaText dialog "Options / Settings - theme - syntax..."
 
-==Differences in lexer support in CudaText/SynWrite==
-
+=== Differences in lexer support in CudaText/SynWrite ===
 * SynWrite supports "lexer grammar", while CudaText does not support "grammar" anymore.
 * SynWrite lexers need constructs like \x0D\x0A or \z (to catch any line-break: LF, CRLF, CR), while CudaText lexers are OK with simple \n (because internal buffer always has LF separator).
 * Some lexers need to find equal identifiers at begin/end of blocks: HTML, Bash, others. Bash lexer needs extended feature: to see NAME and 'NAME' and "NAME" as equal identifiers (word and quoted word). Only CudaText has this extended feature, not SynWrite.
@@ -728,8 +663,7 @@ How to change styles in lite lexers? For example, "Log files ^" uses styles "Id"
 ** Multiline border
 ** Options in groups "Syntax tree decoration", "Pen"
 
-==How to make editor re-scan entire document on editing==
-
+=== How to make editor re-scan entire document on editing ===
 The question makes sense, because when user types the block ending (e.g. "}" in C syntax), editor re-scans the document from the last changed line, and cannot detect that new block is just appeared.
 
 Find the lexer file, .lcf file in the folder data/lexlib. This file has the ending with "end", before "end" you see several lexer settings. You can add there:
@@ -744,28 +678,24 @@ Insert it near the end of file, like here:
 
 This tells lexer to re-scan entire document, on editing in any document place, when document size is less than 5000 chars.
 
-==How to support Spell Checker in lexer==
+=== How to support Spell Checker in lexer ===
+Plugin "Spell Checker" checks text, which is inside "strings" and "comments". So you must configure lexer and set there, which lexer elements (tokens) are "strings" and "comments". It is options in the "Lexer properties" dialog of SynWrite, in the "Commenting" tab of dialog. You can change these options without SynWrite too - they are in the "data/lexlib/LexerName.cuda-lexmap" file, both options are comma-separated names of lexer styles. 
 
-Plugin "Spell Checker" checks text, which is inside "strings" and "comments". So you must configure lexer and set there, which lexer elements (tokens) are "strings" and "comments". It is options in the "Lexer properties" dialog of SynWrite, in the "Commenting" tab of dialog. You can change these options without SynWrite too - they are in the data/lexlib/LexerName.cuda-lexmap file, both options are comma-separated names of lexer styles. 
-
-For example, let's see XML lexer. We must specify styles:
-
+For example, let's see XML lexer. Spell Checker must handle these styles:
 * style applied to XML/HTML comments
 * style applied to quoted strings in XML tags
 * style applied to usual text out of angle brackets
 
-If you see lexer config in SynWrite, you will find that we need styles "Comment", "Text" and "Tag val". So we specify in the file data/lexlib/XML.cuda-lexmap:
+If you see lexer config in SynWrite, you will find that we need styles "Comment", "Text" and "Tag val". So we specify in the file "data/lexlib/XML.cuda-lexmap":
 
+ [comments]
  styles_cmt=Comment
  styles_str=Text,Tag val
 
-==Fenced code-blocks==
-
-[[File:cudatext-fenced-blocks.png]]
-
-This is the feature of Markdown syntax: fenced code blocks.
-Blocks begin with:
-
+== Fenced code-blocks ==
+[[File:cudatext-fenced-blocks.png|thumb|right|Fenced code blocks]]
+[[File:cudatext-dynamic-hi.png|thumb|right|HTML/XML/Lua dynamic highlighting]]
+This is the feature of Markdown syntax: fenced code blocks. Blocks begin with:
 * start of line
 * optional spaces
 * 3 or more backtick-chars (also tilde-chars are allowed)
@@ -775,7 +705,6 @@ Blocks begin with:
 * end of line.
 
 Blocks end with:
-
 * start of line
 * optional spaces
 * 3 or more backtick-chars (also tilde-chars are allowed)
@@ -784,46 +713,35 @@ Blocks end with:
 
 The beginning and ending sequences are tokenized as single token.
 
-CudaText has the file which lists the supported lexer aliases: data/lexlib/aliases.ini.
-The file was compiled from [https://github.com/highlightjs/highlight.js/blob/main/SUPPORTED_LANGUAGES.md this document].
-Lexer alias will be resolved to the actual lexer name, only if that lexer is installed, otherwise
-you won't see an error, but block will not be syntax-highlighted.
+CudaText has the file which lists the supported lexer aliases: data/lexlib/aliases.ini. The file was compiled from [https://github.com/highlightjs/highlight.js/blob/main/SUPPORTED_LANGUAGES.md this document].
+Lexer alias will be resolved to the actual lexer name, only if that lexer is installed, otherwise you won't see an error, but block will not be syntax-highlighted.
 
 Note about SQL blocks. CudaText has lexer preinstalled, it's lite lexer "SQL ^", and it cannot be used here, because lite lexer cannot be called from normal lexer. But you can install (from "Plugins / Addons Manager") normal lexers: SQL; SQL White; SQL Blue; T-SQL (T-SQL has it's own alias "tsql"). Just install one of them, and it will be used for SQL blocks.
 
 '''Limitations:'''
-
 * Markdown standard tells that the beginning backticks must match the ending backticks, it must be the same amount of backticks. (And the same is valid for tildes.) This is currently not supported in CudaText.
 * Python Markdown description tells that the lexer alias may be replaced with the curly-brackets construct like "{ .lang }" or "{ .lang .foo .bar }" or even "{ #someid .lang .foo .bar }". This is currently not supported in CudaText.
 * The similar feature of the reStructuredText, as [https://pandemic-overview.readthedocs.io/en/latest/myGuides/reStructuredText-Source-Code.html documented here], is not supported. 
 
-==Dynamic highlight==
+== Dynamic highlight ==
+Dynamic highlight is controlled by option "dynamic_highlight" (this is new option since CudaText 1.193.3, before it was 2 options "lexer_dynamic_hilite"/"lexer_dynamic_hilite_max_lines"). Option allows the caret-dependant highlighting only in documents which have not more than N (option value) lines. This limitation is useful because dynamic highlight makes lexer parsing slower.
 
-Dynamic highlight is enabled by option '''"lexer_dynamic_hilite":true'''.
-Additional limitation option '''"lexer_dynamic_hilite_max_lines":2000''' allows the feature only in files which have not more than (option value) lines. This limitation is useful because dynamic highlight makes lexer parsing slower.
+Feature enables to highlight some 'tokens' dynamically (with default greenish background color), when caret changes position. It works only when lexer is configured to use this feature. These lexers in the CudaText distro use it:
+* HTML, PHP, XML: opening tag and corresponding closing tag are highlighted, when caret is over one of them
+* CSS: rule highlights {} block with different background color, when caret is inside that block
+* Bash: block edge tokens are highlighted when caret is inside the block: 'if'/'fi', 'case'/'esac', 'do'/'done'
+* Lua: block edge tokens are highlighted when caret is inside the block: 'function'/'end', 'if'/'end', 'do'/'end'
 
-Feature enables to highlight some lexer 'tokens' dynamically (with default greenish background color), when caret changes position. It is required that lexer utilizes this feature. These lexers in the CudaText distro utilize this feature:
-
-* HTML
-* PHP, because it copies lot of HTML configuration
-* XML
-* Lua
-* CSS: rule highlights {}-block with background color when caret is inside
-* JavaScript: rule highlights {} brackets when caret is inside (here it is the same as another feature: pair-bracket highlighting)
-
-Screenshot for HTML/XML/Lua:
-
-[[File:cudatext-dynamic-hi.png]]
-
+'''Examples:'''
 * On the HTML example editor, 2 fragments have dynamic highlighting (because of 2 multi-carets). First caret is placed inside tag 'h1' but before tag 'a'. Second caret is placed inside tag 'a'. So second caret enables dynamic highlight of angle brackets too, not only of a tag.
 * On the XML example editor, lexer highligts 'data' tag, surrounding the caret.
 * On the Lua example editor, lexer highlights 2 nested blocks, surrounding the caret: function/end and do/end.
 
-In old times, dynamic highlight was also utilized in Pascal lexer to highlight tokens begin/end when caret is inside begin/end block. Later Pascal lexer was simplified and setting was removed. Few other lexers from Addons Manager also utilize this feature.
+In the old times, dynamic highlight was also utilized in Pascal lexer to highlight tokens 'begin'/'end' when caret is inside the block. Later Pascal lexer was simplified and setting was removed. Few other lexers from Addons Manager also utilize this feature.
 
 It is possible to detect if some lexer utilizes this feature. Look inside LexerName.lcf file, find there "DynHighlight" parameter. Two typical configurations allow dynamic highlight:
 
-HTML, PHP, JavaScript, Lua:
+HTML, PHP, Lua:
 
       DynHighlight = dhBound
       HighlightPos = cpRange
@@ -833,46 +751,62 @@ CSS:
       DynHighlight = dhRange
       HighlightPos = cpRange
 
-=Folding=
-Folding is the feature allowing to collapse multi-line regions of code.
-Collapsed region shows the rectangle-like figure on the first line, and other block lines become hidden.
-Collapsed region can start from any column, but it consumes entire next lines.
-App shows special column in the "gutter" (vertical band with line numbers), with plus/minus icons - these icons collapse/uncollapse regions.
-Folding "rules" are configured in the lexer file.
+== Folding ==
+{| style="border-collapse: collapse; float: right;" 
+ | [[File:cudatext-folding-gutter-ctx-menu.png|thumb|right|Code folding context menu, accessed from the gutter]]
+|}
+"Folding" is the feature allowing to collapse (ie fold) multi-line blocks of code. Collapsed block usually shows the rectangle-like mark on the first line, and other block lines become fully hidden. Collapsed block can start from any column, but it consumes entire next lines. App shows special column in the "gutter" (vertical band with line numbers), with plus/minus icons - click on these icons collapses/uncollapses the corresponding block. Folding rules, about what blocks can be folded, are configured in the lexer file.
 
-To select an entire folded block, place the caret right before the beginning of the block, and press Shift+Down. Ie, make selection to beginning of the next ''unfolded'' line.
+There are several options to customize related functionality: to find them all, call menu item "Plugins / Options Editor Lite" and enter the dialog filter string "fold".
 
-There are several options to customize related functionality: call menu item "Plugins / Options Editor Lite" and enter the filter string "fold".
-
-Folded blocks can be rendered in few different ways, this is optional:
-
+Folded blocks can be shown in few different ways, see the option "fold_style":
 * rectangle-mark at the beginning of the range (maybe after some text in the line)
 * rectangle-mark after the end of the first line of the range
-* "− − −" dash line below the first line of the range
+* "− − −" dashed line below the first line of the range
 
-==Automatic folding of comments==
+Clicks on the first partially folded line:
+* Click on the rectangle-mark does not unfold the block, because double-click must be handled. Double-click on the rectangle-mark selects the entire block (even if it's folded and user cannot see the selection).
+* When option "fold_style" has value 0 to 2, clicking of the first partially folded line (out of rectangle-mark) unfolds the block. When "fold_style" has another value, click does not unfold the block, and user can mouse-select some part of the line.
 
-There is an option "auto_fold_comments" (default is 0 - it's turned off) which allows to automatically
-create folding ranges from N (or more) consecutive lines, which are all "syntax comments".
-This works for both line-comments and stream-comments, they can be even mixed
-(one comment after another, with any amount of blank lines in between,
-but not for several stream-comments on a single line).
+To select an entire folded block by keyboard, place the caret right before the beginning of the block, and press Shift+Down. Ie, make selection to the beginning of the next ''unfolded'' line.
 
-[[File:cudatext-fold-comments.png]]
+'''Gutter right-click menu'''
+
+Gutter's folding band supports right-click menu. It gives commands to fold/unfold all blocks which touch the right-clicked editor line. When it can be useful? For example, you have JSON file with line:
+
+ "data": [{
+
+Here you have outer block (square brackets) with inner block (curly brackets).
+Click on folding icon will fold the outer block. What if you want to fold the inner block? Right-click on gutter's folding band, and you will see the popup menu with menu items:
+
+ Line 6:    "data": [{
+ Line 6:    "data": [{
+
+Clicking the first item will fold/unfold the outer block, clicking the second item will fold/unfold the inner block.
+
+== Automatic folding of comments ==
+{| style="border-collapse: collapse; float: right;" 
+ | [[File:cudatext-fold-comments.png|thumb|right|x341px|Auto-folding of comments]]
+|}
+There is an option "auto_fold_comments" (default is 0 - it's turned off) which allows to automatically create folding ranges from N (or more) consecutive lines, which are all "syntax comments" and/or "syntax strings". This works for both line-comments and stream-comments, they can be even mixed (one comment after another without blank lines in between, but not for several stream-comments on a single line). This works for multi-line string literals and for single-line string literals (single-line literals can go one after another without symbols in between, which is rarely supported by languages, but it occurs sometimes).
 
 Previously, CudaText allowed something like this, via lexer configuration: all needed lexers must have
 special settings inside them, and this worked for 2+ lines, not for custom value.
 After the option "auto_fold_comments" appeared, all 3rd-party lexers should be stripped of those old settings.
 
-=Encodings=
+Which lexer literals are "comment"/"string"? This is setting of lexer, it is stored in the data/lexlib/*.cuda-lexmap file like this:
 
+ [comments]
+ styles_cmt=Comment,Comment doc
+ styles_str=Text,Tag string
+
+== Encodings ==
 You can change encoding of document by clicking on statusbar item, or by using menu "File / Encoding". Menu will give list of encodings. Menu gives 2 sub-menus:
-
 * "Reload as": Reload file in given encoding from disk.
 * "Convert to": Change encoding in memory only (this doesn't save the file).
 
 Possible encoding names for command-line usage:
-
+{{Columns-start|num=3}}
 * utf8
 * utf8_bom
 * utf16le
@@ -892,6 +826,7 @@ Possible encoding names for command-line usage:
 * cp1256
 * cp1257
 * cp1258
+{{Column|num=3}}
 * cp437
 * cp850
 * cp852
@@ -906,6 +841,7 @@ Possible encoding names for command-line usage:
 * big5
 * gb2312
 * euc-kr
+{{Column|num=3}}
 * iso-8859-1
 * iso-8859-2
 * iso-8859-3
@@ -922,19 +858,17 @@ Possible encoding names for command-line usage:
 * koi8r
 * koi8u
 * koi8ru
+{{Columns-end}}
 
-=Line ends=
-
+== Line ends ==
 All major types of line-ends are supported:
-
 * CR LF (usual for Windows)
 * LF (usual for Linux and Unix)
 * CR (usual for Mac OS 9, now almost not used)
 
-Mixed line-ends (CR with LF with CR LF) in one document are supported. Because of this feature, CudaText saves binary files to disk without corrupting them. To see mixed line-ends, use application option "unprinted_content", which can show text marks ("lf" etc) at line-ends.
+Mixed line-ends (LF with CR with CR LF) in one document are supported. Because of this feature, CudaText saves binary files to disk without corrupting them. To see mixed line-ends, use application option "unprinted_content", which can show text marks ("lf" etc) at line-ends.
 
 Commands:
-
 * To change line-ends for all lines in the current document, click statusbar cell for line-ends, menu will appear. You need to save file then. Changed line-ends can be undone via "Undo". Also 3 commands are available in the Command Palette.
 * To change line-ends for individial lines, use 3 commands in the Command Palette: "change line ends, for line(s) with caret: CR LF / LF / CR".
 
@@ -1073,8 +1007,8 @@ Auto-completion behaviour for this case is described in the
 
 = Code-Tree =
 
-Code-tree is treeview UI control which shows structure of classes/functions/etc, structure info from lexer (only if lexer supports this).
-To show code-tree, activate side-panel (default hotkey: F12). Many lexers support code-tree: most C-based, HTML, XML, CSS, JS etc. Example of tree for Pascal:
+Code-tree is treeview UI control which shows list of document's 'symbols': classes/functions/structs/etc, from the lexer (only if lexer supports this).
+To show code-tree, activate the side-panel (default hotkey: F12). Many lexers support code-tree: most C-based, HTML, XML, CSS, JS etc. Example of tree for Pascal:
 
 [[File:atsynedit_tree.png]]
 
@@ -1082,7 +1016,8 @@ To show code-tree, activate side-panel (default hotkey: F12). Many lexers suppor
 * Tree is filled after few seconds after file opening (search for options ui_tree* to change this pause).
 * When you move caret, tree shows tree node for caret position, after a pause (search for options ui_tree* to change this).
 
-Code-tree has the "filter" input field: when not empty, tree shows only items containing the filter string. Button X near the input - clears the filter. Shift+Enter press in the filter field - adds current filter string to the drop-down combobox history. Last entered filter strings are saved/restored to/from sessions.
+Code-tree has the "filter" input field: when not empty, code-tree shows only items containing the filter text. This field also supports filtering by few '''space-separated words'''.
+There is also '''Shift+Enter hotkey''' in the filter field: it adds current filter string to the drop-down combobox history. Last entered filter strings are saved/restored to/from sessions.
 
 Code-tree has the context menu with items:
 * "Fold all"
@@ -1217,6 +1152,7 @@ Find/Replace dialog has hotkeys, which work only when this dialog is focused. Ho
 * Ctrl+Alt+K: Mark all occurrences (with markers)
 * Ctrl+Alt+Q: Extract all RegEx matches
 * and hotkeys to toggle search/replace options (case sensitive, reg.ex., whole words etc)
+* additional not customizable hotkey Ctrl+Down: when input field (find-what or replace-with) is focused, hotkey copies the "find-what" text to "replace-with".
 
 [[File:cudatext-find-dlg.png]]
 
@@ -1224,18 +1160,18 @@ Toggle-buttons have hotkeys too. Hover mouse over them to see floating tooltips 
 
 Toggle-buttons, ie options, are:
 
-;Toggle-button ".*": Regular expressions (hotkey Alt+R).
-;Toggle-button "aA": Case sensitive search (hotkey Alt+C).
-;Toggle-button "w": Search for whole words only, ie both sides of found match must be "word boundaries" (hotkey Alt+W).
-;Toggle-button "O": Wrapped search: search from beginning after reaching the end (with forward search), and search from end after reaching the beginning (with backward search) (hotkey Alt+N).
-;Toggle-button "[..]": Search in selection only (hotkey Alt+X).
-;Toggle-button "+": Toggle multi-line mode for both dialog input fields. To add a newline in multi-line fields, press Ctrl+Enter. (hotkey Alt+M).
+;Toggle-button ".*": Use "regular expressions" engine.
+;Toggle-button "aA": Case sensitive search: "a" will be different from "A".
+;Toggle-button "w": Search for whole words only, ie both sides of found match must be "word boundaries".
+;Toggle-button "O": Wrapped search: search from beginning after reaching the end (with forward search), and search from end after reaching the beginning (with backward search).
+;Toggle-button "[..]": Search in selection only.
+;Toggle-button "+": Toggle multi-line mode for both dialog input fields. To add a newline in multi-line fields, press Ctrl+Enter.
 ;Toggle-button "*": Choose allowed syntax elements: Any / Only comments / Only strings / Only comments+strings / etc. This feature must be supported by lexer (and some lexers are limited, support only "comments" or only "strings" syntax elements). Syntax element is detected from left edge position of a found match.
 ;Toggle-button "Hi": Find and highlight all matches for the current search options. Matches are highlighted in the current editor, with the rounded borders, using the color of "SeparLine" syntax theme item. This highlight is updated on changing the "find what" text, so '''it is incremental search'''. Editor auto-scrolls to the first found match (pretty much like ST3 editor). The limitation of this feature: a highlighted match has the single font color for the entire match, so if a match lays over several syntax tokens (e.g. number, dot, normal word), the entire match will have the single font color anyway. This "Hi" button is disabled, when current document has too many lines, see the option "find_hi_max_lines".
 
 Toggle-buttons for "replace" mode:
 
-;Toggle-button "?!": Show confirmation on each replace (hotkey Alt+Y).
+;Toggle-button "?!": Show confirmation on each replace.
 ;Toggle-button "$0": "RegEx substitute for 'Replace with'". Activates "substitute" for replace-action. When option is off, the replate-with field is taken literally, without interpreting special constructs. When option is on, the replace-with field is processed for special constructs:
 * $0: Text of the whole found match
 * $1 ... $9: Text of the found RegEx group with the index 1...9
@@ -1284,7 +1220,7 @@ Action buttons in dialog:
 
 ;Button "Rep global": Performs replacement of all matches in all opened documents in all editor groups. After showing the additional confirmation.
 
-The state of dialog search options is saved to the history file, and is restored after app restart.
+The state of dialog search options is saved to the history file (settings/history.json), and is restored after app restart.
 
 ==Text searcher features==
 
@@ -1365,9 +1301,11 @@ Session file contains data:
 ** splitting to 2 editors: on/off, vertical/horizontal, percents of size
 ** column of vertical "margin" line, if it's not default
 * For each modified document: date of modification, full document text
-* Layout/sizes of side panel and bottom panel
-* Layout/sizes of editor groups
-* Index of active editor group and active tab in each group
+* Last input of "Go to" dialog for each ui-tab
+* Layout:
+** Layout/sizes of side panel and bottom panel
+** Layout/sizes of editor groups
+** Index of active editor group and active tab in each group
 
 Plugin "Session Manager" is present in Addon Manager, it gives commands to control sessions:
 open session file, save session, show list of recent sessions, etc.
@@ -1395,12 +1333,20 @@ Dialog lists documents from all tab-groups, with prefixes: "[3-1] /home/user/fil
 Alternative way is plugin CudaExt. Plugin gives the command "Choose tab to switch to". You need to assign hotkey Ctrl+Tab to this command (hotkey will be removed from built-in tab switcher). Plugin's dialog is richer than CudaText's dialog: it allows to switch to Console/Output/Validate panels, it allows to cancel the operation.
 
 * When plugin's switcher is called with pressed Ctrl-key, it shows the dialog. 
-* When plugin's swithcer is called without Ctrl-key pressed, it immediately switches to previous tab. 
+* When plugin's switcher is called without Ctrl-key pressed, it immediately switches to previous tab.
 
 [[File:cudatext-tab-switcher-cudaext.png]]
 
+Command Palette has several commands to switch current ui-tab:
+
+* "ui: switch tab, to next": If option "ui_tab_switcher_dialog" is true, command shows menu-like dialog with suggestion to activate recent tab (using visit history). If option is off, command just activates the next ui-tab ignoring the visit history.
+* "ui: switch tab, to previous": If option "ui_tab_switcher_dialog" is true, the same as above. If option is off, command just activates the previous ui-tab ignoring the visit history.
+* "ui: switch tab, simply to next": Activates the next ui-tab, ignoring the visit history. (It considers only visual order of ui-tabs).
+* "ui: switch tab, simply to previous": Like above but in reverse order.
+* "ui: switch tab, to recent": Activates the ui-tab previously activated in visit history. 
+
 =Minimap=
-Minimap is wide vertical bar near editor's right side (it can be shown on the left side too, by the option). To show it:
+Minimap is wide vertical bar near editor's right side (it can be shown on the left side too, by option). To show it:
 
 * Set the option "minimap_show" (show permamently)
 * Use menu item "View / Toggle minimap" (show temporary, for the current document only)
@@ -1409,6 +1355,8 @@ If you drag mouse over minimap, editor will scroll entirely from top to bottom, 
 Text in minimap is painted by pixels, not by font rendering. Minimap is scaled according to CudaText UI, but can be scaled separately too (option "minimap_scale"). Screenshot shows 2 windows with different minimap scale.
 
 [[File:cudatext-minimap.png]]
+
+CudaText UI-theme doesn't have separate color for minimap slider. CudaText calculates the color of slider (when slider is hovered by mouse): if text background color is light - slider color is darker by 5-10% (there is no option); if text background color is dark - slider color is lighter by 5-10%.
 
 =Micromap=
 Micromap is thin (about 12 pixels) vertical bar near editor's right side. It is not scrollable, it shows overview of entire document from top to bottom. To show it:
@@ -1549,37 +1497,57 @@ Line states help to see which lines were edited since the last opening of a file
 
 Screenshot shows 3 icon sets at once:
 
-* on the main toolbar
-* on the sidebar
-* on the Project Manager toolbar
+* on the main toolbar (horizontal)
+* on the sidebar (vertical)
+* on the Project Manager toolbar (horizontal, below "Project" text)
 
 [[File:cudatext_all_icons.png]]
 
-;Icons in the main toolbar: To change them:
+'''Icons on the main toolbar'''
+
+To change them:
 * (Optional) Install add-on(s) of kind "toolbar theme" (each add-on gives additional icon set or several sets).
 * Change option "ui_toolbar_theme" in user.json. Option value is some subfolder in data/toolbaricons.
 * Restart CudaText.
 
 Note that plugin "Options Editor" makes it easy - for options "ui_toolbar_theme"/"ui_sidebar_theme"/"ui_tree_theme" it shows the combobox dropdown, which is easy to change.
 
-;Icons in the sidebar (vertical band on the left): To change them:
+'''Icons on the sidebar'''
+
+To change them:
 * (Optional) Install add-on(s) of kind "sidebar theme".
 * Change option "ui_sidebar_theme" in user.json. Option value is some subfolder in data/sideicons.
 * Restart CudaText.
 
-;Icons in the Code-Tree panel: To change them:
-* Install add-on(s) of kind "codetreeicons" (each add-on gives additional icon set).
-* Change option "ui_tree_theme" in user.json. Option value is some subfolder in data/codetreeicons.
-* Restart CudaText.
+'''Icons on the Project Manager toolbar'''
 
-;Icons in the Project Manager toolbar: To change them:
+To change them:
 * (Optional) Install add-on(s) of kind "proj toolbar theme".
 * Change option in the dialog: "Options / Settings-plugins / Project Manager / Config".
 * Restart CudaText.
 
-;Icons in the Project Manager file list, and on UI-tab headers: (icons are shown on UI-tab headers by "Tab Icons" plugin). To change them:
+'''Icons in the Project Manager file list'''
+
+[[File:cudatext-project-icons.png]]
+
+To change them:
 * Install add-on(s) of kind "file type icons".
 * Change option in the dialog: "Options / Settings-plugins / Project Manager / Config".
+* Restart CudaText.
+
+'''Icons on UI-tab titles'''
+
+[[File:cudatext-tab-icons.png]]
+
+You must install plugin "Tab Icons" from Addons Manager. It will show icons on UI-tabs (only for known file types). Plugin also allows to set custom icons for UI-tabs. Use right-click menu over UI-tab, and menu item "Set tab icon...". This shows menu with predefined custom icons, shipped with "Tab Icons" plugin. You can add *.png 16x16 icons there too, folder is "(CudaText)/data/tabsicons" (create folder if needed).
+
+'''Icons in the Code-Tree panel'''
+
+[[File:atsynedit_tree.png]]
+
+To change them:
+* Install add-on(s) of kind "codetreeicons" (each add-on gives additional icon set).
+* Change option "ui_tree_theme" in user.json. Option value is some subfolder in data/codetreeicons.
 * Restart CudaText.
 
 =Toolbar=
@@ -1647,7 +1615,7 @@ An option exists to change the delay of messages in the statusbar.
 
 This is not used in the main statusbar, but plugin API allows to colorize statusbar cells (used by Vim Mode plugin), and to show icons there.
 
-=File viewer=
+=Text/Hex viewer=
 CudaText has internal file viewer, for files on unlimited size. Only visible portion of file is loaded into memory, so viewer is fast for all files. Viewer has several modes:
 
 * Text: 1-byte encoding, variable line length
@@ -1670,6 +1638,18 @@ Viewer allows to use "Go to" dialog. In the "Go to" dialog, you can enter "2000"
 In viewer mode, you can click statusbar fields:
 * Encoding field. You can change viewer encoding only in non-Unicode modes.
 * Mode field, to change view mode: Text, Binary, Hex, Unciode, Unicode/Hex.
+
+'''Q: How to open file in viewer?'''
+
+A1: If file is too big, CudaText suggests to use viewer automatically - see screenshot of the helper dialog above. If file is not too big, you can switch from the editor to viewer. You need the plugin CudaExt which gives the Command Palette command: '''"Cuda-Ext: File: Show in hex viewer"'''. After that, you can change viewer-mode via statusbar click: Text / Binary / Hex / etc. To switch back to the editor, use Command Palette command: '''"Cuda-Ext: File: Show in text editor"'''.
+
+A2: Start CudaText without any files, and call Command Palette item '''"file: open file, in text viewer"'''. It shows the Open File dialog and then loads file directly into viewer. Again, you can change viewer-mode via statusbar click: Text / Binary / Hex / etc.
+
+A3: Start CudaText from Terminal (console) like this:
+
+ cudatext -z=text FileName
+ cudatext -z=binary FileName
+ cudatext -z=hex FileName
 
 =Picture file viewer=
 CudaText has the emdedded picture file viewer. It's activated when you open a file with the picture file type, see the option "picture_types": BMP, PNG, JPEG, GIF, ICO (Windows icon), WEBP (general picture format), PSD (Photoshop image), TGA (Targa), CUR (Windows cursor).
@@ -2025,7 +2005,7 @@ You can make Pull-Request there, if needed.
 
 ;formatters: Sub-plugins for CudaFormatter plugin. Each supports one or several lexers and can reformat source code for these lexers. Examples: Python ReIndent, JS Sort Imports, AStyle Format.
 
-;tree helpers: Plugins which show Code-Tree structure for some lexer (useful if language is complex, and lexer cannot handle all language complexity).
+;tree helpers: Plugins which show Code-Tree structure and/or folding, for some lexers. For the following lexers tree-helpers are built-in (ie written in Pascal): Ini (lite lexer "Ini files ^"), Markdown, MediaWiki, reStructuredText, WikidPad, Textile. 
 
 ;snippets_ct: Collections of text fragments, for "Snippets" plugin (which is required to use snippets). See details in the [[CudaText_plugins#Snippets]].
 
@@ -2297,6 +2277,10 @@ There is [https://github.com/Alexey-T/CudaText_up Linux script CudaText_up] - it
 
 '''GTK2 error on ATSynEdit compiling regarding IME'''
 
+You may get this error:
+
+ atsynedit.pas(9067,9) Error: (5000) Identifier not found "IM_Context_Set_Cursor_Pos"
+
 To fix this error, edit the file atsynedit/atsynedit_package.lpk and remove this block there:
 <syntaxhighlight lang="xml">
       <Other>
@@ -2427,18 +2411,35 @@ Q1: After some typing, the caret get unaligned with the text. It sort of creeps 
 
 Q2: When I select text that is inside a string literal (for example), the beginning of the selection gets a space before it, shifting the selected text to the right. As I select more the text continues to squish around.
 
-A: That's the issue specific to (Linux) Qt5 version. It's fixable by the option "renderer_tweaks" (for Linux: "renderer_tweaks__linux"). Description of this option in the default config:
+A: That's the issue specific to (Linux) Qt5 version. It's fixable by the option "renderer_tweaks__linux", its default value is:
 
- Value is a string of several chars:
- if 'w' in value: Use simplified calculation of average character width.
-                  On Windows, 'w' is good.
-                  On macOS, 'w' is bad.
-                  On GTK2, 'w' is not needed.
-                  On Qt5, 'w' gives various results, it depends on Desktop Environment.
+  "renderer_tweaks__linux": "ws",
 
-All you need is to remove "w" char from the "renderer_tweaks__linux" value. In the user.json config:
+Description of this option in the default config:
 
-   "renderer_tweaks__linux": "",
+  //Value is a string of several chars:
+  //  if 'w' in value: Use simplified calculation of average character width.
+  //                   On Windows, 'w' is good.
+  //                   On macOS, 'w' is bad.
+  //                   On GTK2, 'w' is not needed.
+  //                   On Qt5, 'w' gives various results, it depends on Desktop Environment.
+  //  if 'o' in value: Calculate 'offsets' for individual characters, ie use slower API to render.
+  //                   On Windows, 'offsets' don't decrease rendering speed.
+  //                   On macOS, 'offsets' decrease (2x) rendering speed.
+  //                   On GTK2 and Qt5, 'offsets' decrease rendering speed.
+
+Try this:
+
+* Remove "w" char from this option, ie 
+
+  "renderer_tweaks__linux" : "s",
+
+* Add "o" char to this option, ie
+
+  "renderer_tweaks__linux" : "wso",
+
+Do it in the user.json config, of course.
+Then restart the editor.
 
 On macOS, changing the option "renreder_tweaks__mac" is usually not needed - default value works good. But in Qt5 version, CudaText cannot detect Desktop Environment settings, so default value is wrong sometimes.
 
@@ -2483,11 +2484,12 @@ In short:
 
 ==Unix: Program takes 25 seconds to start==
 
-Q: CudaText takes exactly 25 seconds to start-up. (In fact a few ms more than that).
+Q1: CudaText takes exactly 25 seconds to start-up. (In fact a few ms more than that).
 I am sure the problem is at my end, but cannot place it. It is waiting for something and is timing out.
 
-A: As expected, nothing to do with CudaText as such.
-Setting the following environment variable solves the issue:
+Q2: On Debian 12 with Mate desktop I got an empty window and it would have content only after I moved the mouse: even if I waited more then 3 minutes without moving the mouse or pressing a key, the content would appear just after moving the mouse. 
+
+A: Setting the following environment variable solves the issue:
 
  IBUS_USE_PORTAL="1"
 
@@ -2565,7 +2567,9 @@ Also note, that our application bundle is not digitally signed.
 So to run it (the first time you do it), you should right-click the application bundle, and choose "Open" menu item, and confirm that you trust the vendor.
 
 ==Can app save files to system directories?==
-Under Linux / *BSD / Solaris systems, CudaText can save files even to system write-protected folders. It runs "pkexec" program for this purpose, and "pkexec" shows GUI confirmation to get admin rights. "Pkexec" runs "/bin/cp" to copy file from temp folder to the write-protected folder.
+Under Linux OS (but not under *BSD/Solaris), CudaText can save files even to system write-protected folders. It runs "pkexec" program for this purpose, and "pkexec" shows GUI confirmation to get admin rights. "pkexec" runs "/bin/cp" to copy file from temp folder to the write-protected folder.
+
+For example, open some file from write-protected folder on Linux. CudaText detects file permissions, so it should open file in read-only mode. Then, from "Command Palette", call "toggle read-only mode". Then you can edit the file. Edit it and save it - CudaText will try to save it via "pkexec".
 
 ==How to select extra symbols by double-click==
 
@@ -2782,7 +2786,7 @@ Type the following command into your console window and hit Enter:
 
 You should see a confirmation message that indicates a successful registration of the DLL. Check the Explorer context menu to see if there is a CudaText menu item that has an icon. Right click for example a *.txt file and select "Open with CudaText" from the context menu.
 
-[[Category: CudaText]]
-[[Category: Applications written in Free Pascal]]
-[[Category: Applications created with Lazarus]]
-[[Category: Tools]]
+[[Category:CudaText| ]]
+[[Category:Applications written in Free Pascal]]
+[[Category:Applications created with Lazarus]]
+[[Category:Tools]]

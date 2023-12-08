@@ -173,8 +173,8 @@ begin
   begin
     CodeTreeFilterInput.Text:= SFilterText;
     CodeTreeFilter_OnChange(nil);
-    CodeTreeFilterInput.Items.Assign(F.CodetreeFilterHistory);
   end;
+  CodeTreeFilterInput.Items.Assign(F.CodetreeFilterHistory);
 
   //load lexer-specific config+keymap
   DoOps_LoadOptionsLexerSpecific(F, F.Ed1);
@@ -434,6 +434,21 @@ begin
 
     PopupTab.Popup;
   end;
+end;
+
+procedure TfmMain.DoOnTabDblClick(Sender: TObject; AIndex: integer);
+var
+  Frame: TEditorFrame;
+  Pages: TATPages;
+  D: TATTabData;
+begin
+  Pages:= (Sender as TATTabs).Parent as TATPages;
+  D:= Pages.Tabs.GetTabData(AIndex);
+  if D=nil then exit;
+  Frame:= D.TabObject as TEditorFrame;
+
+  if Frame.TabIsPreview then
+    Frame.TabIsPreview:= false;
 end;
 
 procedure TfmMain.mnuTabCloseAllAllClick(Sender: TObject);

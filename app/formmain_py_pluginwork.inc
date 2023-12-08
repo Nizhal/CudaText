@@ -9,6 +9,8 @@ begin
     'cuda_tree_markdown', //rewritten in Pascal
     'cuda_tree_mediawiki', //rewritten in Pascal
     'cuda_tree_rest', //rewritten in Pascal
+    'cuda_tree_wikidpad', //rewritten in Pascal
+    'cuda_tree_textile', //rewritten in Pascal
     'cuda_auto_copy', //replaced with built-in code
     'cuda_brackets_hilite': //replaced with built-in code
     begin
@@ -520,7 +522,7 @@ end;
 
 procedure TfmMain.MenuPluginClick(Sender: TObject);
 begin
-  DoPyCommand_ByPluginIndex((Sender as TComponent).Tag, cInvokeMenuMain);
+  DoPyCommand_ByPluginIndex((Sender as TComponent).Tag, TATCommandInvoke.MenuMain);
 end;
 
 

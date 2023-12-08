@@ -435,7 +435,7 @@ begin
   if Str=PyMenuId_Top then exit(fmMain.MainMenu.Items);
   if Str=PyMenuId_TopEdit then exit(fmMain.mnuEdit);
   if Str=PyMenuId_TopSel then exit(fmMain.mnuSel);
-  if Str=PyMenuId_TopSearch then exit(fmMain.mnuSr);
+  if Str=PyMenuId_TopSearch then exit(fmMain.mnuFind);
   if Str=PyMenuId_TopFile then exit(fmMain.mnuFile);
   if Str=PyMenuId_TopView then exit(fmMain.mnuView);
   if Str=PyMenuId_TopOptions then exit(fmMain.mnuOp);
@@ -986,7 +986,7 @@ begin
                 UiOps.FindIndentHorz,
                 UiOps.FindIndentVert,
                 false, //APlaceCaret
-                true //ADoUnfold
+                TATEditorActionIfFolded.Unfold //ADoUnfold
                 );
             end;
 
@@ -1141,7 +1141,7 @@ begin
               Point(NLenX, NLenY),
               TATMarkerTags.Init(NTag, 0),
               nil,
-              mmmShowInTextOnly,
+              TATMarkerMicromapMode.TextOnly,
               NLineLen
               );
             Ed.Update;
@@ -1922,7 +1922,7 @@ begin
       Ed:= PyHelper_EditorFromHandle(H);
       Str:= string(Ptr);
 
-      Ed.DoCommand(NCode, cInvokeAppAPI, UTF8Decode(Str));
+      Ed.DoCommand(NCode, TATCommandInvoke.AppAPI, UTF8Decode(Str));
 
       //many commands use timer, so immediate quit is not ok, app didn't finish command yet.
       //example of bug: plugin Differ uses ed.cmd(cmd_FileClose) and immediately after that it calls
@@ -2001,7 +2001,7 @@ begin
       'hint',
       PChar(string(BmItem^.Data.Hint)),
       'auto_del',
-      PyBool_FromLong(Ord(BmItem^.Data.AutoDelete=bmadDelete)),
+      PyBool_FromLong(Ord(BmItem^.Data.AutoDelete=TATBookmarkAutoDelete.Delete)),
       'auto_delx',
       Ord(BmItem^.Data.AutoDelete),
       'show_in_list',
@@ -2058,9 +2058,9 @@ begin
         NKind:= High(AppBookmarkSetup);
 
       if Bool(NAutoDelete) then
-        AutoDel:= bmadDelete
+        AutoDel:= TATBookmarkAutoDelete.Delete
       else
-        AutoDel:= bmadOption;
+        AutoDel:= TATBookmarkAutoDelete.ByOption;
 
       case NId of
         BOOKMARK_GET_PROP:
@@ -2924,7 +2924,8 @@ begin
               UiOps.FindIndentHorz,
               UiOps.FindIndentVert,
               true,
-              true);
+              TATEditorActionIfFolded.Unfold
+              );
             Result:= ReturnNone;
           end;
 
@@ -3209,7 +3210,7 @@ end;
 
 function PyHelper_GetCommandLog(Ed: TATSynEdit): PPyObject;
 var
-  Item: TATEditorCommandLogItem;
+  Item: TATCommandLogItem;
   NCount, i: integer;
 begin
   with AppPython.Engine do
@@ -3391,6 +3392,11 @@ begin
                 Result:= PyUnicodeFromString('');
             end
             else
+            if Ed.AdapterForHilite is TATLiteLexer then
+            begin
+              Result:= PyUnicodeFromString(TATLiteLexer(Ed.AdapterForHilite).LexerName+msgLiteLexerSuffix);
+            end
+            else
               Result:= PyUnicodeFromString('');
           end;
 
@@ -3493,9 +3499,9 @@ begin
         PROP_NEWLINE:
           begin
             case Ed.Strings.Endings of
-              cEndWin:
+              TATLineEnds.Windows:
                 Str:= 'crlf';
-              cEndMac:
+              TATLineEnds.Mac:
                 Str:= 'cr';
               else
                 Str:= 'lf';
@@ -3946,6 +3952,36 @@ begin
         PROP_RULER_TEXT:
           Result:= PyUnicodeFromString(Ed.OptRulerText);
 
+        PROP_CORNER_TEXT:
+          Result:= PyUnicodeFromString(Ed.OptCornerText);
+
+        PROP_CORNER_COLOR_FONT:
+          Result:= PyLong_FromLong(Ed.OptCornerColorFont);
+
+        PROP_CORNER_COLOR_BACK:
+          Result:= PyLong_FromLong(Ed.OptCornerColorBack);
+
+        PROP_CORNER_COLOR_BORDER:
+          Result:= PyLong_FromLong(Ed.OptCornerColorBorder);
+
+        PROP_CORNER2_TEXT:
+          Result:= PyUnicodeFromString(Ed.OptCorner2Text);
+
+        PROP_CORNER2_COLOR_FONT:
+          Result:= PyLong_FromLong(Ed.OptCorner2ColorFont);
+
+        PROP_CORNER2_COLOR_BACK:
+          Result:= PyLong_FromLong(Ed.OptCorner2ColorBack);
+
+        PROP_CORNER2_COLOR_BORDER:
+          Result:= PyLong_FromLong(Ed.OptCorner2ColorBorder);
+
+        PROP_BORDER_COLOR:
+          Result:= PyLong_FromLong(Ed.OptBorderColor);
+
+        PROP_BORDER_COLOR_WIDTH:
+          Result:= PyLong_FromLong(Ed.OptBorderWidthWithColor);
+
         PROP_V_MODE:
           begin
             if Assigned(F) and (F.FrameKind=efkBinaryViewer) then
@@ -4064,13 +4100,22 @@ begin
           Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagLineStates)].Visible:= ValueBool;
 
         PROP_GUTTER_NUM:
-          Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible:= ValueBool;
+          begin
+            Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.GutterNumbers);
+          end;
 
         PROP_GUTTER_FOLD:
-          Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible:= ValueBool;
+          begin
+            Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.GutterFolding);
+          end;
 
         PROP_GUTTER_BM:
-          Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagBookmarks)].Visible:= ValueBool;
+          begin
+            Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagBookmarks)].Visible:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.GutterBookmarks);
+          end;
 
         PROP_GUTTER_EMPTY:
           Ed.Gutter[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagEmpty)].Visible:= ValueBool;
@@ -4082,10 +4127,16 @@ begin
           end;
 
         PROP_WRAP:
-          Ed.OptWrapMode:= TATEditorWrapMode(ValueInt);
+          begin
+            Ed.OptWrapMode:= TATEditorWrapMode(ValueInt);
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.WordWrap);
+          end;
 
         PROP_RO:
-          Ed.ModeReadOnly:= ValueBool;
+          begin
+            Ed.ModeReadOnly:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.ReadOnly);
+          end;
 
         PROP_TAB_SPACES:
           begin
@@ -4123,7 +4174,10 @@ begin
           end;
 
         PROP_RULER:
-          Ed.OptRulerVisible:= ValueBool;
+          begin
+            Ed.OptRulerVisible:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.RulerVisible);
+          end;
 
         PROP_LEXER_FILE:
           begin
@@ -4266,17 +4320,17 @@ begin
         PROP_NEWLINE:
           begin
             if Str='lf' then
-              LineEnd:= cEndUnix
+              LineEnd:= TATLineEnds.Unix
             else
             if Str='crlf' then
-              LineEnd:= cEndWin
+              LineEnd:= TATLineEnds.Windows
             else
             if Str='cr' then
-              LineEnd:= cEndMac
+              LineEnd:= TATLineEnds.Mac
             else
-              LineEnd:= cEndNone;
+              LineEnd:= TATLineEnds.None;
 
-            if LineEnd<>cEndNone then
+            if LineEnd<>TATLineEnds.None then
             begin
               if Assigned(F) then
                 fmMain.UpdateFrameLineEnds(F, LineEnd)
@@ -4292,19 +4346,34 @@ begin
           Ed.TagString:= Str;
 
         PROP_UNPRINTED_SHOW:
-          Ed.OptUnprintedVisible:= ValueBool;
+          begin
+            Ed.OptUnprintedVisible:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.UnprintedVisible);
+          end;
 
         PROP_UNPRINTED_SPACES:
-          Ed.OptUnprintedSpaces:= ValueBool;
+          begin
+            Ed.OptUnprintedSpaces:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.UnprintedSpaces);
+          end;
 
         PROP_UNPRINTED_SPACES_TRAILING:
-          Ed.OptUnprintedSpacesTrailing:= ValueBool;
+          begin
+            Ed.OptUnprintedSpacesTrailing:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.UnprintedTrailingOnly);
+          end;
 
         PROP_UNPRINTED_ENDS:
-          Ed.OptUnprintedEnds:= ValueBool;
+          begin
+            Ed.OptUnprintedEnds:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.UnprintedEnds);
+          end;
 
         PROP_UNPRINTED_END_DETAILS:
-          Ed.OptUnprintedEndsDetails:= ValueBool;
+          begin
+            Ed.OptUnprintedEndsDetails:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.UnprintedEndDetails);
+          end;
 
         PROP_TAB_ICON:
           begin
@@ -4372,19 +4441,19 @@ begin
         PROP_CARET_VIEW:
           begin
             EditorCaretShapeFromPyTuple(Ed.CaretShapeNormal, Str);
-            Ed.IsCaretShapeChangedFromAPI:= true;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.CaretShapeNormal);
           end;
 
         PROP_CARET_VIEW_OVR:
           begin
             EditorCaretShapeFromPyTuple(Ed.CaretShapeOverwrite, Str);
-            Ed.IsCaretShapeChangedFromAPI:= true;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.CaretShapeOverwrite);
           end;
 
         PROP_CARET_VIEW_RO:
           begin
             EditorCaretShapeFromPyTuple(Ed.CaretShapeReadonly, Str);
-            Ed.IsCaretShapeChangedFromAPI:= true;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.CaretShapeReadonly);
           end;
 
         PROP_CARET_VIRTUAL:
@@ -4394,7 +4463,10 @@ begin
           Ed.OptCaretStopUnfocused:= ValueBool;
 
         PROP_MINIMAP:
-          Ed.OptMinimapVisible:= ValueBool;
+          begin
+            Ed.OptMinimapVisible:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.MinimapVisible);
+          end;
 
         PROP_MINIMAP_CHAR_WIDTH:
           Ed.OptMinimapCharWidth:= ValueInt;
@@ -4406,7 +4478,10 @@ begin
           Ed.OptMinimapCustomScale:= ValueInt;
 
         PROP_MICROMAP:
-          Ed.OptMicromapVisible:= ValueBool;
+          begin
+            Ed.OptMicromapVisible:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.MicromapVisible);
+          end;
 
         PROP_SCROLL_VERT:
           begin
@@ -4444,7 +4519,10 @@ begin
           Ed.OptScaleFont:= ValueInt;
 
         PROP_LAST_LINE_ON_TOP:
-          Ed.OptLastLineOnTop:= ValueBool;
+          begin
+            Ed.OptLastLineOnTop:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.LastLineOnTop);
+          end;
 
         PROP_FOCUSED:
           begin
@@ -4538,13 +4616,22 @@ begin
           end;
 
         PROP_SAVING_FORCE_FINAL_EOL:
-          Ed.OptSavingForceFinalEol:= ValueBool;
+          begin
+            Ed.OptSavingForceFinalEol:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.SavingForceFinalEol);
+          end;
 
         PROP_SAVING_TRIM_SPACES:
-          Ed.OptSavingTrimSpaces:= ValueBool;
+          begin
+            Ed.OptSavingTrimSpaces:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.SavingTrimSpaces);
+          end;
 
         PROP_SAVING_TRIM_FINAL_EMPTY_LINES:
-          Ed.OptSavingTrimFinalEmptyLines:= ValueBool;
+          begin
+            Ed.OptSavingTrimFinalEmptyLines:= ValueBool;
+            Include(Ed.ModifiedOptions, TATEditorModifiedOption.SavingTrimFinalEmptyLines);
+          end;
 
         PROP_FOLD_TOOLTIP_SHOW:
           Ed.OptFoldTooltipVisible:= ValueBool;
@@ -4627,6 +4714,36 @@ begin
         PROP_RULER_TEXT:
           Ed.OptRulerText:= Str;
 
+        PROP_CORNER_TEXT:
+          Ed.OptCornerText:= Str;
+
+        PROP_CORNER_COLOR_FONT:
+          Ed.OptCornerColorFont:= ValueInt;
+
+        PROP_CORNER_COLOR_BACK:
+          Ed.OptCornerColorBack:= ValueInt;
+
+        PROP_CORNER_COLOR_BORDER:
+          Ed.OptCornerColorBorder:= ValueInt;
+
+        PROP_CORNER2_TEXT:
+          Ed.OptCorner2Text:= Str;
+
+        PROP_CORNER2_COLOR_FONT:
+          Ed.OptCorner2ColorFont:= ValueInt;
+
+        PROP_CORNER2_COLOR_BACK:
+          Ed.OptCorner2ColorBack:= ValueInt;
+
+        PROP_CORNER2_COLOR_BORDER:
+          Ed.OptCorner2ColorBorder:= ValueInt;
+
+        PROP_BORDER_COLOR:
+          Ed.OptBorderColor:= ValueInt;
+
+        PROP_BORDER_COLOR_WIDTH:
+          Ed.OptBorderWidthWithColor:= ValueInt;
+
         PROP_V_MODE:
           begin
             if not Assigned(F) then exit(ReturnNone);
@@ -4689,7 +4806,7 @@ begin
             if F.FrameKind=efkBinaryViewer then
             begin
               F.Binary.TextWidth:= ValueInt;
-              F.Binary.Redraw();
+              F.Binary.Invalidate;
             end;
           end;
 
@@ -4699,7 +4816,7 @@ begin
             if F.FrameKind=efkBinaryViewer then
             begin
               F.Binary.TextWidthHex:= ValueInt;
-              F.Binary.Redraw();
+              F.Binary.Invalidate;
             end;
           end;
 
@@ -4709,7 +4826,7 @@ begin
             if F.FrameKind=efkBinaryViewer then
             begin
               F.Binary.TextWidthUHex:= ValueInt;
-              F.Binary.Redraw();
+              F.Binary.Invalidate;
             end;
           end;
 
@@ -4719,7 +4836,7 @@ begin
             if F.FrameKind=efkBinaryViewer then
             begin
               F.Binary.TextEncoding:= EncConvFindEncoding(Str);
-              F.Binary.Redraw();
+              F.Binary.Invalidate;
               fmMain.UpdateStatusbar;
             end;
           end;
@@ -5134,13 +5251,13 @@ begin
             Sep.Init(Str);
             Sep.GetItemStr(Str1);
             Sep.GetItemStr(Str2);
-            Sep.GetItemStr(Str3);
+            Sep.GetRest(Str3);
             if Str3<>'' then
               Params:= [AppVariant(Str3)]
             else
               Params:= [];
 
-            fmMain.DoPyCommand(Str1, Str2, Params, cInvokeAppAPI);
+            fmMain.DoPyCommand(Str1, Str2, Params, TATCommandInvoke.AppAPI);
             Result:= ReturnNone;
           end;
 
@@ -5390,7 +5507,9 @@ begin
         //-------------------
         APP_PROC_GET_LANG:
           begin
-            Result:= PyUnicodeFromString(UiOps.LangName);
+            Str:= UiOps.LangName;
+            Str:= Copy(Str, 1, 5); //trim suffix like '_4' in 'it_IT_4'
+            Result:= PyUnicodeFromString(Str);
           end;
 
         APP_PROC_GET_HOTKEY:
@@ -6205,6 +6324,56 @@ begin
       end;
   finally
     FreeAndNil(L);
+  end;
+end;
+
+function PyHelper_Folding_Enum(Ed: TATSynEdit; NeedY, NeedY2: integer): PPyObject; cdecl;
+var
+  ListRanges: TFPList;
+  Range: PATSynRange;
+  NLen, i: integer;
+begin
+  ListRanges:= TFPList.Create;
+  try
+    for i:= 0 to Ed.Fold.Count-1 do
+    begin
+      Range:= Ed.Fold.ItemPtr(i);
+      if (NeedY<0) or ((Range^.Y<=NeedY) and (Range^.Y2>=NeedY2)) then
+        ListRanges.Add(Range);
+    end;
+
+    with AppPython.Engine do
+      begin
+        NLen:= ListRanges.Count;
+        Result:= PyList_New(NLen);
+        if not Assigned(Result) then
+          raise EPythonError.Create(msgPythonListError);
+        for i:= 0 to NLen-1 do
+        begin
+          Range:= PATSynRange(ListRanges[i]);
+          PyList_SetItem(Result, i,
+            Py_BuildValue('{sisisisisOsOsOsL}',
+              string('x'),
+              Range^.X-1,
+              string('y'),
+              Range^.Y,
+              'x2',
+              Range^.X2-1,
+              'y2',
+              Range^.Y2,
+              'staple',
+              PyBool_FromLong(Ord(Range^.Staple)),
+              'folded',
+              PyBool_FromLong(Ord(Range^.Folded)),
+              'hint',
+              PyUnicodeFromString(Range^.Hint),
+              'tag',
+              Range^.Tag
+              ));
+        end;
+      end;
+  finally
+    FreeAndNil(ListRanges);
   end;
 end;
 
@@ -7662,7 +7831,7 @@ begin
         TREE_THEME:
           begin
             TreeContainer.Themed:= true;
-            DoApplyThemeToTreeview(TreeContainer.Tree, true, false);
+            ApplyThemeToTreeview(TreeContainer.Tree, true, false);
             Result:= ReturnNone;
           end;
 
@@ -7804,7 +7973,7 @@ begin
       begin
         Token:= An.PublicData.Tokens._GetItemPtr(iToken);
         TokenStr:= Adapter.GetTokenString(Token);
-        TokenKind:= atkOther;
+        TokenKind:= TATTokenKind.Other;
 
         if Assigned(Token^.Style) then
         begin
@@ -8227,9 +8396,10 @@ begin
               Ed.Gaps.DeleteForLineRange(Num1, Num1);
               if Ed.Gaps.Add(Num1, NSize, Bmp, Form, NTag, NColor) then
               begin
-                ////better to do always, to fix [v-scroll cannot reach end for many gaps at end]
+                ////better to set this prop always, to fix [v-scrollbar cannot reach end for many gaps at end]
                 //if Num1=Ed.Strings.Count-1 then
-                  Ed.OptLastLineOnTop:= true;
+                Ed.OptLastLineOnTop:= true;
+                Include(Ed.ModifiedOptions, TATEditorModifiedOption.LastLineOnTop);
 
                 //if added gap before 1st line, scroll editor upper
                 if Num1=-1 then
@@ -8615,7 +8785,7 @@ begin
             if Ed.AdapterForHilite is TATAdapterEControl then
             begin
               fmMain.InitImageListCodetree;
-              if not fmMain.RunTreeHelper(Frame, TreeContainer.Tree) then
+              if not fmMain.RunTreeHelper(Frame, TreeContainer.Tree, true, true) then
                 TATAdapterEControl(Ed.AdapterForHilite).TreeFill(TreeContainer.Tree, UiOps.TreeFillMaxTimeForAPI);
               Result:= ReturnTrue;
             end
@@ -8742,24 +8912,33 @@ end;
 function api_ed_folding(Self, Args: PPyObject): PPyObject; cdecl;
 var
   H: Int64;
-  Id, NItem, NX, NY, NY2, NStaple: integer;
+  Ed: TATSynEdit;
+  Id, NItem, NX, NY, NX2, NY2, NStaple: integer;
+  NTag: Int64;
   PtrText: PChar;
   StrText: string;
-  Ed: TATSynEdit;
   Ok: boolean;
 begin
   with AppPython.Engine do
-    if Bool(PyArg_ParseTuple(Args, 'Liiiiiis:folding', @H, @Id, @NItem, @NX, @NY, @NY2, @NStaple, @PtrText)) then
+    if Bool(PyArg_ParseTuple(Args, 'LiiiiiiisL:folding',
+            @H, @Id, @NItem, @NX, @NY, @NX2, @NY2, @NStaple, @PtrText, @NTag)) then
     begin
       Ed:= PyHelper_EditorFromHandle(H);
       StrText:= string(PtrText);
 
       case Id of
+        FOLDING_ENUM:
+          begin
+            Result:= PyHelper_Folding_Enum(Ed, NY, NY2);
+          end;
+
+        //deprecated in 2023.08
         FOLDING_GET_LIST:
           begin
             Result:= PyHelper_Folding_GetAll(Ed);
           end;
 
+        //deprecated in 2023.08
         FOLDING_GET_LIST_FILTERED:
           begin
             if NY<0 then
@@ -8804,9 +8983,9 @@ begin
             if Ed.Strings.IsIndexValid(NY) and Ed.Strings.IsIndexValid(NY2) and (NX>=0) then
             begin
               if Ed.Fold.IsIndexValid(NItem) then
-                Ed.Fold.Insert(NItem, NX+1, NY, NY2, Bool(NStaple), StrText)
+                Ed.Fold.Insert(NItem, NX+1, NY, NX2+1, NY2, Bool(NStaple), StrText, NTag)
               else
-                Ed.Fold.Add(NX+1, NY, NY2, Bool(NStaple), StrText);
+                Ed.Fold.Add(NX+1, NY, NX2+1, NY2, Bool(NStaple), StrText, NTag);
 
               Ed.Update(true);
               Result:= ReturnTrue;
@@ -8845,13 +9024,13 @@ begin
 
         FOLDING_FOLD_ALL:
           begin
-            Ed.DoCommand(cCommand_FoldAll, cInvokeAppAPI);
+            Ed.DoCommand(cCommand_FoldAll, TATCommandInvoke.AppAPI);
             Result:= ReturnNone;
           end;
 
         FOLDING_UNFOLD_ALL:
           begin
-            Ed.DoCommand(cCommand_UnfoldAll, cInvokeAppAPI);
+            Ed.DoCommand(cCommand_UnfoldAll, TATCommandInvoke.AppAPI);
             Result:= ReturnNone;
           end;
 
@@ -9099,7 +9278,7 @@ begin
 
         TOOLBAR_THEME:
           begin
-            DoApplyThemeToToolbar(FToolbar);
+            ApplyThemeToToolbar(FToolbar);
             FToolbar.Themed:= true;
             Result:= ReturnNone;
           end;

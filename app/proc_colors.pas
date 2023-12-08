@@ -8,6 +8,7 @@ Copyright (c) Alexey Torgashin
 unit proc_colors;
 
 {$mode objfpc}{$H+}
+{$ModeSwitch advancedrecords}
 
 interface
 
@@ -37,7 +38,6 @@ type
     apclEdUnprintBg,
     apclEdUnprintHexFont,
     apclEdMinimapBorder,
-    apclEdMinimapSelBg,
     apclEdMinimapTooltipBg,
     apclEdMinimapTooltipBorder,
     apclEdMicromapBg,
@@ -217,6 +217,8 @@ type
   TAppTheme = record
     Colors: array[TAppThemeColorId] of TAppThemeColor;
     Styles: array[TAppThemeStyleId] of TecSyntaxFormat;
+    //trailing styles (bold, italic, bold+italic, etc) must be synced with 'Id' style
+    procedure UpdateBoldAndItalicColors;
   end;
 
 var
@@ -230,7 +232,8 @@ procedure AppThemeLoadFromFile(const AFileName: string; var D: TAppTheme; IsThem
 procedure AppThemeSaveToFile(const AFileName: string; const D: TAppTheme; IsThemeUI: boolean);
 
 function GetAppColor(id: TAppThemeColorId): TColor;
-function GetAppStyle(id: TAppThemeStyleId): TecSyntaxFormat;
+function GetAppStyle(id: TAppThemeStyleId): TecSyntaxFormat; inline;
+function FindAppColorByName(const AName: string; ADefaultColor: TColor): TColor;
 
 implementation
 
@@ -308,11 +311,12 @@ begin
     begin
       for iStyle:= Low(iStyle) to apstLastStyle do
       begin
-        st:= d.Styles[iStyle];
+        st:= D.Styles[iStyle];
         if not Lexer_LoadStyleFromFile_JsonTheme(st, cfg, 'Lex_'+st.DisplayName) then
           MsgLogConsole(Format(msgErrorInTheme,
             [ExtractFileName(AFileName), 'Lex_'+st.DisplayName]));
       end;
+      D.UpdateBoldAndItalicColors;
     end;
   finally
     cfg.Free;
@@ -327,7 +331,7 @@ const
   nColorGutterFont = $909090;
   nColorArrow = $969696;
   nColorBorder = $b0b0b0;
-  nColorListBack = $c4b8b8;
+  nColorListBack = $b4d8a8;
   nColorListSelBack = $d0d0d0;
   nColorListSelBack2 = $f4f4f4;
 
@@ -357,7 +361,6 @@ begin
   SetColor(apclEdUnprintBg, $e0e0e0, 'EdUnprintBg', 'editor, unprinted chars, BG');
   SetColor(apclEdUnprintHexFont, clMedGray, 'EdUnprintHexFont', 'editor, special hex codes, font');
   SetColor(apclEdMinimapBorder, $b09090, 'EdMinimapBorder', 'editor, minimap, border');
-  SetColor(apclEdMinimapSelBg, $eeeeee, 'EdMinimapSelBg', 'editor, minimap, view BG');
   SetColor(apclEdMinimapTooltipBg, clMoneyGreen, 'EdMinimapTooltipBg', 'editor, minimap, tooltip BG');
   SetColor(apclEdMinimapTooltipBorder, clMedGray, 'EdMinimapTooltipBorder', 'editor, minimap, tooltip border');
   SetColor(apclEdMicromapBg, $e0e0e0, 'EdMicromapBg', 'editor, micromap, BG');
@@ -421,7 +424,7 @@ begin
   SetColor(apclTreeSelBg, nColorListSelBack, 'TreeSelBg', 'treeview, selected BG');
   SetColor(apclTreeSelBg2, nColorListSelBack2, 'TreeSelBg2', 'treeview, selected BG, not focused');
   SetColor(apclTreeSign, nColorGutterFont, 'TreeSign', 'treeview, folding sign');
-  SetColor(apclListBg, $d4ebd0, 'ListBg', 'listbox, BG');
+  SetColor(apclListBg, nColorListBack, 'ListBg', 'listbox, BG');
   SetColor(apclListSelBg, nColorListSelBack, 'ListSelBg', 'listbox, selected line BG');
   SetColor(apclListFont, nColorText, 'ListFont', 'listbox, font');
   SetColor(apclListSelFont, nColorText, 'ListSelFont', 'listbox, selected line font');
@@ -599,17 +602,32 @@ begin
     Result:= AppTheme.Colors[id].Color;
 end;
 
-function GetAppStyle(id: TAppThemeStyleId): TecSyntaxFormat;
-var
-  styleId: TecSyntaxFormat;
+function GetAppStyle(id: TAppThemeStyleId): TecSyntaxFormat; inline;
 begin
   Result:= AppTheme.Styles[id];
+end;
 
-  if id>=apstLastStyle then
-  begin
-    styleId:= AppTheme.Styles[apstId];
-    Result.Font.Color:= styleId.Font.Color;
-  end;
+procedure TAppTheme.UpdateBoldAndItalicColors;
+var
+  ColorOfId: TColor;
+  iStyle: TAppThemeStyleId;
+begin
+  ColorOfId:= Styles[apstId].Font.Color;
+  for iStyle:= Succ(apstLastStyle) to High(iStyle) do
+    Styles[iStyle].Font.Color:= ColorOfId;
+end;
+
+function FindAppColorByName(const AName: string; ADefaultColor: TColor): TColor;
+var
+  iColor: TAppThemeColorId;
+begin
+  Result:= ADefaultColor;
+  for iColor:= Low(iColor) to High(iColor) do
+    if SameText(AppTheme.Colors[iColor].Name, AName) then
+    begin
+      Result:= AppTheme.Colors[iColor].Color;
+      exit;
+    end;
 end;
 
 initialization

@@ -31,6 +31,7 @@ const
   cIconArrow = 7;
 var
   DataItem: TATTreeHelperRecord;
+  PrevHeaderIndex: integer = -1;
   St: TATStrings;
   S: UnicodeString;
   iLine, NFirst, NSymbol, NLen: integer;
@@ -54,12 +55,16 @@ begin
     begin
       DataItem.X1:= 0;
       DataItem.Y1:= iLine;
-      DataItem.X2:= NLen;
+      DataItem.X2:= 0;
       DataItem.Y2:= iLine;
       DataItem.Level:= 1;
       DataItem.Title:= S;
       DataItem.Icon:= cIconFolder;
       Data.Add(DataItem);
+
+      if PrevHeaderIndex>=0 then
+        Data._GetItemPtr(PrevHeaderIndex)^.Y2:= iLine-1;
+      PrevHeaderIndex:= Data.Count-1;
     end
     else
     begin
@@ -77,6 +82,9 @@ begin
       end;
     end;
   end;
+
+  if PrevHeaderIndex>=0 then
+    Data._GetItemPtr(PrevHeaderIndex)^.Y2:= St.Count-1;
 end;
 
 end.

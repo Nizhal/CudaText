@@ -58,7 +58,7 @@ type
     Code: integer;
     Tabs: TATTabs;
     TabIndex: integer;
-    Invoke: TATEditorCommandInvoke;
+    Invoke: TATCommandInvoke;
     EdAddress: pointer;
     EdIndex: integer;
   end;
@@ -269,6 +269,7 @@ type
     MaxFileSizeForLexer: integer;
     MaxFileSizeWithoutProgressForm: integer;
     MaxStatusbarMessages: integer;
+    MaxMaxStatusbarMessages: integer;
     MaxUndoSizeForSessionFile: integer;
 
     AutocompleteAcpFiles: boolean;
@@ -284,6 +285,7 @@ type
     AutocompleteClosingDelay: integer;
 
     HtmlBackgroundColorPair: array[boolean] of TColor;
+    CharMapFontIncreasing: integer;
 
     ListboxCentered: boolean;
     ListboxSizeX: integer;
@@ -309,6 +311,7 @@ type
     TabHeightInner: integer;
     TabSpacer: integer;
     TabSpaceBeforeText: integer;
+    TabSpaceAfterText: integer;
     TabPosition: integer;
     TabColorFull: boolean;
     TabFontScale: integer;
@@ -367,6 +370,8 @@ type
     FindHiAll_TagValue: Int64;
     //FindHiAll_MoveCaret: boolean;
     FindOccur_TagValue: Int64;
+    FindWrapAtEdge_Delay: integer;
+    FindWrapAtEdge_ThemeItem: string;
 
     AllowProgramUpdates: boolean;
     EscapeClose: boolean;
@@ -384,6 +389,7 @@ type
     ExportHtmlFontName: string;
     ExportHtmlFontSize: integer;
 
+    TreeFontScale: integer;
     TreeTheme: string;
     TreeAutoSync: boolean;
     TreeTimeFill: integer;
@@ -487,7 +493,8 @@ type
     HotkeyToggleConfirmRep,
     HotkeyToggleTokens,
     HotkeyToggleHiAll,
-    HotkeyTogglePresCase
+    HotkeyTogglePresCase,
+    HotkeyFindMenu
       : string;
   end;
 var
@@ -518,9 +525,6 @@ type
     OpFontLigatures: boolean;
     OpFlickerReducingPause: integer;
 
-    OpScrollAnimationSteps: integer;
-    OpScrollAnimationSleep: integer;
-
     OpScrollbarsNew: boolean;
     OpSpacingY: integer;
     OpTabSize: integer;
@@ -528,7 +532,6 @@ type
     OpTabSmart: boolean;
 
     OpMaxLineLenForBracketFinder: integer;
-    OpMaxLineLenToTokenize: integer;
 
     OpActiveBorderRaw: integer;
     OpActiveBorderInControls: boolean;
@@ -544,6 +547,7 @@ type
     OpAutocompleteAutoshowCharCount: integer;
     OpAutocompleteTriggerChars: string;
     OpAutocompleteCommitChars: string;
+    OpAutocompleteCommitOnEnter: boolean;
     OpAutocompleteCloseChars: string;
     OpAutocompleteAddOpeningBracket: boolean;
     OpAutocompleteUpDownAtEdge: integer;
@@ -645,6 +649,7 @@ type
     OpShowFullBackgroundSel: boolean;
     OpShowFullBackgroundSyntax: boolean;
     OpShowMouseSelFrame: boolean;
+    OpShowIndentLines: boolean;
     OpCopyLineIfNoSel: boolean;
     OpCutLineIfNoSel: boolean;
     OpCopyColumnAlignedBySpaces: boolean;
@@ -656,7 +661,6 @@ type
     OpCenteringWidth: integer;
     OpCenteringForDistractionFree: integer;
     OpScrollStyleHorz: integer;
-    OpLexerDynamicHiliteEnabled: boolean;
     OpLexerDynamicHiliteMaxLines: integer;
     OpLexerLineSeparators: boolean;
     OpZebra: integer;
@@ -761,6 +765,7 @@ function IsDefaultSession(const S: string): boolean;
 function IsDefaultSessionActive: boolean;
 
 function IsSetToOneInstance: boolean;
+function InitPyLibraryPath: string;
 
 function MsgBox(const AText: string; AFlags: Longint): integer;
 procedure MsgBadConfig(const fn, msg: string);
@@ -914,7 +919,6 @@ type
     cEventOnChangeSlow,
     cEventOnCaret,
     cEventOnCaretSlow,
-    cEventOnCaretLine,
     cEventOnScroll,
     cEventOnMouseStop,
     cEventOnClick,
@@ -977,7 +981,6 @@ const
     'on_change_slow',
     'on_caret',
     'on_caret_slow',
-    'on_caret_line',
     'on_scroll',
     'on_mouse_stop',
     'on_click',
@@ -1180,6 +1183,7 @@ const
 implementation
 
 uses
+  ATCanvasPrimitives,
   ATSynEdit_LineParts,
   ATSynEdit_Adapter_EControl,
   ec_syntax_format,
@@ -1272,12 +1276,12 @@ end;
 
 function InitPyLibraryPath: string;
 const
-  cMaxVersion = 12;
-  cMinVersionUnix = 5;
-  cMinVersionWindows = 4; //support Python 3.4 for WinXP
+  cMaxVersion = 12; //last supported is 3.12
+  cMinVersionUnix = 5; //first supported on Unix is 3.5
+  cMinVersionWindows = 4; //first supported on Windows is 3.4 (for WinXP)
 {$ifdef windows}
 var
-  N: integer;
+  N, NMaxVersion: integer;
   S, SFile: string;
 {$endif}
 {$ifdef darwin}
@@ -1285,13 +1289,23 @@ var
   N: integer;
   S: string;
 {$endif}
+{$ifdef unix}
+var
+  Dir: string;
+  FileInfo: TSearchRec;
+{$endif}
 begin
   Result:= '';
 
   {$ifdef windows}
+  //Windows XP? limit max Python version to 3.4
+  if (Win32MajorVersion=5) and (Win32MinorVersion=1) then
+    NMaxVersion:= 4
+  else
+    NMaxVersion:= cMaxVersion;
   //detect latest existing file python3x.dll in app folder
   S:= ExtractFilePath(Application.ExeName);
-  for N:= cMaxVersion downto cMinVersionWindows do
+  for N:= NMaxVersion downto cMinVersionWindows do
   begin
     SFile:= Format('python3%d.dll', [N]);
     //don't return full filename, this loads DLL with full filename and plugins cannot load
@@ -1328,15 +1342,21 @@ begin
   {$endif}
 
   {$ifdef haiku}
-    {$ifdef CPU64}
-    exit('/boot/system/develop/lib/libpython3.7m.so');
-    {$else}
-    exit('/boot/system/develop/lib/x86/libpython3.7m.so');
-    {$endif}
+  exit('libpython3.10.so.1.0');
   {$endif}
 
   {$ifdef unix}
-  exit('libpython3.so');
+  for Dir in [
+              '/usr/lib64',
+              '/usr/lib',
+              '/usr/lib/x86_64-linux-gnu'
+             ] do
+    if FindFirst(Dir+'/'+'libpython3.*.so', faAnyFile, FileInfo)=0 then
+    begin
+      Result:= Dir+'/'+FileInfo.Name;
+      FindClose(FileInfo);
+      exit;
+    end;
   {$endif}
 end;
 
@@ -1484,7 +1504,7 @@ begin
   if AppDir_Home<>'' then
     AppDir_Home:= IncludeTrailingPathDelimiter(AppDir_Home);
   OpDirLocal:= AppDir_Home+'Library/Application Support/CudaText';
-  CreateDirUTF8(OpDirLocal);
+  CreateDir(OpDirLocal);
 end;
 
 procedure InitDirs_Haiku;
@@ -1494,7 +1514,7 @@ begin
   AppDir_Home:= '/boot/home';
   HomeConfig:= AppDir_Home+'/config/settings';
   OpDirLocal:= HomeConfig+'/cudatext';
-  CreateDirUTF8(OpDirLocal);
+  CreateDir(OpDirLocal);
 end;
 
 procedure InitDirs_UnixCommon;
@@ -1535,7 +1555,7 @@ begin
         HomeConfig:= IncludeTrailingPathDelimiter(HomeConfig);
 
       OpDirLocal:= HomeConfig+'cudatext';
-      CreateDirUTF8(OpDirLocal);
+      CreateDir(OpDirLocal);
       //MsgStdout('CudaText starts not portable: '+OpDirLocal);
     end;
   end;
@@ -1569,10 +1589,14 @@ begin
   if AppDir_Settings='' then
     AppDir_Settings:= OpDirLocal+DirectorySeparator+'settings';
 
-  if not DirectoryExistsUTF8(AppDir_Settings) then
-    if not CreateDirUTF8(AppDir_Settings) then
+  if not DirectoryExists(AppDir_Settings) then
+    if not CreateDir(AppDir_Settings) then
     begin
-      MsgStdout(msgCannotCreateDir+' '+AppDir_Settings, true);
+      MsgStdout('Cannot create folder: '+AppDir_Settings, true);
+      MsgStdout('  Variable "HOME": '+GetEnvironmentVariable('HOME'));
+      MsgStdout('  Variable "XDG_CONFIG_HOME": '+GetEnvironmentVariable('XDG_CONFIG_HOME'));
+      MsgStdout('  OpDirLocal: '+OpDirLocal);
+      MsgStdout('  OpDirExe: '+OpDirExe);
       Halt;
     end;
 
@@ -1581,7 +1605,7 @@ begin
   {$ifdef linux}
   if OpDirLocal<>OpDirExe then
     if IsDistroUpdateNeeded then
-      if DirectoryExistsUTF8(OpDirPrecopy) then
+      if DirectoryExists(OpDirPrecopy) then
       begin
         RunCommand('cp', ['-R', '-u', '-t',
           OpDirLocal,
@@ -1595,7 +1619,7 @@ begin
   {$endif}
   {$ifdef darwin}
   if IsDistroUpdateNeeded then
-    if DirectoryExistsUTF8(OpDirPrecopy) then
+    if DirectoryExists(OpDirPrecopy) then
       //see rsync help. need options:
       // -u (update)
       // -r (recursive)
@@ -1608,6 +1632,10 @@ begin
 
   AppDir_Py:= OpDirLocal+DirectorySeparator+'py';
   AppDir_Data:= OpDirLocal+DirectorySeparator+'data';
+  {$ifdef haiku}
+  AppDir_Py:= '/boot/home/config/non-packaged/data/cudatext/py';
+  AppDir_Data:= '/boot/home/config/non-packaged/data/cudatext/data';
+  {$endif}
   AppDir_Lexers:= AppDir_Data+DirectorySeparator+'lexlib';
   AppDir_LexersLite:= AppDir_Data+DirectorySeparator+'lexliblite';
   AppDir_DataThemes:= AppDir_Data+DirectorySeparator+'themes';
@@ -1667,9 +1695,6 @@ begin
     OpFontLigatures:= true;
     OpFlickerReducingPause:= 0;
 
-    OpScrollAnimationSteps:= cInitScrollAnimationSteps;
-    OpScrollAnimationSleep:= cInitScrollAnimationSleep;
-
     OpScrollbarsNew:= true;
     OpSpacingY:= 1;
 
@@ -1677,7 +1702,6 @@ begin
     OpTabSpaces:= false;
     OpTabSmart:= false;
 
-    OpMaxLineLenToTokenize:= 4000;
     OpMaxLineLenForBracketFinder:= 1000;
 
     OpActiveBorderRaw:= 1;
@@ -1693,7 +1717,8 @@ begin
     OpAutoCloseBrackets:= '([{';
     OpAutocompleteAutoshowCharCount:= 0;
     OpAutocompleteTriggerChars:= '';
-    OpAutocompleteCommitChars:= ' ,;';
+    OpAutocompleteCommitChars:= ',;';
+    OpAutocompleteCommitOnEnter:= true;
     OpAutocompleteCloseChars:= '<>()[]{}=';
     OpAutocompleteAddOpeningBracket:= true;
     OpAutocompleteUpDownAtEdge:= 1; //cudWrap
@@ -1702,7 +1727,7 @@ begin
     OpUnderlineColorFiles:= '*';
     OpUnderlineColorSize:= 3;
     OpLinks:= true;
-    OpLinksRegex:= ATSynEdit.cUrlRegexInitial;
+    OpLinksRegex:= TATSynEdit.cUrlRegexInitial;
 
     OpGutterShow:= true;
     OpGutterFold:= true;
@@ -1713,7 +1738,7 @@ begin
     OpGutterIconSize:= 4;
 
     OpNumbersShow:= true;
-    OpNumbersStyle:= Ord(cNumbersAll);
+    OpNumbersStyle:= Ord(TATEditorNumbersStyle.All);
     OpNumbersForCarets:= false;
     OpNumbersCenter:= true;
 
@@ -1757,23 +1782,23 @@ begin
     OpWrapIndented:= true;
     OpWrapEnabledMaxLines:= 60*1000;
 
-    OpUndoLimit:= cInitUndoLimit;
+    OpUndoLimit:= TATSynEdit.cInitUndoLimit;
     OpUndoGrouped:= true;
     OpUndoAfterSave:= true;
-    OpUndoMaxCarets:= cInitUndoMaxCarets;
+    OpUndoMaxCarets:= TATSynEdit.cInitUndoMaxCarets;
     OpUndoIndentVert:= -5;
     OpUndoIndentHorz:= 10;
     OpUndoPause:= 300;
     OpUndoMouseClicks:= false;
 
-    OpCaretBlinkTime:= cInitCaretBlinkTime;
+    OpCaretBlinkTime:= TATSynEdit.cInitCaretBlinkTime;
     OpCaretBlinkEn:= true;
     OpCaretViewNormal:= '2,-100';
     OpCaretViewOverwrite:= '-100,-100';
     OpCaretViewReadonly:= '-100,2';
     OpCaretVirtual:= false;
     OpCaretMulti:= true;
-    OpCaretAfterPasteColumn:= Ord(cPasteCaretColumnRight);
+    OpCaretAfterPasteColumn:= Ord(TATEditorPasteCaret.ColumnRight);
     OpCaretsAddedToColumnSel:= true;
     OpCaretKeepVisibleOnScroll:= true;
     OpCaretsPrimitiveColumnSel:= true;
@@ -1785,10 +1810,11 @@ begin
     OpShowCurLineMinimal:= true;
     OpShowCurLineOnlyFocused:= false;
     OpShowCurCol:= false;
-    OpShowLastLineOnTop:= true;
+    OpShowLastLineOnTop:= false;
     OpShowFullBackgroundSel:= false;
     OpShowFullBackgroundSyntax:= true;
     OpShowMouseSelFrame:= true;
+    OpShowIndentLines:= true;
     OpCopyLineIfNoSel:= true;
     OpCutLineIfNoSel:= false;
     OpCopyColumnAlignedBySpaces:= true;
@@ -1800,8 +1826,7 @@ begin
     OpCenteringWidth:= 0;
     OpCenteringForDistractionFree:= 0;
     OpScrollStyleHorz:= 2; //hide, show, auto
-    OpLexerDynamicHiliteEnabled:= false;
-    OpLexerDynamicHiliteMaxLines:= 2000;
+    OpLexerDynamicHiliteMaxLines:= 4000;
     OpLexerLineSeparators:= false;
     OpZebra:= 0;
     OpZebraStep:= 2;
@@ -1814,7 +1839,7 @@ begin
     OpFoldIconForMinimalRangeHeight:= 0;
 
     OpIndentAuto:= true;
-    OpIndentAutoKind:= Ord(cIndentAsPrevLine);
+    OpIndentAutoKind:= Ord(TATEditorAutoIndentKind.AsPrevLine);
     OpIndentSize:= 0;
     OpIndentAutoRule:= '';
     OpUnIndentKeepsAlign:= false;
@@ -1823,7 +1848,7 @@ begin
     OpMouseGotoDefinition:= 'ca';
     OpMouse2ClickDragSelectsWords:= true;
     OpMouseDragDrop:= true;
-    OpMouseMiddleClickAction:= Ord(TATEditorMiddleClickAction.mcaScrolling);
+    OpMouseMiddleClickAction:= Ord(TATEditorMiddleClickAction.Scrolling);
     OpMouseRightClickMovesCaret:= false;
     OpMouseEnableColumnSelection:= true;
     OpMouseHideCursorOnType:= false;
@@ -1841,7 +1866,7 @@ begin
     OpKeyHomeEndNavigateWrapped:= true;
     OpKeyEndToNonSpace:= true;
     OpKeyPageKeepsRelativePos:= true;
-    OpKeyPageUpDownSize:= Ord(cPageSizeFullMinus1);
+    OpKeyPageUpDownSize:= Ord(TATEditorPageDownSize.FullMinus1);
     OpKeyUpDownKeepColumn:= true;
     OpKeyUpDownNavigateWrapped:= true;
     OpKeyUpDownAllowToEdge:= false;
@@ -1849,7 +1874,7 @@ begin
     OpKeyLeftRightSwapSel:= true;
     OpKeyLeftRightSwapSelAndSelect:= false;
 
-    OpBracketHilite:= false;
+    OpBracketHilite:= true;
     OpBracketSymbols:= '()[]{}';
     OpBracketDistance:= 150;
   end;
@@ -1890,8 +1915,8 @@ begin
     VarFontName:= 'default';
     VarFontSize:= 9;
 
-    OutputFontName:= VarFontName;
-    OutputFontSize:= VarFontSize;
+    OutputFontName:= EditorOps.OpFontName;
+    OutputFontSize:= EditorOps.OpFontSize;
 
     DoubleBuffered:= IsDoubleBufferedNeeded;
 
@@ -1940,6 +1965,7 @@ begin
 
     HtmlBackgroundColorPair[false]:= $F0F0F0;
     HtmlBackgroundColorPair[true]:= $101010;
+    CharMapFontIncreasing:= 150;
 
     PictureTypes:= 'bmp,png,jpg,jpeg,gif,ico,webp,psd,tga,cur';
 
@@ -1948,6 +1974,7 @@ begin
     MaxFileSizeForLexer:= 2;
     MaxFileSizeWithoutProgressForm:= 10*1024*1024;
     MaxStatusbarMessages:= 35; //Linux gtk2 shows maximal ~38 lines in tooltip
+    MaxMaxStatusbarMessages:= 35;
     MaxUndoSizeForSessionFile:= 1000000;
 
     ListboxCentered:= true;
@@ -1974,6 +2001,7 @@ begin
     TabHeightInner:= TabHeight-1;
     TabSpacer:= 2;
     TabSpaceBeforeText:= 6;
+    TabSpaceAfterText:= 6;
     TabPosition:= 0;
     TabColorFull:= false;
     TabFontScale:= 100;
@@ -1987,7 +2015,7 @@ begin
     TabRecentOnClose:= false;
     TabButtonLayout:= '<>,v';
     TabPreviewFontStyle:= 'iu';
-    TabSwitcherDialog:= true;
+    TabSwitcherDialog:= false;
 
     MaxHistoryEdits:= 20;
     MaxHistoryMenu:= 10;
@@ -2031,6 +2059,8 @@ begin
     FindHiAll_MaxLines:= 1000;
     FindHiAll_TagValue:= 99; //GET_UNIQUE_TAG starts with 120
     FindOccur_TagValue:= 98;
+    FindWrapAtEdge_Delay:= 350;
+    FindWrapAtEdge_ThemeItem:= ''; //'EdMarkedRangeBg';
 
     AllowProgramUpdates:= true;
     EscapeClose:= false;
@@ -2048,6 +2078,7 @@ begin
     ExportHtmlFontSize:= 12;
     ExportHtmlFontName:= '';
 
+    TreeFontScale:= 100;
     TreeAutoSync:= true;
     TreeTimeFill:= 2000;
     //TreeTimeCaret:= 300;
@@ -2059,13 +2090,13 @@ begin
     TreeFillMaxTime:= 1000;
     TreeFillMaxTimeForAPI:= 6*1000;
 
-    PyLibrary:= InitPyLibraryPath;
+    PyLibrary:= '';
     PyCaretSlow:= 600;
     PyChangeSlow:= 2000;
     PyOutputCopyToStdout:= false;
 
     MaxLineLenForEditingKeepingLexer:= 2000;
-    MaxSizeForSession:= 50*1024*1024;
+    MaxSizeForSession:= 50*1000*1000;
     MaxLinesForMicromapPaint:= 300*1024;
 
     InfoAboutOptionsEditor:= true;
@@ -2172,6 +2203,7 @@ begin
     HotkeyToggleTokens:= '';
     HotkeyToggleHiAll:= '';
     HotkeyTogglePresCase:= '';
+    HotkeyFindMenu:= 'Ctrl+Alt+D';
   end;
 end;
 
@@ -2505,7 +2537,7 @@ end;
 
 function AppListboxItemHeight(AScale, ADoubleHeight: boolean): integer;
 begin
-  Result:= UiOps.VarFontSize * 18 div 10 +2;
+  Result:= CanvasFontSizeToPixels(UiOps.VarFontSize);
 
   {$ifdef windows}
   Result:= Result * Screen.PixelsPerInch div 96;
@@ -3669,15 +3701,20 @@ end;
 
 procedure AppDiskCheckFreeSpace(const fn: string);
 var
-  NSpace: Int64;
+  NSpace, NSpaceShow: Int64;
 begin
   if UiOps.CheckLowDiskSpace<=0 then exit;
   repeat
     NSpace:= AppDiskGetFreeSpace(fn);
     if NSpace<0 then exit; //cannot detect free space
     if NSpace>=UiOps.CheckLowDiskSpace then exit;
+
+    NSpaceShow:= NSpace div (1024*1024);
+    if NSpaceShow=0 then
+      NSpaceShow:= 1;
+
     if MsgBox(
-      Format(msgErrorLowDiskSpaceMb, [NSpace div (1024*1024)]),
+      Format(msgErrorLowDiskSpaceMb, [NSpaceShow]),
       MB_RETRYCANCEL or MB_ICONWARNING) = ID_CANCEL then exit;
   until false;
 end;
@@ -3816,6 +3853,7 @@ var
 begin
   AppUniqInstDummy:= TAppUniqInstDummy.Create;
   AppUniqInst:= TUniqueInstance.Create(nil);
+  AppUniqInst.UpdateInterval:= 100; //work faster, issue #5081
   AppUniqInst.Identifier:= AppUserName+'_'+AppServerId; //added username to fix CudaText #4079
   AppUniqInst.OnOtherInstance:= @AppUniqInstDummy.HandleOtherInstance;
   AppUniqInst.Enabled:= true;
@@ -4052,9 +4090,12 @@ finalization
   FreeAndNil(AppKeymapMain);
   FreeAndNil(AppBookmarkImagelist);
 
-  FreeAndNil(AppTreeHelpers);
-  FreeAndNil(AppEventList);
-  FreeAndNil(AppCommandList);
+  AppClearPluginLists;
+  //FreeAndNil(AppTreeHelpers);
+  //FreeAndNil(AppEventList);
+  //FreeAndNil(AppCommandList);
+
+  AppConsoleQueue.Push(''); // fix for #5037: Adds dummy data to avoid exception on free
   FreeAndNil(AppConsoleQueue);
   FreeAndNil(AppCommandsDelayed);
 

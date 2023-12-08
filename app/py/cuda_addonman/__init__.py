@@ -64,9 +64,6 @@ STD_LEXERS = (
   'JSON',
   'Lua',
   'Markdown',
-  'PHP',
-  'PHP_',
-  'PowerShell',
   'Python',
   'RegEx',
   'reStructuredText',
@@ -112,6 +109,7 @@ class Command:
             opt.install_confirm = data.get('install_confirm', True)
             opt.verify_https = data.get('verify_https', True)
             opt.proxy = data.get('proxy', '')
+            opt.sf_mirror = data.get('sf_mirror', '')
 
 
     def do_config(self):
@@ -124,6 +122,7 @@ class Command:
         data['install_confirm'] = opt.install_confirm
         data['verify_https'] = opt.verify_https
         data['proxy'] = opt.proxy
+        data['sf_mirror'] = opt.sf_mirror
 
         with open(fn_config, 'w') as f:
             f.write(json.dumps(data, indent=4))
@@ -378,14 +377,15 @@ class Command:
 
     def do_remove(self):
 
-        items = get_installed_addons({
+        ignored = {
             'plugins': STD_MODULES,
             'lexers': STD_LEXERS,
             'lexers_lite': STD_LEXERS_LITE,
             'themes': STD_THEMES,
             'lang': STD_TRANSLATIONS,
             'snippets': STD_SNIPPETS,
-            })
+            }
+        items = get_installed_addons(ignored)
         desc = [i['kind']+': '+i['name'] for i in items]
 
         res = dlg_menu(DMENU_LIST, desc, caption=_('Remove add-on'))
@@ -398,6 +398,8 @@ class Command:
         module = item.get('module', '')
         if module:
             do_remove_version_of_plugin(module)
+        elif item['kind'] == 'lexer':
+            do_remove_version_of_lexer(item['name'])
 
         ok = True
         for fn in item['files']:
@@ -602,6 +604,7 @@ class Command:
             print('  [%s] %s' % (a['kind'], a['name']))
             msg_status(_('Updating: [{}] {}').format(a['kind'], a['name']), True)
 
+            dir_to_remove = ''
             m = a.get('module', '')
             if m:
                 # special update for Git repos
@@ -615,14 +618,19 @@ class Command:
                         msg_status(_('Error running Git'), True)
                         print(_('  Error running Git'))
                 else:
-                    # delete old dir
-                    do_remove_dir(m_dir)
+                    dir_to_remove = m_dir
 
             url = a['url']
             if not url: continue
 
             fn = get_plugin_zip(url)
-            if not fn: continue
+            if not fn:
+                fail_count += 1
+                print(_('  Update failed: [{}] {}').format(a['kind'], a['name']) )
+                continue
+
+            if dir_to_remove:
+                do_remove_dir(dir_to_remove)
 
             if os.path.isfile(fn) and file_open(fn, options='/silent'):
                 do_save_version(url, fn, a['v'])

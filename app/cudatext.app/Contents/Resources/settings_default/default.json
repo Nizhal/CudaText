@@ -143,7 +143,7 @@
   //Note: this option is global, not per-lexer.
   "unicode_proportional": true,
 
-  //If "unicode_proportional":false, sets width (in percents) of full-width characters.
+  //If "unicode_proportional":false, sets width (in %) of full-width characters.
   //Note: this option is global, not per-lexer.
   "unicode_full_width": 190,
 
@@ -221,6 +221,7 @@
   //Value "oem" means OS-dependant OEM encoding: cp437, cp850, cp852, cp866,
   //cp874, shift-jis, gbk, uhc, big5.
   //UTF-8 / UTF-16 / UTF-32 variants are not allowed here.
+  //Note: this option is global, not per-lexer.
   "fallback_encoding": "ansi",
 
   //[File]
@@ -254,8 +255,11 @@
   //Show additional dotted frame on mouse selection of block.
   "show_mouse_sel_frame": true,
 
+  //Show dotted vertical lines on the intented parts of long wrapped lines.
+  "show_indent_lines": true,
+
   //Allow last line to scroll to the top of window.
-  "show_last_line_on_top": true,
+  "show_last_line_on_top": false,
 
   //Highlight selection background till the right window edge
   //(otherwise: till line end).
@@ -288,20 +292,16 @@
   "dim_unfocused": 0,
 
   //[Lexers]
-  //Enable dynamic (caret-depending) highlight.
-  //Feature is described in the Wiki topic "Dynamic highlight".
-  "lexer_dynamic_hilite": false,
-
-  //Max number of lines in editor, for which dynamic highlighting is enabled.
-  "lexer_dynamic_hilite_max_lines": 2000,
-
-  //On app start, postpone lexer parsing, until file tab becomes visible (ie don't parse hidden tabs).
-  //This makes much faster app start, if session loads lot of files.
-  "lexer_postpone_until_shown": true,
+  //Max number of lines in document, for which 'dynamic highlight' is enabled.
+  //Value 0: feature is disabled.
+  //See description in the Wiki topic "Dynamic highlight".
+  "dynamic_highlight": 4000,
 
   //When number of lines in document is bigger than the option value, lexer parser
-  //will not find folding ranges, which makes parsing 1.5-3 times faster.
-  //But this disables the work of code-tree for most of lexers.
+  //will not find folding ranges. It means, for such big files:
+  //1) Lexer parsing runs 1.5-3 times faster.
+  //2) Code-tree is disabled.
+  //3) Code-tree helpers (written in Python and Pascal) are disabled.
   //Note: this option is global, not per-lexer.
   "lexer_folding_max_lines": 15000,
 
@@ -321,6 +321,14 @@
   //range height (in lines) is less/equal than the option value.
   //Value=0: show for all ranges.
   "fold_icon_min_range": 0,
+
+  //How to render folded block underline from option "fold_style":4.
+  //  0: From left edge to window right edge
+  //  1: From left edge to line end
+  //  2: From line indentation to line end
+  //  3: From left edge to "margin" column
+  //Note: this option is global, not per-lexer.
+  "fold_underline_size": 0,
 
   //[Text/Commands]
   //If no selection, "Copy to clipboard" will take entire line with caret.
@@ -348,7 +356,8 @@
   //Option works for all editor fields, not only for UI-tabs editors.
   //  if 'c' in value: Copy to usual clipboard (the only possibility on Windows).
   //  if 'p' in value: Copy to Unix 'primary selection'.
-  //  if 'm' with a following number in value: Set limit of selection length (in bytes). Default is 500k.
+  //  if 'm' with a following number in value: Limit the selection length, in bytes (suffix "k" is not supported here). Default is 500000.
+  //Example value: "pm10000".
   //Note: this option is global, not per-lexer.
   "auto_copy_clp": "",
 
@@ -393,17 +402,10 @@
   //of all carets are the same as for the first caret.
   "tab_smart": false,
 
-  //Maximal X position, before which tab-characters visually expand to N spaces.
-  //After this X position, tab-chars expand to 1 space.
-  //Note: this option is global, not per-lexer.
-  "tab_max_pos_expanded": 500,
-
   //[Text]
-  //Maximal line length, for which char-width calculations are slow+correct.
-  //This has effect for lines with CJK or another "wide" characters.
-  //Max value is currently 1024.
+  //Maximal line length, for which Undo is still working.
   //Note: this option is global, not per-lexer.
-  "max_line_len_for_accurate_width": 500,
+  "max_line_len_for_undo": 102400,
 
   //Maximal line length, when editing of a line will not reset current lexer to 'none'
   //for a few seconds. For example, for CPU Intel Core i3, good value is 1900
@@ -413,14 +415,17 @@
   //Note: this option is global, not per-lexer.
   "max_line_len_for_editing_keeping_lexer": 2000,
 
+  //Maximal line length, which will be processed by 'pair brackets' finder.
+  "max_line_len_brackets": 1000,
+
   //Maximal count of lines in document, for which app can calculate macros
   //{offset_max} and {offset_caret}, for statusbar display.
+  //Note: this option is global, not per-lexer.
   "max_lines_to_calc_offsets": 7000,
 
   //[Lexers]
-  //Maximal line length parsed, ie:
-  //a) It limits the parsing of huge lines by "lite" lexers.
-  //b) It limits the pair-brackets finder.
+  //Maximal line length, which is parsed by "lite" lexers.
+  //Note: this option is global, not per-lexer.
   "max_line_len_parsed": 4000,
 
   //[View/Gutter]
@@ -500,7 +505,7 @@
   "scrollbar_click_jump": false,
 
   //[Text/Look]
-  //Marker size (Wiki "Markers" topic), in percents of line height.
+  //Marker size (see Wiki topic "Markers"), in % of line height.
   "marker_size": 30,
 
   //Style of block staples (aka indentation guides).
@@ -513,7 +518,7 @@
 
   //Properties of block staples. String value contains ","-separated options:
   //- Shift of staple to the right (-5..5, 0: staple is near the left edge of text cell).
-  //- Width (in percents) of staple's angled side (0..200).
+  //- Width (in %) of staple's angled side (0..200).
   //- Kind of top staple edge. Enum. 0: none; 1: angled; 2: simple line
   //- Kind of bottom staple edge.
   "staples_props": "-1,40,1,1",
@@ -522,7 +527,7 @@
   //Ruler: Show ruler (horizontal bar at the top).
   "ruler_show": false,
 
-  //Ruler: Height, in percents of average text cell.
+  //Ruler: Height, in % of average text cell.
   "ruler_height": 100,
 
   //Ruler: Numeration style.
@@ -558,10 +563,10 @@
   //Minimap: Place minimap to the left side.
   "minimap_at_left": false,
 
-  //Minimap: Scale in percents.
-  //  value=0: use default look: 2 pixels per line, and consider "ui_scale"
-  //  0<value<100: use compact look: 1 pixel per line, and ignore "ui_scale"
-  //  value>=100: use specified line height in %, and consider "ui_scale"
+  //Minimap: Scale in %.
+  //  value=0: use default look: 2 pixels per line, and consider "ui_scale".
+  //  0<value<100: use compact look: 1 pixel per line, and ignore "ui_scale".
+  //  value>=100: use specified line height in %, and consider "ui_scale".
   "minimap_scale": 0,
 
   //Minimap: Show "tooltip panel", when mouse cursor moves over minimap.
@@ -570,7 +575,7 @@
   //Minimap: Height of "tooltip panel", in editor's char-cells.
   "minimap_tooltip_height": 6,
 
-  //Minimap: Width of "tooltip panel", in percents of editor width.
+  //Minimap: Width of "tooltip panel", in % of editor width.
   "minimap_tooltip_width": 60,
 
   //Minimap: Special font size for minimap-tooltip, if value>2.
@@ -716,8 +721,8 @@
   "caret_multi": true,
 
   //Caret shape is 2-3 values (3rd is optional), comma-separated: width,height,options.
-  //- width: if > 0, in pixels; in < 0, in percents.
-  //- height: if > 0, in pixels; in < 0, in percents; can be taller than 100%.
+  //- width: if value>0, in pixels; if value<0, in %.
+  //- height: if value>0, in pixels; if value<0, in %; can be taller than 100%.
   //- options: if "_" in string, make caret empty inside;
   //
   //Caret: shape for normal state.
@@ -813,6 +818,13 @@
   //for which "Highlight all matches" still works.
   "find_hi_max_lines": 1000,
 
+  //When search silently wraps at the document edge (because of Find-dialog option "O"),
+  //Find-dialog input can blink with specified background color. Value must be the id
+  //of some UI-theme item (as written in files data/themes/*.cuda-theme-ui).
+  //Case-insensitive. Empty or incorrect string: blinking is disabled.
+  //Good example value to enable the feature: "EdMarkedRangeBg".
+  "find_wrapped_blinking": "",
+
   //[UI]
   //UI scale factor in %, 70 to 500. [has suffix]
   //If value=0, then OS scaling is detected and used (currently only on Windows).
@@ -830,13 +842,13 @@
   "ui_scale_font__mac": 100,
 
   //[UI/Tabs]
-  //UI tabs: global visible flag for ui-tabs.
+  //UI tabs: global visibility flag for UI-tabs.
   "ui_tab_show": true,
 
   //UI tabs: use "Tab switcher" dialog on Ctrl+Tab, Ctrl+Shift+Tab. This dialog
   //sorts tabs by recently used order. If option is off: switch tabs without dialog,
   //and ignoring recently used order.
-  "ui_tab_switcher_dialog": true,
+  "ui_tab_switcher_dialog": false,
 
   //UI tabs: Use Single Document Interface, ie don't create tabs except the first one.
   "ui_tab_disabled": false,
@@ -884,8 +896,11 @@
   //  3: right
   "ui_tab_position": 0,
 
-  //UI tabs: indent between tab edge and text beginning.
+  //UI tabs: indent between left tab edge and text beginning.
   "ui_tab_padding": 6,
+
+  //UI tabs: indent between right tab edge and text ending.
+  "ui_tab_padding2": 6,
 
   //UI tabs: When to show "x" buttons on tabs.
   //  0: don't show
@@ -907,7 +922,7 @@
   //UI tabs: Feature "Set tab color" colorizes the entire tab height.
   "ui_tab_fullcolor": false,
 
-  //UI tabs: Additional scaling of tab title font.
+  //UI tabs: Additional scaling of UI-tabs title font, in %.
   "ui_tab_font_scale": 100,
 
   //UI tabs: Double-click closes tab.
@@ -980,9 +995,9 @@
   //  if 'n' in value: Line numbers visible state
   //  if 'S' in value: Font scale in %
   //  if 'f' in value: List of folded ranges
-  //  if 'C' in value: Custom color of ui-tab header
+  //  if 'C' in value: Custom color of UI-tab header
   //  if 'F' in value: Code-tree filter: string and history
-  //  if 'i' in value: Splitted state of UI tab (horiz/vert, percents of size)
+  //  if 'i' in value: Splitted state of UI-tab (horiz/vert, % of size)
   //  if 'I' in value: Column of vertical 'margin' line
   //  if 'U' in value: Undo/Redo data
   "ui_history_disabled": "",
@@ -1011,13 +1026,16 @@
   //Has character(s), each character is a step to detect the folder.
   //  'p': If project is opened: selected folder in the Project Manager.
   //  'q': If project is opened: folder of the "projectname.cuda-proj" file.
-  //  'f': Folder of focused ui-tab, if it's named.
+  //  'f': Folder of focused UI-tab, if it's named.
   //  'l': Last user-chosen folder in the Open/Save-as dialog.
   //  'i': Value of option "ui_initial_dir", if not empty.
   //  'h': OS home folder.
   "ui_open_dir": "pflih",
 
   //[UI/Tree]
+  //Additional scaling, in %, of the code-tree font size.
+  "ui_tree_font_scale": 100,
+
   //Sync code-tree selection to caret position. Ie after caret moves,
   //select appropriate code-tree node.
   "ui_tree_auto_sync": true,
@@ -1136,7 +1154,8 @@
   //Mouse wheel scrolling speed, horizontal (in chars).
   "mouse_wheel_speed_horz": 10,
 
-  //Mouse scrolling speed, when selection is dragged out of editor top/bottom edge.
+  //Mouse scrolling speed, when selection is dragged out of editor top/bottom edge
+  //(in lines per one timer tick).
   //Note: this option is global, not per-lexer.
   "mouse_scroll_speed_vert": 1,
 
@@ -1212,6 +1231,7 @@
   "key_left_right_swap_sel": true,
 
   //Keys Left/Right-arrows: try to jump to opposite selection edge, and keep this selection.
+  //It works only for single caret.
   "key_left_right_swap_sel_and_select": false,
 
   //[UI/Statusbar]
@@ -1266,7 +1286,7 @@
   //    selmode: Current selection mode.
   //             Shows "-" for normal selection mode, "||" for column selection mode.
   //    wrap   : Word-wrap mode: no wrap, wrap at window edge, wrap at fixed margin.
-  //    zoom   : Zoom value in percents (%).
+  //    zoom   : Zoom value in %.
   //             Change zoom value by Command Palette commands "current document font size: bigger/smaller",
   //             and by Ctrl+<Mouse wheel> (when option "mouse_wheel_zoom":true).
   //    msg    : Messages from CudaText and plugins.
@@ -1279,6 +1299,10 @@
 
   //Statusbar messages: show time in seconds.
   "ui_statusbar_time": 5,
+
+  //Max count of lines in the tooltip of last statusbar cell.
+  //If 0: tooltip is disabled.
+  "ui_statusbar_hint_lines": 35,
 
   //[UI]
   //Show full file path in the window title.
@@ -1316,6 +1340,15 @@
   //You can open these backups by plugin Session Manager, or rename them to a normal name.
   "ui_backup_sessions": 2,
 
+  //Maximal size of document body (in chars) which can be saved to session.
+  //Note: this option is global, not per-lexer.
+  "ui_session_max_text": 50000000,
+
+  //Maximal size of Undo-data which can be saved to session.
+  //If size of Undo is bigger, Undo won't be saved to session, but Undo still works in editor.
+  //Note: this option is global, not per-lexer.
+  "ui_session_max_undo": 1000000,
+
   //[Lexers]
   //Allow to apply color-theme to lexer's styles.
   //(And auto-show dialog "Lexer styles mapping".)
@@ -1334,7 +1367,7 @@
 
   //[View/Brackets]
   //Enable to highlight pair brackets.
-  "bracket_highlight": false,
+  "bracket_highlight": true,
 
   //String containing pairs of brackets to highlight, in any order.
   //Supports these pairs: () [] {} <>.
@@ -1383,7 +1416,7 @@
   "pylib__linux": "libpython3.so",
   "pylib__mac": "/Library/Frameworks/Python.framework/Versions/3.9/lib/libpython3.9.dylib",
   "pylib__freebsd": "libpython3.6m.so",
-  "pylib__haiku": "/boot/system/develop/lib/libpython3.6m.so",
+  "pylib__haiku": "libpython3.10.so.1.0",
 
   //API delay for event "on_caret_slow", in milliseconds.
   "py_caret_slow": 600,
@@ -1444,7 +1477,11 @@
   //When any of these chars is typed while showing completion listbox,
   //listbox enters selection, and typed char is appended too.
   //Option is (mostly) for lexer-specific configs.
-  "autocomplete_commit_chars": " ,;",
+  "autocomplete_commit_chars": ",;",
+
+  //Allow Enter-key to commit the auto-completion result.
+  //Tab-key always commits the result.
+  "autocomplete_commit_on_enter": true,
 
   //When any of these chars is typed while showing completion listbox,
   //listbox is closed, and typed char is appended.
@@ -1477,7 +1514,8 @@
   "auto_close_brackets": "([{",
 
   //[Text/Folding]
-  //If value>1, option allows N consecutive commented lines to automatically create the folding range.
+  //If value>1, option allows N consecutive 'comment'/'string' lines to automatically create
+  //the folding range.
   //Note: this option is global, not per-lexer.
   "auto_fold_comments": 0,
 
@@ -1497,6 +1535,7 @@
 
   //[File]
   //Maximal file size, allowed to open, in Mb.
+  //Value is internally limited by 2047.
   "ui_max_size_open": 500,
 
   //Maximal file size, for which allowed to use lexers, in Mb.
@@ -1598,6 +1637,7 @@
   "find_hotkey_op_tokens": "",
   "find_hotkey_op_hi": "",
   "find_hotkey_op_prescase": "",
+  "find_hotkey_more": "Ctrl+Alt+D",
 
   //[Viewer]
   //Viewer text width in 'binary' mode.
@@ -1610,11 +1650,15 @@
   //Show in console lines "Init: cuda_nnnn" about plugins initialization.
   "py_init_log": true,
 
-  //Write console contents to file settings/console.log.
+  //Write console contents to file "settings/console.log".
   "log_console": false,
 
   //Show in console lines "Loaded session...", "Saved session...".
   "log_sessions": true,
+
+  //Show red indicators 'rendering time' and 'count of rendered frames' in the
+  //screen corner. Useful for CudaText developers only.
+  "log_timing" : false,
 
   //[Emmet]
   //Add slash to empty tags.

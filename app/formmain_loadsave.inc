@@ -232,7 +232,7 @@ function TfmMain.DoOps_SaveSession(const ASessionId: string;
 const
   keysToIgnore: array of UTF8String = ('text', 'undo', 'redo');
 var
-  cfg: TJSONConfigEx;
+  cfg, cfg_bookmarks: TJSONConfigEx;
   Frame: TEditorFrame;
   Gr: TATGroups;
   Pages: TATPages;
@@ -267,6 +267,7 @@ begin
   nFrameCount:= FrameCount;
 
   cfg:= TJSONConfigEx.Create(nil);
+  cfg_bookmarks:= TJSONConfigEx.Create(nil);
   try
     try
       cfg.Formatted:= true;
@@ -278,6 +279,17 @@ begin
       begin
         MsgBadConfig(sSessionFileName, E.Message);
         exit;
+      end;
+    end;
+
+    try
+      cfg_bookmarks.Formatted:= true;
+      cfg_bookmarks.Filename:= AppFile_HistoryFiles;
+    except
+      on E: Exception do
+      begin
+        MsgBadConfig(AppFile_HistoryFiles, E.Message);
+        FreeAndNil(cfg_bookmarks);
       end;
     end;
 
@@ -373,6 +385,7 @@ begin
         cfg.SetValue(path+'/tab_title', Frame.TabCaption);
       cfg.SetValue(path+'/group', nLocalGroup+1); //support old sessions with 1-based index
       cfg.SetDeleteValue(path+'/pinned', Frame.TabPinned, false);
+      cfg.SetDeleteValue(path+'/goto', Frame.GotoInput, '');
 
       case Frame.FrameKind of
         efkEditor:
@@ -415,6 +428,10 @@ begin
 
       Frame.DoSaveHistoryEx(Frame.Ed1, cfg, path, true{AForSession});
 
+      if Assigned(cfg_bookmarks) then
+        if Frame.Ed1.ModifiedBookmarks then
+          Frame.DoSaveBookmarks(Frame.Ed1, cfg_bookmarks);
+
       //save info about paired-tab to subkey "pair"
       if sTabFilename2<>'' then
       begin
@@ -444,6 +461,11 @@ begin
         end;
 
         Frame.DoSaveHistoryEx(Frame.Ed2, cfg, path, true{AForSession});
+
+        if not Frame.EditorsLinked then
+          if Assigned(cfg_bookmarks) then
+            if Frame.Ed2.ModifiedBookmarks then
+              Frame.DoSaveBookmarks(Frame.Ed2, cfg_bookmarks);
       end;
     end;
 
@@ -468,9 +490,10 @@ begin
       else
         cfg.SetModified(false); // no need to save the session
 
-      cfg.Free; //saves json file when its property 'Modified' is 'true'
+      FreeAndNil(cfg_bookmarks);
+      FreeAndNil(cfg); //saves json file when its property Modified is True
     except
-      //for incorrect sess folder
+      //for incorrect session folder
     end;
   end;
 
@@ -740,6 +763,7 @@ begin
           Frame.DoLoadHistoryEx(Frame.Ed2, cfg, item_path2, true);
         end;
 
+        Frame.GotoInput:= cfg.GetValue(item_path+'goto', '');
         Frame.TabPinned:= cfg.GetValue(item_path+'pinned', false);
 
         //event on_open was blocked in DoFileOpen, call it here
@@ -795,10 +819,10 @@ begin
     end;
 
     with AppPanels[cPaneSide] do
-      PanelSize:= Min(cfg.GetValue(sRootPath+'/panels/side_size', PanelSize), ClientWidth div 2);
+      PanelSize:= cfg.GetValue(sRootPath+'/panels/side_size', PanelSize);
 
     with AppPanels[cPaneOut] do
-      PanelSize:= Min(cfg.GetValue(sRootPath+'/panels/bottom_size', PanelSize), ClientHeight div 2);
+      PanelSize:= cfg.GetValue(sRootPath+'/panels/bottom_size', PanelSize);
 
     SText:= cfg.GetValue(sRootPath+'/panels/side_panel', '');
     if AppPanels[cPaneSide].Visible and (SText<>'') then
@@ -923,6 +947,7 @@ var
   cfg: TJSONConfig;
   bFlag: boolean;
   NTick: QWord;
+  N: integer;
   sFilename, sRootPath: string;
 begin
   NTick:= GetTickCount64;
@@ -985,8 +1010,10 @@ begin
     end;
     AppPanels[cPaneOut].Visible:= bFlag;
 
-    AppPanels[cPaneSide].PanelSize:= Min(cfg.GetValue('size_side', 200), ClientWidth div 2);
-    AppPanels[cPaneOut].PanelSize:= Min(cfg.GetValue('size_bottom', 120), ClientHeight div 2);
+    N:= cfg.GetValue('size_side', 200);
+    AppPanels[cPaneSide].PanelSize:= N; //Min(N, ClientWidth * UiOps.MaxPanelSizeInPercents div 100);
+    N:= cfg.GetValue('size_bottom', 120);
+    AppPanels[cPaneOut].PanelSize:= N; //Min(N, ClientHeight * UiOps.MaxPanelSizeInPercents div 100);
 
     AppPanels[cPaneSide].Floating:= cfg.GetValue('float_side', false);
     AppPanels[cPaneOut].Floating:= cfg.GetValue('float_bottom', false);
@@ -1142,12 +1169,15 @@ begin
   ATEditorOptions.DebugTiming:= cfg.GetValue('log_timing', ATEditorOptions.DebugTiming);
 
   ATEditorOptions.MouseDragDropFocusesTargetEditor:= cfg.GetValue('mouse_drag_drop_focus_target', ATEditorOptions.MouseDragDropFocusesTargetEditor);
-  ATEditorOptions.MaxTabPositionToExpand:= cfg.GetValue('tab_max_pos_expanded', ATEditorOptions.MaxTabPositionToExpand);
+  ATEditorOptions.MaxTabPositionToExpand:= 1024; //cfg.GetValue('tab_max_pos_expanded', ATEditorOptions.MaxTabPositionToExpand);
   ATEditorOptions.MaxLinesForStatusbarOffsetsCalc:= cfg.GetValue('max_lines_to_calc_offsets', ATEditorOptions.MaxLinesForStatusbarOffsetsCalc);
-  ATEditorOptions.MaxLineLenForAccurateCharWidths:= Min(1024, cfg.GetValue('max_line_len_for_accurate_width', ATEditorOptions.MaxLineLenForAccurateCharWidths));
+  ATEditorOptions.MaxLineLenForAccurateCharWidths:= 1024;
+  ATEditorOptions.MaxLineLenForUndo:= cfg.GetValue('max_line_len_for_undo', ATEditorOptions.MaxLineLenForUndo);
+  ATLiteLexerMaxLineLength:= cfg.GetValue('max_line_len_parsed', ATLiteLexerMaxLineLength);
   ATEditorMaxClipboardRecents:= cfg.GetValue('ui_max_history_clipboard', ATEditorMaxClipboardRecents);
   ATEditorOptions.MinimapColoringTime:= cfg.GetValue('minimap_coloring_time', ATEditorOptions.MinimapColoringTime);
   ATEditorOptions.SpeedScrollAutoVert:= cfg.GetValue('mouse_scroll_speed_vert', ATEditorOptions.SpeedScrollAutoVert);
+  ATEditorOptions.FoldedUnderlineSize:= TATEditorFoldedUnderlineSize(cfg.GetValue('fold_underline_size', Ord(TATEditorFoldedUnderlineSize.BeginToWindowEnd)));
 
   ATEditorOptions.UnprintedTabCharLength:= cfg.GetValue('unprinted_tab_len', ATEditorOptions.UnprintedTabCharLength);
   ATEditorOptions.UnprintedReplaceSpec:= cfg.GetValue('unprinted_replace_spec', ATEditorOptions.UnprintedReplaceSpec);
@@ -1156,6 +1186,8 @@ begin
     ATEditorOptions.UnprintedReplaceSpecToCode:= StrToIntDef('$'+s, ATEditorOptions.UnprintedReplaceSpecToCode);
 
   UiOps.MaxLineLenForEditingKeepingLexer:= cfg.GetValue('max_line_len_for_editing_keeping_lexer', UiOps.MaxLineLenForEditingKeepingLexer);
+  UiOps.MaxUndoSizeForSessionFile:= cfg.GetValue('ui_session_max_undo', UiOps.MaxUndoSizeForSessionFile);
+  UiOps.MaxSizeForSession:= cfg.GetValue('ui_session_max_text', UiOps.MaxSizeForSession);
 
   s:= cfg.GetValue('fallback_encoding', '');
   if s<>'' then
@@ -1254,9 +1286,7 @@ begin
   Op.OpTabSpaces:= cfg.GetValue('tab_spaces', Op.OpTabSpaces);
   Op.OpTabSmart:= cfg.GetValue('tab_smart', Op.OpTabSmart);
 
-  Op.OpMaxLineLenToTokenize:= cfg.GetValue('max_line_len_parsed', Op.OpMaxLineLenToTokenize);
-  Op.OpMaxLineLenForBracketFinder:= Op.OpMaxLineLenToTokenize; //do we need separate option?
-  ATLiteLexerMaxLineLength:= Op.OpMaxLineLenToTokenize;
+  Op.OpMaxLineLenForBracketFinder:= cfg.GetValue('max_line_len_brackets', Op.OpMaxLineLenForBracketFinder);
 
   Op.OpOverwriteSel:= cfg.GetValue('ovr_sel', Op.OpOverwriteSel);
   Op.OpOverwriteOnPaste:= cfg.GetValue('ovr_on_paste', Op.OpOverwriteOnPaste);
@@ -1266,6 +1296,7 @@ begin
   Op.OpAutocompleteAutoshowCharCount:= cfg.GetValue('autocomplete_autoshow_chars', Op.OpAutocompleteAutoshowCharCount);
   Op.OpAutocompleteTriggerChars:= cfg.GetValue('autocomplete_trigger_chars', Op.OpAutocompleteTriggerChars);
   Op.OpAutocompleteCommitChars:= cfg.GetValue('autocomplete_commit_chars', Op.OpAutocompleteCommitChars);
+  Op.OpAutocompleteCommitOnEnter:= cfg.GetValue('autocomplete_commit_on_enter', Op.OpAutocompleteCommitOnEnter);
   Op.OpAutocompleteCloseChars:= cfg.GetValue('autocomplete_close_chars', Op.OpAutocompleteCloseChars);
   Op.OpAutocompleteAddOpeningBracket:= cfg.GetValue('autocomplete_add_opening_bracket', Op.OpAutocompleteAddOpeningBracket);
   Op.OpAutocompleteUpDownAtEdge:= cfg.GetValue('autocomplete_up_down_at_edge', Op.OpAutocompleteUpDownAtEdge);
@@ -1359,6 +1390,7 @@ begin
   Op.OpShowFullBackgroundSel:= cfg.GetValue('show_full_sel_bg', Op.OpShowFullBackgroundSel);
   Op.OpShowFullBackgroundSyntax:= cfg.GetValue('show_full_syntax_bg', Op.OpShowFullBackgroundSyntax);
   Op.OpShowMouseSelFrame:= cfg.GetValue('show_mouse_sel_frame', Op.OpShowMouseSelFrame);
+  Op.OpShowIndentLines:= cfg.GetValue('show_indent_lines', Op.OpShowIndentLines);
   Op.OpCopyLineIfNoSel:= cfg.GetValue('copy_line_if_no_sel', Op.OpCopyLineIfNoSel);
   Op.OpCutLineIfNoSel:= cfg.GetValue('cut_line_if_no_sel', Op.OpCutLineIfNoSel);
   Op.OpCopyColumnAlignedBySpaces:= cfg.GetValue('copy_column_aligned_by_spaces', Op.OpCopyColumnAlignedBySpaces);
@@ -1371,8 +1403,7 @@ begin
   Op.OpCenteringForDistractionFree:= cfg.GetValue('centering_for_distraction_free', Op.OpCenteringForDistractionFree);
   Op.OpScrollStyleHorz:= cfg.GetValue('scroll_style_horz', Op.OpScrollStyleHorz);
 
-  Op.OpLexerDynamicHiliteEnabled:= cfg.GetValue('lexer_dynamic_hilite', Op.OpLexerDynamicHiliteEnabled);
-  Op.OpLexerDynamicHiliteMaxLines:= cfg.GetValue('lexer_dynamic_hilite_max_lines', Op.OpLexerDynamicHiliteMaxLines);
+  Op.OpLexerDynamicHiliteMaxLines:= cfg.GetValue('dynamic_highlight', Op.OpLexerDynamicHiliteMaxLines);
   Op.OpLexerLineSeparators:= false; //cfg.GetValue('lexer_line_separators', Op.OpLexerLineSeparators);
 
   Op.OpZebra:= cfg.GetValue('zebra', Op.OpZebra);
@@ -1494,6 +1525,7 @@ begin
   UiOps.HotkeyExtractAll:= cfg.GetValue('find_hotkey_extract', UiOps.HotkeyExtractAll);
   UiOps.HotkeySelectAll:= cfg.GetValue('find_hotkey_select_all', UiOps.HotkeySelectAll);
   UiOps.HotkeyMarkAll:= cfg.GetValue('find_hotkey_mark_all', UiOps.HotkeyMarkAll);
+  UiOps.HotkeyFindMenu:= cfg.GetValue('find_hotkey_more', UiOps.HotkeyFindMenu);
   UiOps.HotkeyToggleRegex:= cfg.GetValue('find_hotkey_op_regex', UiOps.HotkeyToggleRegex);
   UiOps.HotkeyToggleCaseSens:= cfg.GetValue('find_hotkey_op_case', UiOps.HotkeyToggleCaseSens);
   UiOps.HotkeyToggleWords:= cfg.GetValue('find_hotkey_op_words', UiOps.HotkeyToggleWords);
@@ -1507,7 +1539,7 @@ begin
 
   UiOps.LexerThemes:= cfg.GetValue('ui_lexer_themes', UiOps.LexerThemes);
   UiOps.LexerMenuGrouped:= cfg.GetValue('ui_lexers_grouped', UiOps.LexerMenuGrouped);
-  UiOps.LexerPostponeUntilShown:= cfg.GetValue('lexer_postpone_until_shown', UiOps.LexerPostponeUntilShown);
+  //UiOps.LexerPostponeUntilShown:= cfg.GetValue('lexer_postpone_until_shown', UiOps.LexerPostponeUntilShown);
   if not UiOps.LexerPostponeUntilShown then
     AppAllowFrameParsing:= true;
 
@@ -1516,14 +1548,7 @@ begin
   UiOps.ShowToolbar:= cfg.GetValue('ui_toolbar_show', UiOps.ShowToolbar);
   UiOps.ShowSidebarMenuButton:= cfg.GetValue('ui_menu_button', UiOps.ShowSidebarMenuButton);
 
-  if ToolbarSideTop.ButtonCount>0 then
-    with ToolbarSideTop.Buttons[0] do
-      if OnClick=@DoSidebar_MainMenuClick then
-        case UiOps.ShowSidebarMenuButton of
-          0: Visible:= false;
-          1: Visible:= true;
-          2: Visible:= not UiOps.ShowMenubar;
-        end;
+  UpdateMenuSidebarButton(not UiOps.ShowMenubar);
 
   UiOps.SidebarShow:= cfg.GetValue('ui_sidebar_show', UiOps.SidebarShow);
   UiOps.SidebarOnRight:= cfg.GetValue('ui_sidebar_on_right', UiOps.SidebarOnRight);
@@ -1539,15 +1564,18 @@ begin
   {$endif}
 
   {$ifndef windows}
-  //option is ignored on win
+  //option is ignored on windows
   UiOps.PyLibrary:= cfg.GetValue('pylib'+cOptionSystemSuffix, UiOps.PyLibrary);
   {$endif}
+  if UiOps.PyLibrary='' then
+    UiOps.PyLibrary:= InitPyLibraryPath;
 
   UiOps.PictureTypes:= cfg.GetValue('picture_types', UiOps.PictureTypes);
 
   UiOps.MaxFileSizeToOpen:= cfg.GetValue('ui_max_size_open', UiOps.MaxFileSizeToOpen);
   UiOps.MaxFileSizeToOpen:= Min(UiOps.MaxFileSizeToOpen, 2*1024-1); //because TStream.ReadBuffer is called, it can handle only 32-bit LongInt
   UiOps.MaxFileSizeForLexer:= cfg.GetValue('ui_max_size_lexer', UiOps.MaxFileSizeForLexer);
+  UiOps.MaxStatusbarMessages:= cfg.GetValue('ui_statusbar_hint_lines', UiOps.MaxStatusbarMessages);
 
   UiOps.AutocompleteAcpFiles:= cfg.GetValue('autocomplete_acp', UiOps.AutocompleteAcpFiles);
   UiOps.AutocompleteHtml:= cfg.GetValue('autocomplete_html', UiOps.AutocompleteHtml);
@@ -1590,6 +1618,7 @@ begin
   {$endif}
   UiOps.FindHiAll_MaxLines:= cfg.GetValue('find_hi_max_lines', UiOps.FindHiAll_MaxLines);
   //UiOps.FindHiAll_MoveCaret:= cfg.GetValue('find_hi_move_caret', UiOps.FindHiAll_MoveCaret);
+  UiOps.FindWrapAtEdge_ThemeItem:= cfg.GetValue('find_wrapped_blinking', UiOps.FindWrapAtEdge_ThemeItem);
 
   EditorOps.OpUndoIndentVert:= UiOps.FindIndentVert;
   EditorOps.OpUndoIndentHorz:= UiOps.FindIndentHorz;
@@ -1607,6 +1636,7 @@ begin
   UiOps.TabHeight:= cfg.GetValue('ui_tab_size_y', UiOps.TabHeight);
   UiOps.TabHeightInner:= UiOps.TabHeight-1;
   UiOps.TabSpaceBeforeText:= cfg.GetValue('ui_tab_padding', UiOps.TabSpaceBeforeText);
+  UiOps.TabSpaceAfterText:= cfg.GetValue('ui_tab_padding2', UiOps.TabSpaceAfterText);
   UiOps.TabPosition:= cfg.GetValue('ui_tab_position', UiOps.TabPosition);
   UiOps.TabColorFull:= cfg.GetValue('ui_tab_fullcolor', UiOps.TabColorFull);
   UiOps.TabFontScale:= cfg.GetValue('ui_tab_font_scale', UiOps.TabFontScale);
@@ -1650,6 +1680,7 @@ begin
   UiOps.ExportHtmlFontName:= cfg.GetValue('export_html_font_name', UiOps.ExportHtmlFontName);
   UiOps.ExportHtmlFontSize:= Abs(cfg.GetValue('export_html_font_size', UiOps.ExportHtmlFontSize));
 
+  UiOps.TreeFontScale:= cfg.GetValue('ui_tree_font_scale', UiOps.TreeFontScale);
   UiOps.TreeAutoSync:= cfg.GetValue('ui_tree_auto_sync', UiOps.TreeAutoSync);
   UiOps.TreeTimeFill:= cfg.GetValue('ui_tree_time_fill', UiOps.TreeTimeFill);
   UiOps.TreeShowIcons:= cfg.GetValue('ui_tree_icons', UiOps.TreeShowIcons);
@@ -1736,12 +1767,16 @@ procedure TfmMain.DoOps_LoadOptionsLexerSpecific(F: TEditorFrame; Ed: TATSynEdit
   //
   procedure ApplyOps(const Ops: TEditorOps);
   var
+    EdIndex: integer;
     PrevTabSize: integer;
     PrevTabSizeChanged: boolean;
     PrevTabSpaces: boolean;
     PrevTabSpacesChanged: boolean;
     TempOps: TATEditorTempOptions;
   begin
+    EdIndex:= F.EditorObjToIndex(Ed);
+    if EdIndex<0 then exit;
+
     PrevTabSize:= Ed.OptTabSize;
     PrevTabSizeChanged:= F.TabSizeChanged;
     PrevTabSpaces:= Ed.OptTabSpaces;
@@ -1750,7 +1785,7 @@ procedure TfmMain.DoOps_LoadOptionsLexerSpecific(F: TEditorFrame; Ed: TATSynEdit
     EditorSaveTempOptions(Ed, TempOps);
     TempOps.FontSize:= Ops.OpFontSize; //support overriding "font_size" in lexer-specific config
     DoApplyFrameOps(F, Ops, true);
-    EditorRestoreTempOptions(Ed, TempOps, Ed.InitialOptions);
+    EditorRestoreTempOptions(Ed, TempOps, F.InitialOptions[EdIndex]);
 
     if PrevTabSizeChanged then
       Ed.OptTabSize:= PrevTabSize;

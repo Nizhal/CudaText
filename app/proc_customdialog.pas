@@ -820,7 +820,7 @@ begin
 
     Adapter:= TATAdapterEControl.Create(Ctl);
     Adapter.EnabledSublexerTreeNodes:= UiOps.TreeSublexers;
-    Adapter.DynamicHiliteEnabled:= EditorOps.OpLexerDynamicHiliteEnabled;
+    Adapter.DynamicHiliteEnabled:= EditorOps.OpLexerDynamicHiliteMaxLines>0;
     Adapter.DynamicHiliteMaxLines:= EditorOps.OpLexerDynamicHiliteMaxLines;
     Adapter.AddEditor(TATSynEdit(Ctl));
 
@@ -983,7 +983,7 @@ begin
   if (S='treeview') then
   begin
     Ctl:= TAppTreeContainer.Create(AForm);
-    DoApplyThemeToTreeview(TAppTreeContainer(Ctl).Tree, false, true);
+    ApplyThemeToTreeview(TAppTreeContainer(Ctl).Tree, false, true);
     TAppTreeContainer(Ctl).Tree.BorderStyle:= bsSingle;
     TAppTreeContainer(Ctl).Tree.Images:= TImageList.Create(Ctl);
     TAppTreeContainer(Ctl).Tree.DoubleBuffered:= UiOps.DoubleBuffered;

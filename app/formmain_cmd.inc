@@ -11,7 +11,7 @@ procedure TfmMain.TimerCmdTimer(Sender: TObject);
 var
   Ed: TATSynEdit;
   CmdCode: integer;
-  CmdInvoke: TATEditorCommandInvoke;
+  CmdInvoke: TATCommandInvoke;
 begin
   TimerCmd.Enabled:= false;
 
@@ -33,7 +33,7 @@ begin
 end;
 
 
-procedure TfmMain.HandleTimerCommand(Ed: TATSynEdit; CmdCode: integer; CmdInvoke: TATEditorCommandInvoke);
+procedure TfmMain.HandleTimerCommand(Ed: TATSynEdit; CmdCode: integer; CmdInvoke: TATCommandInvoke);
 var
   Frame: TEditorFrame;
   EdGroup: TATGroups;
@@ -516,29 +516,29 @@ begin
       UpdateGroupsMode(gm6grid);
 
     cmd_GroupActivateNext:
-      Groups.PagesSetNext(true);
+      DoFocusNextGroup(true);
     cmd_GroupActivatePrev:
-      Groups.PagesSetNext(false);
+      DoFocusNextGroup(false);
 
     cmd_GroupActivate1:
-      Groups.PagesSetIndex(0);
+      DoFocusUsualGroup(0);
     cmd_GroupActivate2:
-      Groups.PagesSetIndex(1);
+      DoFocusUsualGroup(1);
     cmd_GroupActivate3:
-      Groups.PagesSetIndex(2);
+      DoFocusUsualGroup(2);
     cmd_GroupActivate4:
-      Groups.PagesSetIndex(3);
+      DoFocusUsualGroup(3);
     cmd_GroupActivate5:
-      Groups.PagesSetIndex(4);
+      DoFocusUsualGroup(4);
     cmd_GroupActivate6:
-      Groups.PagesSetIndex(5);
+      DoFocusUsualGroup(5);
 
     cmd_GroupActivateFloat1:
-      DoFormFocus(FFormFloatGroups1, true);
+      DoFocusFloatingGroup(0);
     cmd_GroupActivateFloat2:
-      DoFormFocus(FFormFloatGroups2, true);
+      DoFocusFloatingGroup(1);
     cmd_GroupActivateFloat3:
-      DoFormFocus(FFormFloatGroups3, true);
+      DoFocusFloatingGroup(2);
 
     cmd_MoveTabToGroupNext,
     cmd_MoveTabToGroupPrev:
@@ -552,6 +552,14 @@ begin
       DoMoveTabToGroup(0, true);
     cmd_MoveTabToGroup2:
       DoMoveTabToGroup(1, true);
+    cmd_MoveTabToGroup3:
+      DoMoveTabToGroup(2, true);
+    cmd_MoveTabToGroup4:
+      DoMoveTabToGroup(3, true);
+    cmd_MoveTabToGroup5:
+      DoMoveTabToGroup(4, true);
+    cmd_MoveTabToGroup6:
+      DoMoveTabToGroup(5, true);
 
     cmd_MoveTabToGroupFloating1:
       DoMoveTabToGroup(6, true);
@@ -756,7 +764,7 @@ begin
 end;
 
 procedure TfmMain.FrameOnEditorCommand(Sender: TObject; ACommand: integer;
-  AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
+  AInvoke: TATCommandInvoke; const AText: string; var AHandled: boolean);
 var
   Ed: TATSynEdit;
   Frame: TEditorFrame;
@@ -845,19 +853,19 @@ begin
 
     cmd_ConvertTabsToSpaces:
       begin
-        Ed.DoConvertTabsToSpaces;
+        EditorConvertTabsToSpaces(Ed);
         AHandled:= true;
         exit
       end;
     cmd_ConvertTabsToSpacesLeading:
       begin
-        Ed.DoConvertIndentation(false);
+        EditorConvertIndentation(Ed, false);
         AHandled:= true;
         exit
       end;
     cmd_ConvertSpacesToTabsLeading:
       begin
-        Ed.DoConvertIndentation(true);
+        EditorConvertIndentation(Ed, true);
         AHandled:= true;
         exit
       end;
@@ -865,7 +873,7 @@ begin
     cmd_BookmarkToggle:
       begin
         if ed.Carets.Count>0 then
-          ed.BookmarkToggleForLine(ed.Carets[0].PosY, 1, '', bmadOption, true, 0);
+          ed.BookmarkToggleForLine(ed.Carets[0].PosY, 1, '', TATBookmarkAutoDelete.ByOption, true, 0);
         UpdateFrameEx(Frame, false);
         AHandled:= true;
         exit
@@ -1011,38 +1019,38 @@ begin
 
     cmd_LineEndWin:
       begin
-        UpdateFrameLineEnds(Frame, cEndWin);
+        UpdateFrameLineEnds(Frame, TATLineEnds.Windows);
         AHandled:= true;
         exit
       end;
     cmd_LineEndUnix:
       begin
-        UpdateFrameLineEnds(Frame, cEndUnix);
+        UpdateFrameLineEnds(Frame, TATLineEnds.Unix);
         AHandled:= true;
         exit
       end;
     cmd_LineEndMac:
       begin
-        UpdateFrameLineEnds(Frame, cEndMac);
+        UpdateFrameLineEnds(Frame, TATLineEnds.Mac);
         AHandled:= true;
         exit
       end;
 
     cmd_LineEndWin_Caret:
       begin
-        UpdateEditorCaretLineEnds(Frame, Ed, cEndWin);
+        UpdateEditorCaretLineEnds(Frame, Ed, TATLineEnds.Windows);
         AHandled:= true;
         exit
       end;
     cmd_LineEndUnix_Caret:
       begin
-        UpdateEditorCaretLineEnds(Frame, Ed, cEndUnix);
+        UpdateEditorCaretLineEnds(Frame, Ed, TATLineEnds.Unix);
         AHandled:= true;
         exit
       end;
     cmd_LineEndMac_Caret:
       begin
-        UpdateEditorCaretLineEnds(Frame, Ed, cEndMac);
+        UpdateEditorCaretLineEnds(Frame, Ed, TATLineEnds.Mac);
         AHandled:= true;
         exit
       end;
@@ -1191,15 +1199,33 @@ begin
         exit
       end;
 
+    cmd_TabSize_Set1:
+      begin
+        Ed.OptTabSize:= 1;
+        AHandled:= true;
+        exit
+      end;
     cmd_TabSize_Set2:
       begin
         Ed.OptTabSize:= 2;
         AHandled:= true;
         exit
       end;
+    cmd_TabSize_Set3:
+      begin
+        Ed.OptTabSize:= 3;
+        AHandled:= true;
+        exit
+      end;
     cmd_TabSize_Set4:
       begin
         Ed.OptTabSize:= 4;
+        AHandled:= true;
+        exit
+      end;
+    cmd_TabSize_Set6:
+      begin
+        Ed.OptTabSize:= 6;
         AHandled:= true;
         exit
       end;
@@ -1348,6 +1374,11 @@ begin
       DoFindActionFromString(AText);
     cmd_GotoLastEditingPos:
       EditorGotoLastEditingPos(Ed, UiOps.FindIndentHorz, UiOps.FindIndentVert);
+    cmd_SetLexer:
+      begin
+        if Assigned(Frame) then
+          Frame.LexerName[Ed]:= AText;
+      end
 
     else
       AHandled:= false;

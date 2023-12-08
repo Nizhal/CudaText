@@ -17,8 +17,8 @@ uses
   ATSynEdit;
 
 const
-  cAppExeVersion = '1.192.1.0';
-  cAppApiVersion = 445;
+  cAppExeVersion = '1.204.2.0';
+  cAppApiVersion = 448;
 
 const
   cOptionSystemSuffix =
@@ -57,6 +57,18 @@ const
     {$ifdef haiku}     false {$endif}
     ;
 
+  cSystemDontWantToRunPkExec =
+    {$ifdef windows}   false {$endif}
+    {$ifdef linux}     false {$endif}
+    {$ifdef darwin}    false {$endif}
+    {$ifdef freebsd}   true {$endif}
+    {$ifdef netbsd}    true {$endif}
+    {$ifdef openbsd}   true {$endif}
+    {$ifdef dragonfly} true {$endif}
+    {$ifdef solaris}   true {$endif}
+    {$ifdef haiku}     false {$endif}
+    ;
+
 const
   EOL = #10;
   msgPythonListError = 'Cannot create new list object'; //no need i18n
@@ -72,7 +84,7 @@ const
   msgErrorNullBytesInFile = 'Config file is broken, because its leading bytes are NULLs:'#10'%s'#10'Press OK to delete it.';
 
   msgCmdPaletteCaption: string = 'Command palette';
-  msgCmdPaletteTextHint: string = 'F9: set hotkey; input "@hotkey": search';
+  msgCmdPaletteTextHint: string = 'F9 to set hotkey, @ to find hotkey, # for help';
   msgCmdPalettePrefixHelp: string = '#p – plugins'+EOL+'#l – lexers'+EOL+'#f – opened files'+EOL+'#r – recent files';
 
   msgErrorPluginIgnored = 'NOTE: Plugin %s is in ignore-list, please remove it';
@@ -209,6 +221,7 @@ const
 
   msgCannotOpenFile: string = 'Cannot open file:';
   msgCannotFindFile: string = 'Cannot find file:';
+  msgCannotOpenNoReadPermissions: string = 'No read-permissions.';
   msgCannotHandleSplittedTab: string = 'Cannot handle the splitted UI-tab';
   msgCannotHandleUntitledTab: string = 'Cannot handle the untitled document';
   msgCannotFindLexerInLibrary: string = 'Cannot find lexer in library:';
@@ -236,6 +249,7 @@ const
   msgCannotAutocompleteMultiCarets: string = 'Cannot auto-complete with multi-carets';
   msgCannotFindPkExec: string = 'Cannot find "pkexec" program to copy as root.';
   msgCannotSetWrap: string = 'Cannot set word-wrap mode. Line count %d is bigger than value of option "wrap_enabled_max_lines": %d.';
+  msgCannotSaveAndDontWantToRunPkExec = 'Cannot save file to write-protected folder. Run as root:';
 
   msgStatusbarTextTab: string = 'Tab';
   msgStatusbarTextSpaces: string = 'Spaces';
@@ -326,9 +340,9 @@ const
   msgConfirmReloadItHotkeysSess: string = '(Yes: reopen. No: open text from previous session.)';
   msgConfirmOpenCreatedDoc: string = 'Open created document?';
   msgConfirmSaveColorsToFile: string = 'Save theme to file?';
-  msgConfirmSaveModifiedTab: string = 'Tab is modified:'#10'%s'#10#10'Save it first?';
-  msgConfirmClosePinnedTab: string = 'Tab is pinned:'#10'%s'#10#10'Are you sure you want to close it?';
-  msgConfirmReopenModifiedTab: string = 'Tab is modified:'#10'%s'#10#10'Reopen it?';
+  msgConfirmSaveModifiedTab: string = 'Save changes to document "%s" before closing?'#10#10'If you don''t save, changes will be permanently lost.';
+  msgConfirmClosePinnedTab: string = 'Document is pinned:'#10'%s'#10#10'Are you sure you want to close it?';
+  msgConfirmReopenModifiedTab: string = 'Document was modified:'#10'%s'#10#10'Reopen it?';
   msgConfirmReloadFileWithEnc: string = 'Encoding is changed in memory.'#10'Do you also want to reopen file?';
   msgConfirmCreateNewFile: string = 'File not found:'#10'"%s"'#10#10'Create it?';
   msgConfirmCreateUserConfig: string = 'User config not found. Create it?';

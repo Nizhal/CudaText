@@ -153,7 +153,7 @@ This plugin is preinstalled in CudaText. It shows panel "Project" in the sidebar
 
 Plugin has context menu on its panel, with items:
 
-* Project file
+* '''Project file'''
 ** New project
 ** Open project
 ** Recent projects
@@ -161,14 +161,18 @@ Plugin has context menu on its panel, with items:
 ** Go to file... - this shows menu with all project files, and then tree-view selection jumps on selected file
 ** Project properties... - this shows dialog with current project's options
 ** Config... - this shows dialog with global Project Manager options
-* Root nodes - commands for nodes on the project's root level
+* '''Root nodes''' - commands for nodes on the project's root level
 ** Add folder...
 ** Add file...
 ** Clear project
 ** Remove node
-* Selected file - it's shown only for files
-* Selected directory - it's shown only for folders
-* Refresh - it re-reads state of files/folders from disk
+* '''Selected file''' - it's shown only for files
+* '''Selected directory''' - it's shown only for folders
+* '''Refresh''' - it re-reads state of files/folders from disk
+
+To manage the selected file/folder, use context menu items "Selected file"/"Selected directory". They give useful sub-items for file operations, like shown on the picture:
+
+[[File:cudatext-project-seldir.png]]
 
 Any project can have '''main file''', you can choose it in the context menu: "Selected file / Set as main file". Main file's path is used by plugin External Tools, when some tool is configured with macro {ProjMainFile}. This allows tools to run compilation of the main file.
 
@@ -253,6 +257,64 @@ You will see this confirmation when doing:
 * "Save session..." action (from "gear" popup menu, or from Command Palette)
 
 You can disable that option (or press "Cancel" in the confirmation), to save even "not belonging" opened files to embedded session.
+
+== How to bind a hotkey to insert a snippet ==
+You can create plugin to insert any text fragment by any hotkey.
+First, create the plugin which gives the command to insert your fragment.
+Next, find this plugin in the Command Palette, press F9 and assign a hotkey there.
+
+Let's show how to make a primitive plugin which has 2 primitive commands:
+
+* Insert snippet "AA" at the caret position (supporting multi-carets).
+* Surround current line with square brackets.
+
+Make a new plugin by calling menu item "Plugins / Make Plugin". Fieds of dialog:
+
+* "Plugin name": set to "My plugin".
+* "Python module name": set to "my_snippet".
+* "Commands caption>method": set 2 lines:
+
+ My snippet>my_snippet
+ My edit>my_edit
+
+This will generate new plugin with 2 methods in the file "__init__.py": my_snippet and my_edit. Code will be like this:
+<syntaxhighlight lang="python">
+    def my_snippet(self):
+        #
+        #
+        #
+        msg_box(s, MB_OK)
+     
+    def my_edit(self):
+        pass
+</syntaxhighlight>
+
+At the top of the Python file, near "import" operators, add:
+<syntaxhighlight lang="python">
+import cudatext_cmd as cmds
+</syntaxhighlight>
+
+Now edit methods my_snippet / my_edit:
+<syntaxhighlight lang="python">
+    def my_snippet(self):
+        ''' Insert my snippet '''
+        ed.cmd(cmds.cCommand_TextInsert, 'AA')
+     
+    def my_edit(self):
+        ''' Surround line with brackets '''
+        x, y, x1, y1 = ed.get_carets()[0]
+        s = ed.get_text_line(y)
+        s = '[' + s + ']'
+        ed.set_text_line(y, s)
+        msg_status('Edited!')
+</syntaxhighlight>
+
+All done. Restart CudaText. You must have new menu items:
+
+* "Plugins / My plugin / My snippet"
+* "Plugins / My plugin / My edit"
+
+In the Command Palette, find these new commands, press F9 to set hotkey for them.
 
 == Snippets ==
 
@@ -630,7 +692,7 @@ Formatters may change the entire file text or only selected text. If selection i
 
 ;Formatter (menu): Runs formatter for current editor file. If several suitable formatters are found, menu-like dialog will suggest to choose one of them. If only single formatter is found, it will be run without confirmation.
 
-;Formatter per-lexer A...D: Runs formatter for current editor file, which has per-lexer label (A, B, C, D). Labels are configurable by another command. For example, for the label "A" you can have one formatter for C++, another formatter for HTML, and the 3rd one for CSS. 
+;Formatter per-lexer A...D: Runs formatter for current editor file, which has per-lexer label (A, B, C, D). Labels are configurable by another command. For example, for the label "B" you can have one formatter for C++, another formatter for HTML, and the 3rd one for CSS. All 3 formatters will be callable by the same command "Formatter per-lexer B".
 
 ;Formatter cross-lexer 1...4: Runs formatter for current editor file, which has cross-lexer label (1, 2, 3, 4). For example, when you have a formatter XY assigned to the label "2", the command "Formatter cross-lexer: 2" always runs XY, ignoring the current lexer.
 
@@ -643,6 +705,27 @@ Formatters may change the entire file text or only selected text. If selection i
 ;Configure formatter: For those formatters which have configuration file, command will suggest to open global config file (in the folder "settings" of CudaText).
 
 ;Configure formatter (local): For those formatters which have configuration file, command will suggest to open "local" config (in the folder of current editor file). If local config not exists, plugin will suggest to create it from the global config.
+
+===How to run formatter ESLint on saving===
+* Install from Addons Manager: "CudaFormatter"
+* Install from Addons Manager: "formatter: JavaScript_JSON"
+
+You have package "formatter.JavaScript_JSON" installed and this package gives the formatter named "... ESLint" (for JavaScript lexer). How you can auto-run this formatter on saving?
+
+* Activate lexer JavaScript in the current document (can be empty).
+* Call menu item "Plugins / CudaFormatter / Configure on_save...".
+* Menu-like dialog appears. Choose item "... ESLint" and see that menu appears again, now showing that "... ESLint" item has "on_save" label. Now cancel the auto-shown menu.
+
+[[File:cudatext-fmt-onsave.png]]
+
+Now for all documents with JavaScript (and "JavaScript Babel") lexer, file saving will call ESLint formatter. Note: ESLint handles only named files, and files which have ESLint configuration created in the file's folder. Document "(CudaText)/py/cuda_fmt_js/readme/readme.txt" tells more details.
+
+===How formatter can know filename===
+Some formatters need to know the processing filename and/or lexer. For example, ESLint formatter must know full filename, to make the temporary file there. How can formatter know it?
+Module "cuda_fmt" has submodule "fmtconfig", which has variables "ed_filename" and "ed_lexer". Python code:
+
+ from cuda_fmt import fmtconfig
+ fn = fmtconfig.ed_filename
 
 == External Tools ==
 
@@ -1140,22 +1223,80 @@ Hello world.
 -- Done (-0.0s), return code: 0
 </pre>
 
+==Runner tool for Cobol==
+In Addons Manager, install the lexer "Cobol".
+
+Let's make build-system for GnuCOBOL on Windows.
+Install GnuCOBOL, usually [https://www.arnoldtrembley.com/GnuCOBOL.htm from this webpage], to "C:\GnuCOBOL".
+You must have file "C:\GnuCOBOL\bin\cobc.exe".
+
+Create Batch script "c:\GnuCOBOL\bin\runcobol.cmd" with such content:
+<pre>
+set Path=c:\gnucobol\bin
+set COB_CONFIG_DIR=c:\gnucobol\config
+set COB_COPY_DIR=c:\gnucobol\copy
+set COB_INCLUDE_PATH=c:\gnucobol\include
+set COB_LIB_PATH=c:\gnucobol\lib
+cobc -x -std=mf %1
+</pre>
+
+Create build-system file "[CudaText]\data\buildsystems\cobol.sublime-build":
+<syntaxhighlight lang="json">
+{
+  "file_patterns": ["*.cob", "*.cbl", "*.cpy"],
+  "name": "Compile",
+  "cmd": ["cmd.exe", "/c", "c:\\GnuCOBOL\\bin\\runcobol.cmd", "$file"],
+  "working_dir": "$file_path",
+  "file_regex": "^([^:]+):([0-9]+):",
+  "variants": [
+    {
+      "name": "Run",
+      "cmd": ["$file_path/$file_base_name.exe"]
+    }
+  ]  
+}
+</syntaxhighlight>
+
+Note: the build-system gives usual command "Build" and additional command "Run" to execute the .exe file, and "Run" has forward slash (Unix slash): "$file_path/$file_base_name.exe". Forward slash is required here, because with backslash Runner will fail to run the .exe (it will not expand the macro $file_base_name).
+
+Now running the "Plugins / Runner / Build" can give text in the "Output panel" like this:
+<pre>
+-- [07:49:02] Building: cobol: test.cbl
+-- Command: ['cmd.exe', '/c', 'c:\\GnuCOBOL\\bin\\runcobol.cmd', 'C:\\Work\\test.cbl']
+-- Working dir: C:\Work
+
+C:\Work>set Path=c:\gnucobol\bin 
+C:\Work>set COB_CONFIG_DIR=c:\gnucobol\config 
+C:\Work>set COB_COPY_DIR=c:\gnucobol\copy 
+C:\Work>set COB_INCLUDE_PATH=c:\gnucobol\include 
+C:\Work>set COB_LIB_PATH=c:\gnucobol\lib 
+C:\Work>cobc -x -std=mf C:\Work\test.cbl 
+C:\Work\test.cbl:1: error: invalid indicator 'u' at column 7
+C:\Work\test.cbl:2: warning: line not terminated by a newline [-Wmissing-newline]
+C:\Work\test.cbl:3: warning: PROGRAM-ID header missing [-Wothers]
+-- Done (0.3s), return code: 1
+</pre>
+
 =FindInFiles=
 This plugin implements searching in many files, starting from custom folder. CudaText doesn't have the built-in feature to search in many files, and seems it will not have it in future, because FindInFiles is so powerful, it even has the Configuration dialog with dozens of options.
 
 Project Manager plugin allows to call FindInFiles functionality. Focus a folder in Project Manager, call context menu, and then "Selected directory / Find in directory..." menu item.
 
 ==How to find/replace in all UI-tabs==
-FindInFiles 4 supports search inside all UI-tabs. Hover mouse over "From:" label in the dialog, tooltip will appear. Tooltip says what to enter in the nearest input-field. Enter one of these strings:
+FindInFiles 4 supports search inside all UI-tabs. Hover mouse over "From:" label in the dialog, tooltip will appear. Tooltip says what to enter in the nearest input-field. Enter one of these strings in the "From" field:
 
  <tabs>
  {t}
 
 [[File:cudatext-findinfiles-intabs.png]]
 
+And in the "Files" field, enter "*" for all files.
+
 To discover more features of FindInFiles dialog, hover mouse over other labels/buttons.
 
-You can also '''replace in all UI-tabs''', of course. Additionally, CudaText gives built-in "Replace in all tabs" feature, it is the button "Rep global" in the built-in Find/Replace dialog. This is documented in the main CudaText wiki page.
+You can also '''replace in all UI-tabs''', of course. To do it, fill all input fields in the FindInFiles main dialog, but instead of pressing "Find" - press "=" button and then choose "Replace with..." from appeared popup menu. Additional dialog will appear to confirm you replacement request, press "Replace" button there. 
+
+Additionally, CudaText gives built-in "Replace in all tabs" feature, it is the button "Rep global" in the built-in Find/Replace dialog. This is documented in the main CudaText wiki page.
 
 ==How to use FindInFiles 4==
 FindInFiles v4 has two panels. Top panel shows found filenames, line by line. Bottom panel shows the entire document of one of the selected filenames. When you single click on a line of top panel, the bottom panel shows the content of a clicked file. When you double click the line again, the main editor of CudaText jumps to that location.
@@ -1233,7 +1374,9 @@ How to open ExTerminal in the directory of the current editor file? You can do t
 
 =Configure Menu=
 
-Plugin "Configure Menu" (in Addon Manager) allows to change top menu and context menu. Plugin can create file (settings/menu.json) with default menu configuration, which you edit to customize all menus. File has items like:
+Plugin "Configure Menu" (in Addons Manager) allows to change CudaText menus.
+You can add items to the CudaText top-menu, top menu submenu, editor context-menu, tab header context-menu and dropdown submenu of toolbar buttons.
+Plugin can create file (settings/menu.json) with default menu configuration, which you edit to customize all menus. File has items like:
 
 <syntaxhighlight lang="json">
   ,{"cap":"&Save", "cmd":"cmd_FileSave"}
@@ -1250,6 +1393,8 @@ How to add here plugin commands? For example, you have plugin "Comments", it is 
 Here "cuda_comments" is plugin folder name, and "cmt_toggle_line_body" is Python method from install.inf.
 
 You can add items to the CudaText top-menu and/or context-menu, it is different sections in "menu.json".
+Possible root sections in "menu.json" are listed in the API wiki page: [[CudaText_API#menu_proc_-_Menu_id]].
+
 Example screenshot shows how "menu.json" will look with new items for context-menu:
 
 [[File:cudatext-editing-context-menu.png]]
@@ -1281,6 +1426,25 @@ These special lines need special integer IDs. You can find these IDs in the conf
             "pttn": "(?P<file>[\\w\\.\\-]+):(?P<line>\\d+):(?P<col>\\d+):.+",
         },
 </syntaxhighlight>
+
+=Config Toolbar=
+
+Plugin allows to change the content of the main (horizontal) toolbar: hide standard buttons, add user buttons for any actions, customize icons and nesting of menu items.
+
+For example, you installed two plugins:
+* Config Toolbar
+* Color Text
+
+And you want to call command "Apply bold" (from "Color Text") via toolbar. How to add such a button? Picture highlights your steps.
+
+[[File:cudatext-config-toolbar.png]]
+
+* From the Command Palette, call the item "Config Toolbar: Configure buttons...". Dialog will appear from the plugin.
+* In the "Configure toolbar" dialog, press "Add item...", and fill fields of new dialog "Button properties".
+** Caption
+** Tooltip (optional)
+** Command: should be "cuda_color_text.format_bold" for our task. You cannot type this text, instead press "Choose command" and find the command there, in the Command Palette-like menu.
+** Icon (optional)
 
 =Intext Bookmarks=
 
@@ -1521,6 +1685,10 @@ It outputs on Ubuntu:
 
  /home/user/.local/bin/pyright-langserver
 
+* On macOS, install pyright via PIP, not via Homebrew. On macOS, see what output you have after you call this command: "nodeenv env". If you see certificate error, try to fix it with the following command:
+
+ /Applications/Python\ 3.10/Install\ Certificates.command
+
 2. Create config (CudaText)/settings/lsp_pyright.json:
 
 <syntaxhighlight lang="json">
@@ -1529,7 +1697,9 @@ It outputs on Ubuntu:
     "Python": "python"
   },
   "cmd_windows": ["pyright-langserver.exe", "--stdio"],
-  "cmd_unix": ["/home/user/.local/bin/pyright-langserver", "--stdio"]
+  "cmd_unix": ["/home/user/.local/bin/pyright-langserver", "--stdio"],
+  "cmd_macos": ["/Library/Frameworks/Python.framework/Versions/3.10/bin/pyright-langserver", "--stdio"],
+  "log_stderr": true
 }
 </syntaxhighlight>
 
@@ -2271,16 +2441,39 @@ Some text.
 
 * Install V lexer (from "Addons Manager / Plugins / Install")
 * Install V language
-* Install VLS by running "v ls --install"
+* Install v-analyzer binary from https://github.com/v-analyzer/v-analyzer to a folder (that is included in PATH)
 * Create "lsp_v.json" in CudaText's "settings" folder with the following content:
 <syntaxhighlight lang="json">
 {
   "lexers": {
     "V": "v"
   },
-  "cmd_windows": ["v", "ls"],
-  "cmd_unix": ["v", "ls"]
+  "cmd_windows": ["v-analyzer.exe"],
+  "cmd_unix": ["v-analyzer"],
+  "cmd_macos": ["v-analyzer"]
 }
 </syntaxhighlight>
+
+==LSP server Vale==
+Steps for Windows OS.
+
+* Install Vale server. Add path of "vale-ls.exe" to system PATH.
+* Create "lsp_vale.json" in CudaText's "settings" folder. Specify empty lexer name.
+<syntaxhighlight lang="json">
+{
+    "lexers": {
+        "": ""
+    },
+    
+    "cmd_windows": ["vale-ls.exe"],
+    "log_stderr": true,
+    "settings": {
+        "configPath": ""
+    }
+}
+</syntaxhighlight>
+
+* You need to put config file to %UserProfile% folder. For example: "C:\Users\john\.vale.ini".
+* Do not forget to run: "vale sync".
 
 [[Category:CudaText]]

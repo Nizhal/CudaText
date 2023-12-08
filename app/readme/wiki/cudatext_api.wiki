@@ -50,7 +50,6 @@ Event handlers (Command.on_nnnnn methods) return-value is ignored is many cases,
 * on_change(self, ed_self): Called after editor text is changed.
 * on_change_slow(self, ed_self): Called after editor text is changed, and small pause is passed (CudaText option "py_change_slow"), and application "idle" event happens (no keyboard/mouse input for 1-2sec).
 * on_caret(self, ed_self): Called after caret position/selection is changed.
-* on_caret_line(self, ed_self): Called after first caret's line-index is changed.
 * on_caret_slow(self, ed_self): Called after caret position/selection is changed, and small pause is passed. Pause is CudaText option "py_caret_slow".
 * on_insert(self, ed_self, text): Called before inserting a text. Method can return False to disable insertion, other return value is ignored.
 * on_key(self, ed_self, key, state): Called when user presses a key in editor. Param "key" is int key code; values are listed in the module cudatext_keys. Param "state" is string of chars: "a" if Alt pressed, "c" if Ctrl pressed, "s" if Shift pressed, "m" if Meta (Windows-key) pressed. Method can return False to disable key processing, other return value is ignored.
@@ -78,7 +77,7 @@ Event handlers (Command.on_nnnnn methods) return-value is ignored is many cases,
 * on_state(self, ed_self, state): Called after some app state is changed. Param "state" is one of APPSTATE_nnnn constants. ed_self is None.
 * on_state_ed(self, ed_self, state): Called after some editor state is changed. Param "state" is one of EDSTATE_nnnn constants.
 
-Constants in on_state:
+Constants in "on_state":
 
 * APPSTATE_LANG: Changed UI translation.
 * APPSTATE_THEME_UI: Changed UI-theme.
@@ -100,9 +99,9 @@ Constants in on_state:
 * APPSTATE_CODETREE_AFTER_FILL: Code-Tree: after filling the content.
 * APPSTATE_CODETREE_SET_SELECTION: Code-Tree double-click changed scroll pos, or app sync'ed Code-Tree with caret pos.
 
-* APPSTATE_WINDOW: Changed state of the main window. Read current state via app_proc(PROC_GET_WINDOW_STATE, '').
+* APPSTATE_WINDOW: Changed state of the main window: minimized/normal/maximized/fullscreen. Read current state via app_proc(PROC_GET_WINDOW_STATE, "").
 
-Constants in on_state_ed:
+Constants in "on_state_ed":
 
 * EDSTATE_WRAP: Word-wrap state is changed.
 * EDSTATE_TAB_TITLE: UI-tab title is changed.
@@ -115,25 +114,23 @@ Constants in on_state_ed:
 ==Events - Smart commands==
 
 * on_complete(self, ed_self): Called by "auto-completion menu" command (default hotkey: Ctrl+Space). Method should read editor text, find all needed data, and call Editor.complete() API to show the actual auto-completion listbox to user. True return value means that plugin handled the event, don't call other plugins.
-* on_func_hint(self, ed_self): Called by "show function-hint" command (default hotkey: Ctrl+Shift+Space). Method should return function-hint string (comma-separated parameters, brackets are optional). Empty string or None mean that no hint was found. True return value means that plugin handled the event, don't call other plugins.
+* on_func_hint(self, ed_self): Called by "show function-hint" command (default hotkey: Ctrl+Shift+Space). Method should return function-hint string (comma-separated parameters, brackets are optional). Non-empty string result means that plugin handled the event, don't call other plugins. Empty string or None mean that no hint was found.
 * on_goto_def(self, ed_self): Called by "go to definition" command (e.g. by mouse shortcut or by menu item in the editor context menu). Method must return True if it handled the command, otherwise None.
 * on_goto_enter(self, ed_self, text): Called after user entered text in the Go To dialog. Method can return False to disable default processing.
 
 ==Events - Panels==
 
 * on_message(self, ed_self, id, text): Called on showing a text in the statusbar. Param "id" means statusbar column index, currently only value 0 is used ("text message" statusbar cell). Method can return False to disable usual showing of message. Param "ed_self" is None here.
-* on_console_nav(self, ed_self, text): Called for Console panel events. Param "ed_self" is None here.
-** Called on double-clicking lines, or calling context menu item "Navigate", in the Console's memo-field. Param "text" is line with caret.
-** Called also when Console input-field is first changed. Param "text" value is "(console_input_change)".
+* on_console_nav(self, ed_self, text): Called on double-clicking a line, or calling context menu item "Navigate", in the Console's multi-line memo field. Param "text" is Console memo line with caret. Param "ed_self" is None here.
 * on_console_complete(self, ed_self): Called when user presses hotkey of "auto-complete" in the Console input. Param "ed_self" is None here. True return value means that plugin handled the event, don't call other plugins.
 * on_output_nav(self, ed_self, text, tag): Called on clicking line, or pressing Enter, in the Output or Validate panel. Param "text" is clicked line, param "tag" is int value associated with line. Event is called only if app cannot parse output line by itself using given regex, or regex is not set. Param "ed_self" is None here.
-* on_sidebar_popup(self, ed_self, caption): Called on right-click on sidebar/bottombar buttons. Param "ed_self" is None here. Param "caption" is button caption.
+* on_sidebar_popup(self, ed_self, caption): Called on right-click on sidebar (with bottom-bar) buttons. Param "caption" is caption of clicked button (this is non-translatable string, always in English). Param "ed_self" is None here.
 
 ==Events - Macros==
 
-* on_macro(self, ed_self, text): Called when command "start/stop macro recording" stops the recording. Param "text" is "\n"-separated list of macro items, which were run during the macro recording.
-** if item is "number" then it's simple command.
-** if item is "number,string" then it's command with str parameter (usually it's command cCommand_TextInsert).
+* on_macro(self, ed_self, text): Called when command "start/stop macro recording" stops the recording. Param "text" is string: "\n"-separated text of macro items, which were run during the macro recording.
+** if item is str(number) then it's simple command.
+** if item is "number,string" then it's command with string parameter (usually it's command cCommand_TextInsert).
 ** if item is "py:string_module,string_method,string_param" then it's call of Python plugin (usually string_param is empty).
 
 Note: To run each on_macro item (with number) later, call ed.cmd(): number is command code, string after comma is command text.
@@ -198,16 +195,16 @@ Example of version check:
 
  app_path(id)
 
-Returns file-system path. Possible values of "id":
+Returns some file-system path. Possible values of "id":
 
 * APP_DIR_EXE: Folder of program executable.
-* APP_DIR_SETTINGS: Folder "settings" (it should contain user.json file).
-* APP_DIR_SETTINGS_DEF: Folder "settings_default".
+* APP_DIR_SETTINGS: Folder "settings" (which usually contains user.json file).
+* APP_DIR_SETTINGS_DEF: Folder "settings_default" (which usually contains default.json file).
 * APP_DIR_DATA: Folder "data".
-* APP_DIR_PY: Folder "py" with Python files.
-* APP_DIR_INSTALLED_ADDON: Folder of last installed addon (for plugins it is folder in "py", for data-files it is folder in "data", for lexers it is folder "lexlib"). This dir is updated only if addon installed via file_open() or from app (Open dialog or command line).
-* APP_FILE_SESSION: Filename of current session. Default filename is "history session.json" without path. Missing path means that folder "settings" will be used.
-* APP_FILE_RECENTS: Str: "\n"-separated filenames of recent files.
+* APP_DIR_PY: Folder "py" (with Python codes).
+* APP_DIR_INSTALLED_ADDON: Folder of last installed add-on. For plugins it is subfolder in "py", for data-files it is subfolder in "data", for lexers it is folder "data/lexlib". This path is internally updated when add-on was installed: via file_open() API; via "Open file" dialog when you open .zip file; via command-line with .zip file.
+* APP_FILE_SESSION: Filename of current session. Default filename is "history session.json" without path. Missing path means that session file is in the folder "settings".
+* APP_FILE_RECENTS: String, "\n"-separated filenames of recently used files.
 
 ===app_proc===
 
@@ -276,6 +273,7 @@ Actions work with props of Find/Replace dialog, and props of low-level search en
 ** "op_cfm": option "confirm on replace" of search engine
 ** "op_insel": option "in selection" of search engine
 ** "op_wrap": option "wrapped search" of search engine
+** "op_wrap_c": option "show wrapped-search confirmation when search reaches the document edge" of search engine
 ** "op_back": option "backward search" (low level) of search engine
 ** "op_fromcaret": option "search from caret" (low level) of search engine
 ** "op_tokens": option "allowed syntax elements" of search engine (int)
@@ -323,11 +321,11 @@ Actions work with props of Find/Replace dialog, and props of low-level search en
 ** "tick_current": int: OS tick-count in milliseconds, at the moment of this API call.
 
 * PROC_SET_CLIP: Copies text to clipboard (usual clipboard). Note: this clears the clipboard first.
-* PROC_SET_CLIP_HTML: Copies HTML text to clipboard, text must be HTML. Note: this does not clear the clipboard first.
+* PROC_SET_CLIP_HTML: Copies text to clipboard (usual clipboard) in HTML format, additionally to clipboard contents in plain-text format. Param "text" must be HTML-formatted fragment. Note: this does not clear the clipboard first.
 * PROC_SET_CLIP_ALT: Copies text to alternate clipboard on Linux, called "primary selection".
-** CudaText Copy commands put text to usual clipboard + primary selection.
-** CudaText Paste commands get text from usual clipboard.
-** CudaText Paste with option "mouse_mid_click_paste":true gets text from primary selection.
+** CudaText "Copy" commands put text to usual clipboard + primary selection.
+** CudaText "Paste" commands get text from usual clipboard.
+** CudaText middle-click with option "mouse_mid_click_paste":true gets text from primary selection.
 
 * PROC_CLIP_ENUM: Returns string, where each char represents a format stored in Clipboard.
 ** "t": Text format.
@@ -2256,8 +2254,9 @@ Example replaces selection of 1st caret with text:
 
  insert(x, y, text)
 
-Inserts given text at position (x, y). If y is too big, appends block to the end (even to final line without line-ending).
-Coordinate x is in the UTF-16 internal representation of line.
+Inserts given text at position (x, y).
+If param "y" is after the actual line-count, appends block to the end (even to final line without line-ending).
+Coordinate "x" is in the UTF-16 internal representation of line.
 Text can be multi-line, all CR LF will be converted to currently used line-breaks.
 
 Returns 2-tuple (x, y) of position after inserted text. It is on the same line, if text is single line. Returns None if cannot insert.
@@ -2386,6 +2385,18 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"). Possi
 * PROP_SCROLL_HORZ_INFO: int: dict with all available info about horizontal scroll.
 * PROP_SCROLLSTYLE_HORZ: int: style of horizontal scrollbar, one of SCROLLSTYLE_ constants.
 * PROP_SCROLLSTYLE_VERT: int: style of vertical scrollbar, one of SCROLLSTYLE_ constants.
+
+* PROP_CORNER_TEXT: str: short text (single line) in the right-bottom corner (rendered above editor text).
+* PROP_CORNER_COLOR_FONT: int: font-color for PROP_CORNER_TEXT; can be COLOR_NONE.
+* PROP_CORNER_COLOR_BACK: int: background-color for PROP_CORNER_TEXT; can be COLOR_NONE.
+* PROP_CORNER_COLOR_BORDER: int: border-color for PROP_CORNER_TEXT; can be COLOR_NONE.
+* PROP_CORNER2_TEXT: like PROP_CORNER_TEXT but for the right-top corner.
+* PROP_CORNER2_COLOR_FONT: like PROP_CORNER_COLOR_FONT but for the right-top corner.
+* PROP_CORNER2_COLOR_BACK: like PROP_CORNER_COLOR_BACK but for the right-top corner.
+* PROP_CORNER2_COLOR_BORDER: like PROP_CORNER_COLOR_BORDER but for the right-top corner.
+
+* PROP_BORDER_COLOR: int: if active, ie value not equals to COLOR_NONE, specifies color of border around the editor (like with macro-recording active).
+* PROP_BORDER_COLOR_WIDTH: int: border width for PROP_BORDER_COLOR.
 
 * PROP_WHEEL_ZOOMS: bool: enable zooming by Ctrl+[mouse wheel up/down].
 * PROP_SCALE_FONT: int: scale of editor's font in percents, or 0 to use global app font scale.
@@ -2581,6 +2592,18 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"), tuple
 * PROP_SCROLLSTYLE_HORZ: int: style of horizontal scrollbar, one of SCROLLSTYLE_ constants.
 * PROP_SCROLLSTYLE_VERT: int: style of vertical scrollbar, one of SCROLLSTYLE_ constants.
 
+* PROP_CORNER_TEXT: str: short text (single line) in the right-bottom corner (rendered above editor text).
+* PROP_CORNER_COLOR_FONT: int: font-color for PROP_CORNER_TEXT; can be COLOR_NONE.
+* PROP_CORNER_COLOR_BACK: int: background-color for PROP_CORNER_TEXT; can be COLOR_NONE.
+* PROP_CORNER_COLOR_BORDER: int: border-color for PROP_CORNER_TEXT; can be COLOR_NONE.
+* PROP_CORNER2_TEXT: like PROP_CORNER_TEXT but for the right-top corner.
+* PROP_CORNER2_COLOR_FONT: like PROP_CORNER_COLOR_FONT but for the right-top corner.
+* PROP_CORNER2_COLOR_BACK: like PROP_CORNER_COLOR_BACK but for the right-top corner.
+* PROP_CORNER2_COLOR_BORDER: like PROP_CORNER_COLOR_BORDER but for the right-top corner.
+
+* PROP_BORDER_COLOR: int: if active, ie value not equals to COLOR_NONE, specifies color of border around the editor (like with macro-recording active).
+* PROP_BORDER_COLOR_WIDTH: int: border width for PROP_BORDER_COLOR.
+
 * PROP_WHEEL_ZOOMS: bool: enable zooming by Ctrl+[mouse wheel up/down].
 * PROP_SCALE_FONT: int: scale of editor's font in percents, or 0 to use global app font scale.
 * PROP_ENC: str: encoding name. Names listed at [[CudaText#Encodings]].
@@ -2638,6 +2661,7 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"), tuple
 * PROP_HILITE_CUR_LINE_MINIMAL: bool: highlight current line, only minimal part of line.
 * PROP_HILITE_CUR_LINE_IF_FOCUS: bool: highlight current line, only when editor focused.
 * PROP_CODETREE: bool: enable standard code-tree filling.
+* PROP_CODETREE_SUBLEXER: bool: enable code-tree to show nodes from sublexer(s) of current lexer.
 * PROP_EDITORS_LINKED: bool: enable sharing of the same text by primary/secondary editors in file tab.
 * PROP_ONE_LINE: bool: editor has single-line mode.
 * PROP_MODERN_SCROLLBAR: bool: use custom-drawn themed scrollbars.
@@ -2653,7 +2677,6 @@ Param "value" can be: str, number, bool (for bool it can be also "0"/"1"), tuple
 * PROP_FONT_B: 2-tuple (str, int): bold font: name, size. Empty name: not used.
 * PROP_FONT_I: 2-tuple (str, int): italic font: name, size. Empty name: not used.
 * PROP_FONT_BI: 2-tuple (str, int): bold+italic font: name, size. Empty name: not used.
-* PROP_CODETREE_SUBLEXER: bool: enable code-tree to show nodes from sublexer(s) of current lexer.
 
 * PROP_SPLIT: 2-tuple: information about primary/secondary editors splitting as tuple (split_kind, split_pos).
 ** "split_kind": str: "-" (not splitted), "v" (splitted vertically), "h" (splitted horizontally).
@@ -2798,38 +2821,50 @@ Notes:
 
 ===Editor.folding===
 
- folding(id, index=-1, item_x=-1, item_y=-1, item_y2=-1, item_staple=False, item_hint="")
+ folding(id, index=-1, item_x=-1, item_y=-1, item_y2=-1, item_staple=False, item_hint="", item_x2=0, item_tag=0)
 
 Performs action on folding ranges. Possible values of "id":
 
-* FOLDING_GET_LIST: Returns list of folding ranges. Params used: none except "id". Returns list of tuples (y, y2, x, staple, folded), or None.
+* FOLDING_ENUM: Returns list of folding ranges. If param "item_y"<0, returns list of all ranges; otherwise makes filtering of ranges by params "item_y" and "item_y2" - ie, gets only ranges which contain line indexes from "item_y" to "item_y2" inclusive. Each list item is dict with fields:
+** "x": int, column index of range beginning.
+** "y": int, line index of range beginning.
+** "x2": int, column index of range ending.
+** "y2": int, line index of range ending.
+** "staple": bool, indicates that range has 'block staple'.
+** "folded": bool, indicates that range is folded.
+** "hint": string, hint of range (it is rendered when range is folded).
+** "tag": int 64-bit, tag value. For example, it is -1 for ranges created by CudaText command "fold selected lines".
+
+* (deprecated) FOLDING_GET_LIST: Returns list of folding ranges. Params used: none except "id". Returns list of tuples (y, y2, x, staple, folded), or None.
 ** "y": int: line of range start.
 ** "y2": int: line of range end. If y==y2, then range is simple and don't have gutter-mark and staple.
 ** "x": int: x-offset of range start (char index in start line).
 ** "staple": bool: range has block staple.
 ** "folded": bool: range is currently folded.
 
-* FOLDING_GET_LIST_FILTERED: Returns list of folding ranges, which contain given range: line indexes from param "item_y" to param "item_y2" (inclusive). If item_y<0, then no filtering is done. You can perform this filtering from the result of FOLDING_GET_LIST, but it's slower.
+* (deprecated) FOLDING_GET_LIST_FILTERED: Returns list of folding ranges, which contain given range: line indexes from param "item_y" to param "item_y2" (inclusive). If item_y<0, then no filtering is done.
 
-* FOLDING_FOLD: Folds range with given index (index in list, from FOLDING_GET_LIST). Params used: "index".
+* FOLDING_FOLD: Folds range with given index (index in unfiltered list returned by FOLDING_ENUM). Params used: "index".
 * FOLDING_FOLD_ALL: Folds all ranges.
 * FOLDING_FOLD_LEVEL: Unfolds all ranges, then folds ranges starting with given nesting level. Params used: "index": nesting level, 0..9.
 
-* FOLDING_UNFOLD: Unfolds range with given index (index in list, from FOLDING_GET_LIST). Params used: "index".
+* FOLDING_UNFOLD: Unfolds range with given index (index in unfiltered list returned by FOLDING_ENUM). Params used: "index".
 * FOLDING_UNFOLD_ALL: Unfolds all ranges.
-* FOLDING_UNFOLD_LINE: Unfolds line with given index (index in lines list). Params used: "index".
+* FOLDING_UNFOLD_LINE: Unfolds line with given index. Params used: "index".
 
 * FOLDING_ADD: Adds folding range. Life time of this range is until lexer analisys runs (it clears ranges and adds ranges from lexer), which runs after any text change. Params used:
-** "item_x": char index (offset in line) of range start.
+** "item_x": column index (offset in line) of range start.
 ** "item_y": line index of range start.
-** "item_y2": line index of range end.
-** "item_staple" (optional): bool, range has block staple.
+** "item_x2" (optional): column index (offset in line) of range ending.
+** "item_y2": line index of range ending.
+** "item_staple" (optional): bool, indicates that range has 'block staple'.
 ** "item_hint" (optional): str, hint which is shown when range is folded.
+** "item_tag" (optional): int 64-bit, tag value. For example, it is -1 for ranges created by CudaText command "fold selected lines".
 ** "index": if it's valid range index (0-based), range inserts at this index, otherwise range appends.
 
-* FOLDING_DELETE: Deletes folding range with given index (index in list, from FOLDING_GET_LIST). Params used: "index".
+* FOLDING_DELETE: Deletes folding range with given index (index in unfiltered list returned by FOLDING_ENUM). Params used: "index".
 * FOLDING_DELETE_ALL: Deletes all folding ranges. Params used: none except "id".
-* FOLDING_FIND: Finds index of range (index in list, from FOLDING_GET_LIST). Returns None if not found. Params used: "item_y" is line index at which range begins.
+* FOLDING_FIND: Finds index of range (index in unfiltered list returned by FOLDING_ENUM). Returns None if not found. Params used: "item_y" is line index at which range begins.
 * FOLDING_CHECK_RANGE_INSIDE: For 2 ranges, which indexes given by "index" and "item_x", detects: 1st range is inside 2nd range. Returns bool. Returns False if indexes incorrect.
 * FOLDING_CHECK_RANGES_SAME: For 2 ranges, which indexes given by "index" and "item_x", detects: ranges are "equal" (x, y, y2 in ranges may differ). Returns bool. Returns False if indexes incorrect.
 
@@ -3341,6 +3376,7 @@ Some APIs allow to specify finder options as a string. Such string can have the 
 * "s": Search in selection
 * "o": Confirm replaces
 * "a": Wrap search at edge of text
+* "A": When "wrap search at edge of text" is off, and search reaches the document edge, show confirmation to continue search from the opposite edge
 * "T" followed by a digit: Allowed syntax elements. Digit can be:
 ** "0": any
 ** "1": only comments
@@ -3478,6 +3514,14 @@ This will show:
 Options Editor stores values in JSON with trailing comma, so to read these options, plugin must use cudax_lib.get_opt() instead of json.load().
 
 ==API of Project Manager==
+'''Opening project from plugin'''
+
+To open a project, you need to call the Project Manager's method Command.action_open_project, which can be done via action PROC_EXEC_PLUGIN. For example, this code loads the project "/home/user/tt.cuda-proj":
+
+ app_proc(PROC_EXEC_PLUGIN, 'cuda_project_man,action_open_project,/home/user/tt.cuda-proj')
+
+'''Getting current project info'''
+
 Project Manager plugin (preinstalled in CudaText) gives API to read properties of currently opened project. It has global variable '''global_project_info''', which is dict with keys:
 
 * "filename": Path of project file (*.cuda-proj), or empty string if project is not saved.
@@ -4869,5 +4913,26 @@ It provides:
 
 1.0.445 (app 1.190.1)
 * add: Editor.get_prop/set_prop: PROP_TAB_SMART
+
+1.0.446 (app 1.195.1)
+* delete event on_caret_line
+
+1.0.447 (app 1.196.3)
+* add: PROC_GET_FINDER_PROP new option "op_wrap_c", and new option "A" in the string form of search options
+
+1.0.448 (app 1.197.0)
+* add: Editor.folding: FOLDING_ENUM
+* add: Editor.folding: add optional params "item_x2", "item_tag"
+* deprecate FOLDING_GET_LIST and FOLDING_GET_LIST_FILTERED (use FOLDING_ENUM instead of them)
+* add: Editor.get_prop/set_prop: PROP_BORDER_COLOR
+* add: Editor.get_prop/set_prop: PROP_BORDER_COLOR_WIDTH
+* add: Editor.get_prop/set_prop: PROP_CORNER_TEXT
+* add: Editor.get_prop/set_prop: PROP_CORNER_COLOR_FONT
+* add: Editor.get_prop/set_prop: PROP_CORNER_COLOR_BACK
+* add: Editor.get_prop/set_prop: PROP_CORNER_COLOR_BORDER
+* add: Editor.get_prop/set_prop: PROP_CORNER2_TEXT
+* add: Editor.get_prop/set_prop: PROP_CORNER2_COLOR_FONT
+* add: Editor.get_prop/set_prop: PROP_CORNER2_COLOR_BACK
+* add: Editor.get_prop/set_prop: PROP_CORNER2_COLOR_BORDER
 
 [[Category:CudaText]]

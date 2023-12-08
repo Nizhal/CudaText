@@ -129,13 +129,10 @@ begin
     DoLocMenuitem(ini, mnuFileExit, 'm_f', 'q');
 
     DoMenuitemEllipsis(mnuFileEnc);
+    DoMenuitemEllipsis(mnuFileEnds);
 
     msgEncReloadAs:= ini.ReadString('m_f', 'e_r', msgEncReloadAs);
     msgEncConvertTo:= ini.ReadString('m_f', 'e_t', msgEncConvertTo);
-
-    DoLocMenuItem(mnuFileEndWin, msgEndWin);
-    DoLocMenuItem(mnuFileEndUn, msgEndUnix);
-    DoLocMenuItem(mnuFileEndMac, msgEndMac);
 
     DoLocString(ATEditorOptions.TextMenuitemUndo, ini, 'm_e', 'undo');
     DoLocString(ATEditorOptions.TextMenuitemRedo, ini, 'm_e', 'redo');
@@ -226,7 +223,7 @@ begin
     DoLocMenuitem(ini, mnuCaretsDown1Page, 'm_se', 'd_p');
     DoLocMenuitem(ini, mnuCaretsDownEnd, 'm_se', 'd_z');
 
-    DoLocMenuitem(ini, mnuSr, 'm_sr', '_');
+    DoLocMenuitem(ini, mnuFind, 'm_sr', '_');
     DoLocMenuitem(ini, mnuFindDlg, 'm_sr', 'f');
     DoLocMenuitem(ini, mnuFindRepDialog, 'm_sr', 'r');
 
@@ -250,7 +247,6 @@ begin
     DoLocMenuitem(ini, mnuBmDeleteLines, 'm_sr', 'b_de');
 
     DoLocMenuitem(ini, mnuView, 'm_v', '_');
-    //DoLocMenuitem(ini, mnuGroups, 'm_v', 'g_');
     DoLocMenuitem(ini, mnuGr1, 'm_v', 'g1');
     DoLocMenuitem(ini, mnuGr2H, 'm_v', 'g2h');
     DoLocMenuitem(ini, mnuGr2V, 'm_v', 'g2v');
@@ -330,7 +326,6 @@ begin
 
     DoMenuitemEllipsis(mnuOpThemeUi);
     DoMenuitemEllipsis(mnuOpThemeSyntax);
-    //DoMenuitemEllipsis(mnuOpKeys);
     DoMenuitemEllipsis(mnuOpThemes);
     DoMenuitemEllipsis(mnuOpLangs);
 
@@ -338,7 +333,6 @@ begin
     DoLocMenuitem(ini, mnuHelpCmd, 'm_h', 'co');
     DoLocMenuitem(ini, mnuHelpForum, 'm_h', 'fo');
     DoLocMenuitem(ini, mnuHelpWiki, 'm_h', 'wi');
-    //DoLocMenuitem(ini, mnuHelpChangelog, 'm_h', 'ch');
     DoLocMenuitem(ini, mnuHelpIssues, 'm_h', 'iss');
     DoLocMenuitem(ini, mnuHelpAbout, 'm_h', 'ab');
     DoLocMenuitem(ini, mnuHelpCheckUpd, 'm_h', 'chk');
@@ -396,10 +390,8 @@ begin
     msgAllFiles:= ini.ReadString('ui', 'allf', msgAllFiles);
     msgThemeDefault:= ini.ReadString('ui', 'deft', msgThemeDefault);
     msgThemeName:= ini.ReadString('ui', 'th_nm', msgThemeName);
-    //cTextEditorLocked:= ini.ReadString('ui', 'ed_w', cTextEditorLocked);
     ATEditorOptions.TextHintScrollPrefix:= ini.ReadString('ui', 'line', ATEditorOptions.TextHintScrollPrefix);
     msgTooltipClearFilter:= ini.ReadString('ui', 'clr_f', msgTooltipClearFilter);
-    CodeTreeFilterReset.Hint:= msgTooltipClearFilter;
     msgMenuLexersForFile:= ini.ReadString('ui', 'lex_dlg', msgMenuLexersForFile);
 
     msgTooltipCloseTab:= ini.ReadString('ui', 'ti_x', msgTooltipCloseTab);
@@ -602,6 +594,8 @@ begin
     DoLocString(msgConfirmHotkeyBusy             , ini, 'sc', 'HotkeyBusy');
     DoLocString(msgConfirmReplaceGlobal          , ini, 'sc', 'ReplaceGlobal');
 
+    DoLocString(msgConfirmWrappedFwd             , ini, 'sc', 'WrappedFwd');
+    DoLocString(msgConfirmWrappedBack            , ini, 'sc', 'WrappedBack');
   finally
     FreeAndNil(ini);
   end;

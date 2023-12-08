@@ -55,6 +55,7 @@ const
   cmd_MouseClickNearCaret = 2490;
   cmd_MouseClickNearCaretAndSelect = 2491;
   cmd_FinderAction = 2492;
+  cmd_SetLexer = 2493;
 
   //normal commands
   cmd_FileNew            = 2500;
@@ -266,6 +267,11 @@ const
   cmd_HelpIssues    = 2706;
   cmd_HelpCheckUpdates = 2708;
 
+  cmd_MoveTabToGroup3 = 2711;
+  cmd_MoveTabToGroup4 = 2712;
+  cmd_MoveTabToGroup5 = 2713;
+  cmd_MoveTabToGroup6 = 2714;
+
   cmd_Markers_SelectToCaret      = 2798;
   cmd_Markers_DeleteToCaret      = 2799;
   cmd_Markers_DropAtCaret        = 2800;
@@ -300,8 +306,11 @@ const
   cmd_BracketSelect              = 2846;
   cmd_BracketSelectInside        = 2847;
 
+  cmd_TabSize_Set1               = 2861;
   cmd_TabSize_Set2               = 2862;
+  cmd_TabSize_Set3               = 2863;
   cmd_TabSize_Set4               = 2864;
+  cmd_TabSize_Set6               = 2866;
   cmd_TabSize_Set8               = 2868;
 
   cmd_GroupActivate1             = 2901;
@@ -459,7 +468,7 @@ begin
   M.Add(cmd_OpsOpenDefaultAndUser, 'settings: open default/user configs', [], []);
   M.Add(cmd_OpsOpenLexerSpecific, 'settings: open lexer-specific config', [], []);
 
-  M.Add(cmd_OpsFontText, 'settings: select font: text', [], []);
+  M.Add(cmd_OpsFontText, 'settings: select font: document', [], []);
   M.Add(cmd_OpsFontUi, 'settings: select font: ui', [], []);
   M.Add(cmd_OpsFontOutput, 'settings: select font: output panel', [], []);
 
@@ -558,8 +567,11 @@ begin
   M.Add(cmd_TabUsesSpaces_Off, 'tabulation-key uses spaces: turn off', [], []);
   M.Add(cmd_ToggleTabUsesSpaces, 'tabulation-key uses spaces: toggle', [], []);
 
+  M.Add(cmd_TabSize_Set1, 'tabulation size: set to 1', [], []);
   M.Add(cmd_TabSize_Set2, 'tabulation size: set to 2', [], []);
+  M.Add(cmd_TabSize_Set3, 'tabulation size: set to 3', [], []);
   M.Add(cmd_TabSize_Set4, 'tabulation size: set to 4', [], []);
+  M.Add(cmd_TabSize_Set6, 'tabulation size: set to 6', [], []);
   M.Add(cmd_TabSize_Set8, 'tabulation size: set to 8', [], []);
 
   M.Add(cmd_ConvertTabsToSpaces, 'convert tabs (all) to spaces', [], []);
@@ -590,15 +602,18 @@ begin
   M.Add(cmd_GroupActivate5, 'groups: focus group 5', [], []);
   M.Add(cmd_GroupActivate6, 'groups: focus group 6', [], []);
 
-  ////not finished: floating window is focused but editor inside is not
-  //M.Add(cmd_GroupActivateFloat1, 'groups: focus group floating-1', [], []);
-  //M.Add(cmd_GroupActivateFloat2, 'groups: focus group floating-2', [], []);
-  //M.Add(cmd_GroupActivateFloat3, 'groups: focus group floating-3', [], []);
+  M.Add(cmd_GroupActivateFloat1, 'groups: focus group floating-1', [], []);
+  M.Add(cmd_GroupActivateFloat2, 'groups: focus group floating-2', [], []);
+  M.Add(cmd_GroupActivateFloat3, 'groups: focus group floating-3', [], []);
 
   M.Add(cmd_MoveTabToGroupNext, 'groups: move tab to next group', [], []);
   M.Add(cmd_MoveTabToGroupPrev, 'groups: move tab to previous group', [], []);
   M.Add(cmd_MoveTabToGroup1, 'groups: move tab to group 1', [], []);
   M.Add(cmd_MoveTabToGroup2, 'groups: move tab to group 2', [], []);
+  M.Add(cmd_MoveTabToGroup3, 'groups: move tab to group 3', [], []);
+  M.Add(cmd_MoveTabToGroup4, 'groups: move tab to group 4', [], []);
+  M.Add(cmd_MoveTabToGroup5, 'groups: move tab to group 5', [], []);
+  M.Add(cmd_MoveTabToGroup6, 'groups: move tab to group 6', [], []);
   M.Add(cmd_MoveTabToGroupFloating1, 'groups: move tab to group floating-1', [], []);
   M.Add(cmd_MoveTabToGroupFloating2, 'groups: move tab to group floating-2', [], []);
   M.Add(cmd_MoveTabToGroupFloating3, 'groups: move tab to group floating-3', [], []);
@@ -910,6 +925,10 @@ begin
     cmd_MoveTabToGroupPrev,
     cmd_MoveTabToGroup1,
     cmd_MoveTabToGroup2,
+    cmd_MoveTabToGroup3,
+    cmd_MoveTabToGroup4,
+    cmd_MoveTabToGroup5,
+    cmd_MoveTabToGroup6,
     cmd_MoveTabToGroupFloating1,
     cmd_MoveTabToGroupFloating2,
     cmd_MoveTabToGroupFloating3,
@@ -1080,10 +1099,6 @@ begin
     cmd_BracketJump,
     cmd_BracketSelect,
     cmd_BracketSelectInside,
-
-    cmd_TabSize_Set2,
-    cmd_TabSize_Set4,
-    cmd_TabSize_Set8,
 
     cmd_ResetPythonPlugins,
     cmd_RescanPythonPluginsInfFiles,

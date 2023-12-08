@@ -206,6 +206,7 @@ class Command:
         (_("Delete directory")     , "dir", [NODE_DIR], "cuda_project_man.action_delete_directory"),
         (_("New directory...")     , "dir", [NODE_DIR], "cuda_project_man.action_new_directory"),
         (_("Find in directory...") , "dir", [NODE_DIR], "cuda_project_man.action_find_in_directory"),
+        (_("Copy path relative to project"), "dir", [NODE_DIR], "cuda_project_man.action_copy_relative_path"),
 
         (_("Open in default application")
                                    , "file", [NODE_FILE], "cuda_project_man.action_open_def"),
@@ -213,6 +214,7 @@ class Command:
         (_("Rename...")            , "file", [NODE_FILE], "cuda_project_man.action_rename"),
         (_("Delete file")          , "file", [NODE_FILE], "cuda_project_man.action_delete_file"),
         (_("Set as main file")     , "file", [NODE_FILE], "cuda_project_man.action_set_as_main_file"),
+        (_("Copy path relative to project"), "file", [NODE_FILE], "cuda_project_man.action_copy_relative_path"),
 
         ("-"                       , "", [None, NODE_PROJECT, NODE_DIR, NODE_FILE, NODE_BAD], ""),
         (_("Refresh")              , "", [None, NODE_PROJECT, NODE_DIR, NODE_FILE, NODE_BAD], "cuda_project_man.action_refresh"),
@@ -497,53 +499,47 @@ class Command:
             _file_open(str(path))
 
     def action_open_def(self):
-        fn = str(self.get_location_by_index(self.selected))
-        if not os.path.isfile(fn):
+        fn = self.get_location_by_index(self.selected)
+        sfn = str(fn)
+        if not os.path.isfile(sfn):
             return
         suffix = app_proc(PROC_GET_OS_SUFFIX, '')
         if suffix=='':
             #Windows
-            os.startfile(fn)
+            os.startfile(sfn)
         elif suffix=='__mac':
             #macOS
-            os.system('open "'+fn+'"')
+            os.system('open "%s"'%sfn)
         elif suffix=='__haiku':
             #Haiku
             msg_status('TODO: implement "Open in default app" for Haiku')
         else:
             #other Unixes
-            os.system('xdg-open "'+fn+'"')
+            os.spawnvp(os.P_WAIT, 'xdg-open', ('xdg-open', fn.as_uri()))
 
     def action_focus_in_fileman(self):
-        fn = str(self.get_location_by_index(self.selected))
-        if not os.path.isfile(fn):
+        fn = self.get_location_by_index(self.selected)
+        sfn = str(fn)
+        if not os.path.isfile(sfn):
             return
         suffix = app_proc(PROC_GET_OS_SUFFIX, '')
 
         if suffix=='':
             #Windows
-            #os.system('explorer.exe /select,'+fn)
+            #os.system('explorer.exe /select,'+sfn)
             import subprocess
-            subprocess.Popen(['explorer.exe', '/select,', fn], shell=True) # works better
+            subprocess.Popen(('explorer.exe', '/select,', sfn), shell=True) # works better
         elif suffix=='__mac':
             #macOS
-            fn = fn.replace(' ', '\\ ') #macOS cannot handle quoted filename
-            os.system('open --new --reveal '+fn)
+            #macOS cannot handle quoted filename
+            os.system('open --new --reveal '+sfn.replace(' ', '\\ '))
         elif suffix=='__haiku':
             #Haiku
             msg_status('"Focus in file manager" not implemented for this OS')
         else:
             #Linux and others
-            if which('nautilus'):
-                os.system('nautilus "'+fn+'"')
-            elif which('thunar'):
-                os.system('thunar "'+os.path.dirname(fn)+'"')
-            elif which('caja'):
-                os.system('caja "'+os.path.dirname(fn)+'"')
-            elif which('dolphin'):
-                os.system('dolphin --select --new-window "'+fn+'"')
-            else:
-                msg_status('"Focus in file manager" does not support your file manager')
+            if os.spawnvp(os.P_WAIT, 'dbus-send', ('dbus-send', '--session', '--dest=org.freedesktop.FileManager1', '--type=method_call', '--print-reply', '/org/freedesktop/FileManager1', 'org.freedesktop.FileManager1.ShowItems', 'array:string:'+fn.as_uri(), 'string:')):
+                os.spawnvp(os.P_WAIT, 'xdg-open', ('xdg-open', fn.parent.as_uri()))
 
     def action_rename(self):
         location = Path(self.get_location_by_index(self.selected))
@@ -596,6 +592,15 @@ class Command:
             tree_proc(self.tree, TREE_ITEM_SELECT, h_parent)
             self.action_refresh(h_parent)
         msg_status(_("Deleted file: ") + str(location.name))
+
+    def action_copy_relative_path(self):
+        file_path = str(self.get_location_by_index(self.selected))
+        proj_path = os.path.dirname(self.project_file_path or '')
+        if not proj_path:
+            return
+        if file_path.startswith(proj_path+os.sep):
+            file_path = file_path[len(proj_path)+1:]
+        app_proc(PROC_SET_CLIP, file_path)
 
     def do_delete_dir(self, location):
         for path in location.glob("*"):
@@ -717,7 +722,11 @@ class Command:
             if not fn: return
             #print('Reading dir:', fn)
             try:
-                nodes = sorted(os.scandir(fn), key=Command.node_ordering_direntry)
+                if hasattr(os, "scandir") and callable(os.scandir):
+                    nodes = sorted(os.scandir(fn), key=Command.node_ordering_direntry)
+                else:
+                    # support for old Python 3.4
+                    nodes = sorted(Path(fn).iterdir(), key=Command.node_ordering)
             except:
                 tree_proc(self.tree, TREE_ITEM_SET_ICON, parent, image_index=self.ICON_BAD)
                 raise # good to see the error
@@ -1187,6 +1196,10 @@ class Command:
         self.init_panel()
         self.action_set_as_main_file()
 
+    def contextmenu_copy_relative_path(self):
+        self.init_panel()
+        self.action_copy_relative_path()
+
     def enum_all(self, callback):
         """
         Enum for all items.
@@ -1518,6 +1531,17 @@ class Command:
 
         fn = ed.get_filename()
         self.add_node(fn)
+
+    def add_current_dir(self):
+
+        if not self.tree:
+            self.init_panel(False)
+
+        fn = ed.get_filename()
+        if fn:
+            d = os.path.dirname(fn)
+            if not (IS_WIN and d.endswith(':\\')):
+                self.add_node(d)
 
     def add_opened_files(self):
 

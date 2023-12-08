@@ -25,10 +25,10 @@
     <VersionInfo>
       <UseVersionInfo Value="True"/>
       <MajorVersionNr Value="1"/>
-      <MinorVersionNr Value="192"/>
+      <MinorVersionNr Value="204"/>
       <StringTable CompanyName="UVviewsoft" FileDescription="CudaText" InternalName="CudaText" LegalCopyright="(c) 2015-2023 Alexey Torgashin" OriginalFilename="cudatext.exe" ProductName="CudaText"/>
     </VersionInfo>
-    <BuildModes Count="27">
+    <BuildModes Count="30">
       <Item1 Name="default" Default="True"/>
       <Item2 Name="default x64">
         <CompilerOptions>
@@ -72,6 +72,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll
 -dDisableLCLTIFF
 -dDisableLCLPNM"/>
@@ -83,7 +86,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-x32-gtk2\cudatext"/>
+            <Filename Value="bin\linux-x32-gtk2\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -113,6 +116,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -125,7 +131,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-x32-qt5\cudatext"/>
+            <Filename Value="bin\linux-x32-qt5\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -155,6 +161,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -164,7 +173,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-x64-gtk2\cudatext"/>
+            <Filename Value="bin\linux-x64-gtk2\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -197,6 +206,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll
 -dGTK2_IME_CODE"/>
           </Other>
@@ -210,7 +222,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-x64-qt5\cudatext"/>
+            <Filename Value="bin\linux-x64-qt5\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -243,19 +255,22 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
       </Item6>
       <Item7 Name="linux x64 qt6">
         <MacroValues Count="1">
-          <Macro5 Name="LCLWidgetType" Value="qt6"/>
+          <Macro4 Name="LCLWidgetType" Value="qt6"/>
         </MacroValues>
         <CompilerOptions>
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-x64-qt6\cudatext"/>
+            <Filename Value="bin\linux-x64-qt6\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -288,6 +303,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -297,7 +315,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-arm-gtk2\cudatext"/>
+            <Filename Value="bin\linux-arm-gtk2\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -327,6 +345,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll
 -dGTK2_IME_CODE"/>
           </Other>
@@ -340,7 +361,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-arm-qt5\cudatext"/>
+            <Filename Value="bin\linux-arm-qt5\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -370,6 +391,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -379,7 +403,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-aarch64\cudatext"/>
+            <Filename Value="bin\linux-aarch64\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -409,6 +433,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -421,7 +448,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-aarch64-qt5\cudatext"/>
+            <Filename Value="bin\linux-aarch64-qt5\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -451,6 +478,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -460,7 +490,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\win64\cudatext.exe" ApplyConventions="False"/>
+            <Filename Value="bin\win64\cudatext.exe" ApplyConventions="False"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -493,6 +523,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -502,7 +535,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\win32\cudatext.exe" ApplyConventions="False"/>
+            <Filename Value="bin\win32\cudatext.exe" ApplyConventions="False"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -535,6 +568,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -544,7 +580,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\win_arm64\cudatext.exe"/>
+            <Filename Value="bin\win_arm64\cudatext.exe"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -574,6 +610,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -586,7 +625,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\macos-amd64\cudatext"/>
+            <Filename Value="bin\macos-amd64\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -609,11 +648,16 @@
           </CodeGeneration>
           <Linking>
             <Debugging>
+              <GenerateDebugInfo Value="False"/>
+              <RunWithoutDebug Value="True"/>
               <DebugInfoType Value="dsDwarf2"/>
             </Debugging>
             <LinkSmart Value="True"/>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -626,7 +670,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\macos-aarch64\cudatext"/>
+            <Filename Value="bin\macos-aarch64\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -645,22 +689,27 @@
           </CodeGeneration>
           <Linking>
             <Debugging>
+              <GenerateDebugInfo Value="False"/>
+              <RunWithoutDebug Value="True"/>
               <DebugInfoType Value="dsDwarf2Set"/>
               <UseExternalDbgSyms Value="True"/>
             </Debugging>
             <LinkSmart Value="True"/>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
       </Item16>
-      <Item17 Name="freebsd x32 gtk2">
+      <Item17 Name="freebsd x32">
         <CompilerOptions>
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\freebsd-x32-gtk2\cudatext"/>
+            <Filename Value="bin\freebsd-x32-gtk2\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -693,16 +742,19 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
       </Item17>
-      <Item18 Name="freebsd x64 gtk2">
+      <Item18 Name="freebsd x64">
         <CompilerOptions>
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\freebsd-x64-gtk2\cudatext"/>
+            <Filename Value="bin\freebsd-x64-gtk2\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -735,6 +787,9 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
@@ -744,7 +799,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\openbsd-x64-gtk2\cudatext"/>
+            <Filename Value="bin\openbsd-x64-gtk2\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -777,16 +832,64 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
       </Item19>
-      <Item20 Name="netbsd x64">
+      <Item20 Name="openbsd x32">
         <CompilerOptions>
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\netbsd-x64-gtk2\cudatext"/>
+            <Filename Value="bin\openbsd-x32-gtk2\cudatext"/>
+          </Target>
+          <SearchPaths>
+            <IncludeFiles Value="$(ProjOutDir)"/>
+            <OtherUnitFiles Value="..\comp"/>
+            <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
+          </SearchPaths>
+          <Parsing>
+            <SyntaxOptions>
+              <IncludeAssertionCode Value="True"/>
+            </SyntaxOptions>
+          </Parsing>
+          <CodeGeneration>
+            <SmartLinkUnit Value="True"/>
+            <TargetCPU Value="i386"/>
+            <TargetOS Value="openbsd"/>
+            <Optimizations>
+              <OptimizationLevel Value="2"/>
+            </Optimizations>
+          </CodeGeneration>
+          <Linking>
+            <Debugging>
+              <DebugInfoType Value="dsDwarf2Set"/>
+              <UseExternalDbgSyms Value="True"/>
+            </Debugging>
+            <LinkSmart Value="True"/>
+            <Options>
+              <Win32>
+                <GraphicApplication Value="True"/>
+              </Win32>
+            </Options>
+          </Linking>
+          <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
+            <CustomOptions Value="-dcomplete_at_scroll"/>
+          </Other>
+        </CompilerOptions>
+      </Item20>
+      <Item21 Name="netbsd x64">
+        <CompilerOptions>
+          <Version Value="11"/>
+          <PathDelim Value="\"/>
+          <Target>
+            <Filename Value="bin\netbsd-x64-gtk2\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -819,16 +922,64 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
-      </Item20>
-      <Item21 Name="dragonfly x64 gtk2">
+      </Item21>
+      <Item22 Name="netbsd x32">
         <CompilerOptions>
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\dragonflybsd-x64-gtk2\cudatext"/>
+            <Filename Value="bin\netbsd-x32-gtk2\cudatext"/>
+          </Target>
+          <SearchPaths>
+            <IncludeFiles Value="$(ProjOutDir)"/>
+            <OtherUnitFiles Value="..\comp"/>
+            <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
+          </SearchPaths>
+          <Parsing>
+            <SyntaxOptions>
+              <IncludeAssertionCode Value="True"/>
+            </SyntaxOptions>
+          </Parsing>
+          <CodeGeneration>
+            <SmartLinkUnit Value="True"/>
+            <TargetCPU Value="i386"/>
+            <TargetOS Value="netbsd"/>
+            <Optimizations>
+              <OptimizationLevel Value="2"/>
+            </Optimizations>
+          </CodeGeneration>
+          <Linking>
+            <Debugging>
+              <DebugInfoType Value="dsDwarf2Set"/>
+              <UseExternalDbgSyms Value="True"/>
+            </Debugging>
+            <LinkSmart Value="True"/>
+            <Options>
+              <Win32>
+                <GraphicApplication Value="True"/>
+              </Win32>
+            </Options>
+          </Linking>
+          <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
+            <CustomOptions Value="-dcomplete_at_scroll"/>
+          </Other>
+        </CompilerOptions>
+      </Item22>
+      <Item23 Name="dragonfly x64">
+        <CompilerOptions>
+          <Version Value="11"/>
+          <PathDelim Value="\"/>
+          <Target>
+            <Filename Value="bin\dragonflybsd-x64-gtk2\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -861,16 +1012,19 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
-      </Item21>
-      <Item22 Name="solaris x64">
+      </Item23>
+      <Item24 Name="solaris x64">
         <CompilerOptions>
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\solaris-x64-gtk2\cudatext"/>
+            <Filename Value="bin\solaris-x64-gtk2\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -903,11 +1057,14 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
-      </Item22>
-      <Item23 Name="haiku x32 qt5">
+      </Item24>
+      <Item25 Name="haiku x32 qt5">
         <MacroValues Count="1">
           <Macro2 Name="LCLWidgetType" Value="qt5"/>
         </MacroValues>
@@ -915,7 +1072,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\haiku-x32-qt5\cudatext"/>
+            <Filename Value="bin\haiku-x32-qt5\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -945,11 +1102,14 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
-      </Item23>
-      <Item24 Name="haiku x64 qt5">
+      </Item25>
+      <Item26 Name="haiku x64 qt5">
         <MacroValues Count="1">
           <Macro2 Name="LCLWidgetType" Value="qt5"/>
         </MacroValues>
@@ -957,7 +1117,7 @@
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\haiku-x64-qt5\cudatext"/>
+            <Filename Value="bin\haiku-x64-qt5\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -987,16 +1147,19 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
-      </Item24>
-      <Item25 Name="linux x64 debug">
+      </Item26>
+      <Item27 Name="linux x64 debug">
         <CompilerOptions>
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-x64-debug\cudatext"/>
+            <Filename Value="bin\linux-x64-debug\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -1031,18 +1194,21 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll
 -dDisableLCLTIFF
 -dDisableLCLPNM"/>
           </Other>
         </CompilerOptions>
-      </Item25>
-      <Item26 Name="win x64 debug">
+      </Item27>
+      <Item28 Name="win x64 debug">
         <CompilerOptions>
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\win-x64-debug\cudatext"/>
+            <Filename Value="bin\win64-debug\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -1063,6 +1229,9 @@
             </Checks>
             <TargetCPU Value="x86_64"/>
             <TargetOS Value="win64"/>
+            <Optimizations>
+              <OptimizationLevel Value="0"/>
+            </Optimizations>
           </CodeGeneration>
           <Linking>
             <Debugging>
@@ -1076,21 +1245,75 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll
 -dDisableLCLTIFF
 -dDisableLCLPNM"/>
           </Other>
         </CompilerOptions>
-      </Item26>
-      <Item27 Name="linux x64 gtk3">
+      </Item28>
+      <Item29 Name="win x32 debug">
+        <CompilerOptions>
+          <Version Value="11"/>
+          <PathDelim Value="\"/>
+          <Target>
+            <Filename Value="bin\win32-debug\cudatext"/>
+          </Target>
+          <SearchPaths>
+            <IncludeFiles Value="$(ProjOutDir)"/>
+            <OtherUnitFiles Value="..\comp"/>
+            <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
+          </SearchPaths>
+          <Parsing>
+            <SyntaxOptions>
+              <IncludeAssertionCode Value="True"/>
+            </SyntaxOptions>
+          </Parsing>
+          <CodeGeneration>
+            <SmartLinkUnit Value="True"/>
+            <Checks>
+              <IOChecks Value="True"/>
+              <RangeChecks Value="True"/>
+              <OverflowChecks Value="True"/>
+            </Checks>
+            <TargetCPU Value="i386"/>
+            <TargetOS Value="win32"/>
+            <Optimizations>
+              <OptimizationLevel Value="0"/>
+            </Optimizations>
+          </CodeGeneration>
+          <Linking>
+            <Debugging>
+              <DebugInfoType Value="dsDwarf2Set"/>
+            </Debugging>
+            <LinkSmart Value="True"/>
+            <Options>
+              <Win32>
+                <GraphicApplication Value="True"/>
+              </Win32>
+            </Options>
+          </Linking>
+          <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
+            <CustomOptions Value="-dcomplete_at_scroll
+-dDisableLCLTIFF
+-dDisableLCLPNM"/>
+          </Other>
+        </CompilerOptions>
+      </Item29>
+      <Item30 Name="linux x64 gtk3">
         <MacroValues Count="1">
-          <Macro4 Name="LCLWidgetType" Value="gtk3"/>
+          <Macro3 Name="LCLWidgetType" Value="gtk3"/>
         </MacroValues>
         <CompilerOptions>
           <Version Value="11"/>
           <PathDelim Value="\"/>
           <Target>
-            <Filename Value="builds\linux-x64-gtk3\cudatext"/>
+            <Filename Value="bin\linux-x64-gtk3\cudatext"/>
           </Target>
           <SearchPaths>
             <IncludeFiles Value="$(ProjOutDir)"/>
@@ -1120,16 +1343,18 @@
             </Options>
           </Linking>
           <Other>
+            <ConfigFile>
+              <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+            </ConfigFile>
             <CustomOptions Value="-dcomplete_at_scroll"/>
           </Other>
         </CompilerOptions>
-      </Item27>
-      <SharedMatrixOptions Count="5">
+      </Item30>
+      <SharedMatrixOptions Count="4">
         <Item1 ID="308953563203" Modes="macos x64,macos aarch64" Type="IDEMacro" MacroName="LCLWidgetType" Value="cocoa"/>
         <Item2 ID="619430612971" Modes="linux x64 qt5,linux x32 qt5,haiku x32 qt5,haiku x64 qt5,linux aarch64 qt5,linux arm qt5" Type="IDEMacro" MacroName="LCLWidgetType" Value="qt5"/>
-        <Item3 ID="028184365614" Type="IDEMacro" MacroName="LCLWidgetType" Value="gtk3"/>
-        <Item4 ID="437609795672" Modes="linux x64 gtk3" Type="IDEMacro" MacroName="LCLWidgetType" Value="gtk3"/>
-        <Item5 ID="128333415096" Modes="linux x64 qt6" Type="IDEMacro" MacroName="LCLWidgetType" Value="qt6"/>
+        <Item3 ID="028184365614" Modes="linux x64 gtk3" Type="IDEMacro" MacroName="LCLWidgetType" Value="gtk3"/>
+        <Item4 ID="128333415096" Modes="linux x64 qt6" Type="IDEMacro" MacroName="LCLWidgetType" Value="qt6"/>
       </SharedMatrixOptions>
     </BuildModes>
     <PublishOptions>
@@ -1538,10 +1763,14 @@
       </Options>
     </Linking>
     <Other>
+      <ConfigFile>
+        <WriteConfigFilePath Value="$(ProjOutDir)\fpclaz.cfg"/>
+      </ConfigFile>
       <CustomOptions Value="-dcomplete_at_scroll
 -dDisableLCLTIFF
 -dDisableLCLPNM
 -dGTK2_IME_CODE
+-dQT_NO_SESSIONMANAGER
 -Oodfa"/>
     </Other>
   </CompilerOptions>

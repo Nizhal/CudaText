@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 . ./cuda_ver.sh
 cd ../app
 
@@ -8,17 +8,35 @@ cpu=$3
 exedir=$4
 outdir=$5
 
+if [[ "$outdir" == "" ]]; then
+    echo "Need script params"
+    exit
+fi
+
 mkdir -p $outdir
-zipfile=$outdir/cudatext-$os-$widgets-$cpu-$cuda_ver.tar
+tarfile2=$outdir/cudatext-$os-$widgets-$cpu-$cuda_ver.tar
+tarfile=$outdir/tmp_cudatext-$os-$widgets-$cpu-$cuda_ver.tar
 
 rm $outdir/cudatext-$os-$widgets-$cpu-*.xz
-tar --exclude=*.pyc -cf $zipfile readme data settings_default py/*.py py/cuda_addonman py/cuda_project_man py/cuda_tabs_list py/cuda_make_plugin py/cuda_insert_time py/sys py/cuda_comments py/cuda_new_file py/cuda_palette py/cuda_prefs py/cuda_multi_installer py/cuda_sort py/cuda_snippet_panel py/cuda_lexer_detecter
+rm $tarfile
+
+tar --exclude=*.pyc -cf $tarfile readme data settings_default py/*.py py/cuda_addonman py/cuda_project_man py/cuda_tabs_list py/cuda_make_plugin py/cuda_insert_time py/sys py/cuda_comments py/cuda_new_file py/cuda_palette py/cuda_prefs py/cuda_multi_installer py/cuda_sort py/cuda_snippet_panel py/cuda_lexer_detecter
 
 cd ../setup/debfiles
-tar -rf $zipfile cudatext-512.png
+tar -rf $tarfile cudatext-512.png
 
 cd ../../app
 cd $exedir
-tar -rf $zipfile cudatext
+tar -rf $tarfile cudatext
 
-xz -z $zipfile
+cd $outdir
+rm -rf cudatext/
+mkdir cudatext
+cd cudatext
+tar -xf $tarfile
+cd ..
+tar -rf $tarfile2 cudatext/
+rm $tarfile
+rm -rf cudatext/
+
+xz -z $tarfile2

@@ -55,11 +55,15 @@ begin
 
   if cSystemHasPkExec and UiOps.AllowRunPkExec then
   begin
-    if DirectoryIsWritable(ExtractFileDir(fn)) then
+    if FileIsWritable(fn) then
     begin
       if not CopyFile(fnTemp, fn) then
         raise EWriteError.Create(msgCannotSaveFile+#10+AppCollapseHomeDirInFilename(fn));
     end
+    else
+    if cSystemDontWantToRunPkExec then
+      MsgBox(msgCannotSaveAndDontWantToRunPkExec+#10#10+
+             Format('cp -T "%s" "%s"', [fnTemp, fn]), MB_OK or MB_ICONWARNING)
     else
     begin
       if not RunCommand('pkexec', ['/bin/cp', '-T', fnTemp, fn], SOutput, [poWaitOnExit]) then

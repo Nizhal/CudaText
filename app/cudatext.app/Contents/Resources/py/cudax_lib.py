@@ -10,8 +10,9 @@ Duplicate:
         Dub cur selection or cur line (by opt)
 Authors:
     Andrey Kvichansky    (kvichans on github)
+    Alexey Torgashin (CudaText)
 Version:
-    '0.6.11 2023-04-06'
+    '0.6.12 2023-07-04'
 Wiki: github.com/kvichans/cudax_lib/wiki
 ToDo: (see end of file)
 """
@@ -278,6 +279,7 @@ def set_opt(path, value, lev=CONFIG_LEV_USER, ed_cfg=ed, lexer='', user_json='us
             lexer       Explicit lexer name (lexer from ed_cfg not used).
         Return          The value (second param) or None if fail
     '''
+    SPACES = 2
     if lev==CONFIG_LEV_FILE:
         if value is None:
             # Del! Cannot del from file-lev -- can set as default
@@ -319,7 +321,7 @@ def set_opt(path, value, lev=CONFIG_LEV_USER, ed_cfg=ed, lexer='', user_json='us
 
     if not os.path.exists(cfg_json)     and value is not None:
         # First pair for this file
-        open(cfg_json, 'w', encoding='utf8').write(json.dumps(kv_dct, indent=4))
+        open(cfg_json, 'w', encoding='utf8').write(json.dumps(kv_dct, indent=SPACES))
         return value
 
     # Try to modify file
@@ -392,7 +394,7 @@ def set_opt(path, value, lev=CONFIG_LEV_USER, ed_cfg=ed, lexer='', user_json='us
                     node    = node[key]                 # Step down
            #for ikey,key
         # 4. Dump   5. Repl
-        body_pr  = json.dumps(body_js, indent=4)
+        body_pr  = json.dumps(body_js, indent=SPACES)
         body     = pairs2comms(body_pr)
     else:
         # Simple key
@@ -414,7 +416,7 @@ def set_opt(path, value, lev=CONFIG_LEV_USER, ed_cfg=ed, lexer='', user_json='us
                 # Skip! Value is same
                 return value
             # Update!
-            new_pair= '    "{}": {},'.format(path, value4js.replace('\\', r'\\'))
+            new_pair= ' '*SPACES + '"{}": {},'.format(path, value4js.replace('\\', r'\\'))
             body    = cre_key_val.sub(new_pair, body)   # NB! backslash escapes in 1st par are processed
         elif not has_pair and value is None:
             # Skip! Nothing to delete
@@ -422,8 +424,8 @@ def set_opt(path, value, lev=CONFIG_LEV_USER, ed_cfg=ed, lexer='', user_json='us
         elif not has_pair:
             # Add! before end
             pass;              #LOG and log('add!',)
-            body    = body.rstrip(' \t\r\n')[:-1].rstrip(' \t\r\n')
-            body= body+'{}\n    "{}": {},\n}}'.format(
+            body = body.rstrip(' \t\r\n')[:-1].rstrip(' \t\r\n')
+            body += ('{}\n' + ' '*SPACES + '"{}": {},\n}}').format(
                          '' if body[-1] in ',{' else ','
                        , path
                        , value4js)
@@ -679,7 +681,7 @@ def log(msg='', *args, **kwargs):
 
 
 def get_translation(plug_file):
-    ''' Part of i18n.
+    r''' Part of i18n.
         Full i18n-cycle:
         1. All GUI-string in code are used in form
             _('')
@@ -726,13 +728,13 @@ def safe_open_url(url):
     '''
     if os.name=='nt':
         import subprocess
-        subprocess.Popen(['start', '', url], shell=True)
+        subprocess.Popen('start "" "{}"'.format(url), shell=True)
     else:
         import webbrowser
         webbrowser.open_new_tab(url)
 
 
-'''
+r'''
 ToDo
 [S][кто-кому][дата] Что сделать
     [S] Состояние: [ ] Не реализовано, [+] Сделано, [-] Не требуется, [?] Нужны уточнения

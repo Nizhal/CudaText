@@ -161,8 +161,10 @@ type
     procedure chkWordsClick(Sender: TObject);
     procedure chkWrapClick(Sender: TObject);
     procedure edFindChange(Sender: TObject);
-    procedure edFindCommand(Sender: TObject; ACommand: integer; AInvoke: TATEditorCommandInvoke;
+    procedure edFindCommand(Sender: TObject; ACommand: integer; AInvoke: TATCommandInvoke;
       const AText: string; var AHandled: boolean);
+    procedure edFindCommandAfter(Sender: TObject; ACommand: integer;
+      const AText: string);
     procedure edFindEnter(Sender: TObject);
     procedure edFindKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure edRepEnter(Sender: TObject);
@@ -176,7 +178,9 @@ type
   private
     { private declarations }
     FTimerShow: TTimer;
+    FTimerWrapped: TTimer;
     FPopupMore: TPopupMenu;
+    FPrevColorOfInput: TColor;
     FMenuitemOptRegex: TMenuItem;
     FMenuitemOptCase: TMenuItem;
     FMenuitemOptWords: TMenuItem;
@@ -201,7 +205,9 @@ type
     FMenuitemRepGlobal: TMenuItem;
     FReplace: boolean;
     FMultiLine: boolean;
+    FMultiLineJustActivated: boolean;
     FNarrow: boolean;
+    FInputColored: boolean;
     FOnResult: TAppFinderOperationEvent;
     FOnChangeVisible: TNotifyEvent;
     FOnChangeOptions: TNotifyEvent;
@@ -222,11 +228,13 @@ type
     procedure InitPopupMore;
     procedure MenuitemTokensClick(Sender: TObject);
     procedure SetHiAll(AValue: boolean);
+    procedure SetInputColored(AValue: boolean);
     procedure SetIsDoubleBuffered(AValue: boolean);
     procedure SetMultiLine(AValue: boolean);
     procedure SetNarrow(AValue: boolean);
     procedure SetReplace(AValue: boolean);
     procedure TimerShowTick(Sender: TObject);
+    procedure TimerWrappedTick(Sender: TObject);
     procedure UpdateButtonBold;
     procedure UpdateRegexHighlight;
   public
@@ -262,6 +270,7 @@ type
     property IsNarrow: boolean read FNarrow write SetNarrow;
     property IsHiAll: boolean read GetHiAll write SetHiAll;
     property IsDoubleBuffered: boolean write SetIsDoubleBuffered;
+    property IsInputColored: boolean read FInputColored write SetInputColored;
   end;
 
 var
@@ -308,8 +317,10 @@ end;
 function _MakeHint(const AText, AHotkey: string): string;
 begin
   Result:= AText;
+  if Result<>'' then
+    Result+= ' ';
   if AHotkey<>'' then
-    Result+= ' ['+AHotkey+']';
+    Result+= '['+AHotkey+']';
 end;
 
 { TfmFind }
@@ -733,13 +744,14 @@ begin
 end;
 
 procedure TfmFind.edFindCommand(Sender: TObject; ACommand: integer;
-  AInvoke: TATEditorCommandInvoke; const AText: string; var AHandled: boolean);
+  AInvoke: TATCommandInvoke; const AText: string; var AHandled: boolean);
 var
   Ed: TATSynEdit;
 begin
   //auto turn on multi-line
   if ACommand=cCommand_KeyEnter then
   begin
+    FMultiLineJustActivated:= not IsMultiLine;
     IsMultiLine:= true;
     AHandled:= false;
     exit
@@ -748,8 +760,24 @@ begin
   if (ACommand>=cmdFirstAppCommand) and (ACommand<=cmdLastAppCommand) then
   begin
     FOnGetMainEditor(Ed);
-    Ed.DoCommand(ACommand, cInvokeHotkey, '');
+    Ed.DoCommand(ACommand, TATCommandInvoke.Hotkey, '');
     AHandled:= true;
+    exit;
+  end;
+end;
+
+procedure TfmFind.edFindCommandAfter(Sender: TObject; ACommand: integer; const AText: string);
+begin
+  if ACommand=cCommand_KeyEnter then
+  begin
+    //fix bad scrollpos=1, after Ctrl+Enter activated multi-line mode
+    if FMultiLineJustActivated then
+    begin
+      edFind.ScrollVert.SetZero;
+      edRep.ScrollVert.SetZero;
+      edFind.Update;
+      edRep.Update;
+    end;
     exit;
   end;
 end;
@@ -782,7 +810,7 @@ begin
   //Ctrl+Enter: add line-break
   if (Key=VK_RETURN) and (Shift=[ssCtrl]) then
   begin
-    (Sender as TATSynEdit).DoCommand(cCommand_KeyEnter, cInvokeAppInternal);
+    (Sender as TATSynEdit).DoCommand(cCommand_KeyEnter, TATCommandInvoke.AppInternal);
     Key:= 0;
     exit;
   end;
@@ -827,8 +855,8 @@ begin
   edFind.Keymap:= AppKeymapMain;
   edRep.Keymap:= AppKeymapMain;
 
-  edFind.Strings.Endings:= cEndUnix;
-  edRep.Strings.Endings:= cEndUnix;
+  edFind.Strings.Endings:= TATLineEnds.Unix;
+  edRep.Strings.Endings:= TATLineEnds.Unix;
 
   edFind.OptUnprintedSpaces:= false;
   edRep.OptUnprintedSpaces:= false;
@@ -847,6 +875,7 @@ begin
   bRep.Hint:= UiOps.HotkeyReplaceAndFindNext;
   bRepAll.Hint:= UiOps.HotkeyReplaceAll;
   bRepGlobal.Hint:= UiOps.HotkeyReplaceGlobal;
+  bMore.Hint:= _MakeHint('', UiOps.HotkeyFindMenu);
 
   for kind in TATFinderTokensAllowed do
   begin
@@ -1147,6 +1176,13 @@ begin
     exit
   end;
 
+  if Str=UiOps.HotkeyFindMenu then
+  begin
+    bMoreClick(nil);
+    key:= 0;
+    exit;
+  end;
+
   //avoid handling of Shift+Tab in the editor (it runs "Unindent block")
   if (Key=VK_TAB) and (Shift*[ssCtrl, ssAlt]=[]) then
   begin
@@ -1211,6 +1247,9 @@ begin
 
   edFind.OptPasteWithEolAtLineStart:= EditorOps.OpPasteWithEolAtLineStart;
   edRep.OptPasteWithEolAtLineStart:= EditorOps.OpPasteWithEolAtLineStart;
+
+  edFind.OptScrollbarsNew:= EditorOps.OpScrollbarsNew;
+  edRep.OptScrollbarsNew:= EditorOps.OpScrollbarsNew;
 
   EditorCaretShapeFromString(edFind.CaretShapeNormal, EditorOps.OpCaretViewNormal);
   EditorCaretShapeFromString(edFind.CaretShapeOverwrite, EditorOps.OpCaretViewOverwrite);
@@ -1281,6 +1320,39 @@ begin
   end;
 end;
 
+procedure TfmFind.SetInputColored(AValue: boolean);
+var
+  NewColor: TColor;
+begin
+  if FInputColored=AValue then Exit;
+  FInputColored:= AValue;
+
+  if AValue then
+  begin
+    FPrevColorOfInput:= edFind.Colors.TextBG;
+    NewColor:= FindAppColorByName(UiOps.FindWrapAtEdge_ThemeItem, clNone);
+    if NewColor=clNone then exit;
+    edFind.Colors.TextBG:= NewColor;
+    edFind.Update;
+    Application.ProcessMessages;
+
+    if FTimerWrapped=nil then
+    begin
+      FTimerWrapped:= TTimer.Create(Self);
+      FTimerWrapped.Enabled:= false;
+      FTimerWrapped.Interval:= UiOps.FindWrapAtEdge_Delay;
+      FTimerWrapped.OnTimer:= @TimerWrappedTick;
+    end;
+    FTimerWrapped.Enabled:= false;
+    FTimerWrapped.Enabled:= true;
+  end
+  else
+  begin
+    edFind.Colors.TextBG:= FPrevColorOfInput;
+    edFind.Update;
+  end;
+end;
+
 procedure TfmFind.SetIsDoubleBuffered(AValue: boolean);
 begin
   edFind.DoubleBuffered:= AValue;
@@ -1348,8 +1420,8 @@ begin
     chkConfirm.Left:= 400; //to right
     chkRegexSubst.Parent:= PanelTopOps;
     chkPreserveCase.Parent:= PanelTopOps;
-    chkRegexSubst.Left:= chkConfirm.Left+80; //to right
-    chkPreserveCase.Left:= chkRegexSubst.Left+80; //to right
+    chkRegexSubst.Left:= chkConfirm.Left+chkConfirm.Width; //to right
+    chkPreserveCase.Left:= chkRegexSubst.Left+chkRegexSubst.Width; //to right
   end;
 
   PanelTopOps.Left:= edFind.Left;
@@ -1375,6 +1447,12 @@ begin
   //fixing caret in the middle of field, #4670
   edFind.Update;
   edRep.Update;
+end;
+
+procedure TfmFind.TimerWrappedTick(Sender: TObject);
+begin
+  FTimerWrapped.Enabled:= false;
+  IsInputColored:= false;
 end;
 
 procedure TfmFind.UpdateFormHeight;
@@ -1664,7 +1742,7 @@ begin
 
   ClearHiAll;
 
-  if UiOps.FindShowNoResultsByInputBgColor then
+  if UiOps.FindShowNoResultsByInputBgColor and not IsInputColored then
   begin
     NColorBG:= GetAppColor(apclEdTextBg);
     edFind.Colors.TextBG:= NColorBG;
@@ -1697,7 +1775,7 @@ begin
       EditorHighlightAllMatches(Finder, AEnableFindNext, NMatches, FInitialCaretPos);
       NTick:= GetTickCount64-NTick;
 
-      if UiOps.FindShowNoResultsByInputBgColor then
+      if UiOps.FindShowNoResultsByInputBgColor and not IsInputColored then
       begin
         if NMatches=0 then
           NColorBG:= ColorBlendHalf(

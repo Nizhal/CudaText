@@ -50,14 +50,14 @@ begin
           Point(0, 0),
           TATMarkerTags.Init(0, 0),
           nil,
-          mmmShowInTextOnly,
+          TATMarkerMicromapMode.TextOnly,
           NLen
           );
       end;
 
     markingBookmarks:
       begin
-        ed.BookmarkSetForLine(APos1.Y, 1, '', bmadOption, true, 0);
+        ed.BookmarkSetForLine(APos1.Y, 1, '', TATBookmarkAutoDelete.ByOption, true, 0);
       end;
   end;
 end;
@@ -137,14 +137,14 @@ begin
       Frame.TabCaption:= msgFinderRegexMatchesNumbered;
       Frame.TabCaptionReason:= tcrUnsavedSpecial;
       Ed:= Frame.Ed1;
-      Ed.Strings.LoadFromStrings(Matches, cEndUnix, false);
+      Ed.Strings.LoadFromStrings(Matches, TATLineEnds.Unix, false);
       Ed.UpdateWrapInfo(true, false); //AForceUpdate=True to fix #4609
       Ed.Update;
       Ed.DoEventChange;
       MsgStatus(Format(msgStatusFoundFragments, [Matches.Count]), true);
     end
     else
-      FinderShowResult(false, FFinder);
+      FinderShowResult(false, false, FFinder);
   finally
     FreeAndNil(Matches);
   end;
@@ -159,7 +159,7 @@ begin
 
   if NCounter>0 then
   begin
-    FFinder.Editor.DoCommand(cCommand_ScrollToCaretTop, cInvokeAppInternal);
+    FFinder.Editor.DoCommand(cCommand_ScrollToCaretTop, TATCommandInvoke.AppInternal);
     //FFinder.Editor.DoGotoCaret(cEdgeTop); //also works, but it's more complicated, less wanted
   end;
 
@@ -168,7 +168,7 @@ begin
   else
     MsgStatus(
       Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), NCounter]) +
-      FinderOptionsToHint(FFinder),
+      FinderOptionsToHint(FFinder, false),
       true);
 end;
 
@@ -183,7 +183,7 @@ begin
   else
     MsgStatus(
       Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), NCounter]) +
-      FinderOptionsToHint(FFinder),
+      FinderOptionsToHint(FFinder, false),
       true);
 end;
 
@@ -195,7 +195,7 @@ begin
     MsgStatusErrorInRegex
   else
     MsgStatus(
-      Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), NCounter])+FinderOptionsToHint(FFinder),
+      Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), NCounter])+FinderOptionsToHint(FFinder, false),
       true);
 end;
 
@@ -207,7 +207,7 @@ begin
   ok:= FFinder.DoAction_FindOrReplace(
     false, false, bChanged, true);
   FinderUpdateEditor(false);
-  FinderShowResult(ok, FFinder);
+  FinderShowResult(ok, false, FFinder);
 end;
 
 procedure TfmMain.FindAndReplaceOneMatch(AndStop: boolean);
@@ -221,7 +221,7 @@ begin
     if ok then
       ok:= FFinder.DoAction_FindOrReplace(false, false, bChanged, true);
   FinderUpdateEditor(true);
-  FinderShowResult(ok, FFinder);
+  FinderShowResult(ok, true, FFinder);
 end;
 
 procedure TfmMain.FindAndReplaceAll(var NCounter: integer);
@@ -271,7 +271,7 @@ procedure TfmMain.FindDialogDone(Sender: TObject; Res: TAppFinderOperation; AEna
 var
   Category: TAppFinderOperationCategory;
   Frame: TEditorFrame;
-  ok, bDoLock, bFindMode, bHiliteAll: boolean;
+  ok, bDoLock, bFindMode, bHiliteAll, bFocusFindDlg: boolean;
   NCounter: integer;
 begin
   InitFormFind;
@@ -279,6 +279,7 @@ begin
   Category:= cAppFinderOperationCategory[Res];
   if Category=afcNone then exit;
   bHiliteAll:= false;
+  bFocusFindDlg:= Assigned(fmFind) and fmFind.Visible and fmFind.Enabled and (fmFind.edFind.Focused or fmFind.edRep.Focused);
   NCounter:= 0;
 
   if Category in [afcFind, afcReplaceOne] then
@@ -315,7 +316,7 @@ begin
       Frame.SetFocus;
     fmFind.Hide;
     fmFind.ClearHiAll;
-    UpdateAppForSearch(false, false, bFindMode, AEnableUpdateAll);
+    UpdateAppForSearch(false, false, bFindMode, AEnableUpdateAll, bFocusFindDlg);
     Exit;
   end;
 
@@ -342,7 +343,7 @@ begin
 
   if Frame.FrameKind=efkBinaryViewer then
   begin
-    UpdateAppForSearch(true, false, true, AEnableUpdateAll);
+    UpdateAppForSearch(true, false, true, AEnableUpdateAll, bFocusFindDlg);
     Application.ProcessMessages;
 
     case Res of
@@ -363,7 +364,7 @@ begin
         end;
     end;
 
-    UpdateAppForSearch(false, false, true, AEnableUpdateAll);
+    UpdateAppForSearch(false, false, true, AEnableUpdateAll, bFocusFindDlg);
     exit;
   end;
 
@@ -387,7 +388,7 @@ begin
     //(Res=afoReplaceStop) or
     (Res=afoReplaceAll) or
     (Res=afoReplaceGlobal);
-  UpdateAppForSearch(true, bDoLock, bFindMode, AEnableUpdateAll);
+  UpdateAppForSearch(true, bDoLock, bFindMode, AEnableUpdateAll, bFocusFindDlg);
 
   if bDoLock then
   begin
@@ -441,7 +442,7 @@ begin
     end;
   end; //case Res of
 
-  UpdateAppForSearch(false, false, bFindMode, AEnableUpdateAll);
+  UpdateAppForSearch(false, false, bFindMode, AEnableUpdateAll, bFocusFindDlg);
 
   {$ifdef LCLgtk2}
   //Linux gtk2: UpdateAppForSearch don't put focus anywhere (Laz bug?) after "confirmation" form;
@@ -660,7 +661,7 @@ begin
       Frame.SetFocus;
 
     fmFind.Hide;
-    UpdateAppForSearch(false, false, true, true);
+    UpdateAppForSearch(false, false, true, true, false);
   end;
 end;
 
@@ -742,18 +743,28 @@ begin
 
   ok:= FFinder.DoAction_FindOrReplace(false, false, bChanged, true);
   FinderUpdateEditor(false);
-  FinderShowResult(ok, FFinder);
+  FinderShowResult(ok, false, FFinder);
 end;
 
 procedure TfmMain.DoFindNext(ANext: boolean);
 var
   Frame: TEditorFrame;
   Op: TAppFinderOperation;
-  ok, bChanged: boolean;
+  ok, bChanged, bFocusFindDlg: boolean;
 begin
+  {
+  1) when user _holds_ Shift+F3 in Find dialog, command queue can be filled too much
+    (because F3 and Shift+F3 call Application.ProcessMessages when search
+    wraps at document edge). FFindIsBusy checking fixes this.
+  2) checking was disabled to fix ignored F3 presses:
+    https://github.com/Alexey-T/CudaText/issues/5215#issuecomment-1709890637
+  }
+  //if FFindIsBusy then exit;
+
   Frame:= CurrentFrame;
   if Frame=nil then exit;
   InitFormFind;
+  bFocusFindDlg:= Assigned(fmFind) and fmFind.Visible and fmFind.Enabled and (fmFind.edFind.Focused or fmFind.edRep.Focused);
 
   ////always update Finder string when "Find next" called. issue #2182
   if fmFind.edFind.Text<>'' then
@@ -781,8 +792,8 @@ begin
 
   ok:= FFinder.DoAction_FindOrReplace(false, false, bChanged, true);
   FinderUpdateEditor(false);
-  FinderShowResult(ok, FFinder);
-  UpdateAppForSearch(false, false, true, true); //hide search progressbar
+  FinderShowResult(ok, false, FFinder);
+  UpdateAppForSearch(false, false, true, true, bFocusFindDlg); //hide search progressbar
 
   //add string to history, issue #3326
   fmFind.edFind.DoAddLineToHistory(FFinder.StrFind, UiOps.MaxHistoryEdits);
@@ -809,7 +820,7 @@ begin
       end;
     markingBookmarks:
       begin
-        Ed.DoCommand(cmd_BookmarkClearAll, cInvokeAppInternal);
+        Ed.DoCommand(cmd_BookmarkClearAll, TATCommandInvoke.AppInternal);
       end;
     else
       begin end;
@@ -819,13 +830,14 @@ end;
 procedure TfmMain.DoFindMarkAll(AMode: TATFindMarkingMode);
 var
   cnt: integer;
+  bFocusFindDlg: boolean;
 begin
   if Assigned(fmFind) {and (fmFind.edFind.Text<>'')} then
     FFinder.StrFind:= fmFind.edFind.Text;
 
   if FFinder.StrFind='' then
   begin
-    FinderShowResult(false, FFinder);
+    FinderShowResult(false, false, FFinder);
     Exit
   end;
 
@@ -833,16 +845,18 @@ begin
   FFinder.OptBack:= false;
   FFinder.OptFromCaret:= false;
 
+  bFocusFindDlg:= Assigned(fmFind) and fmFind.Visible and fmFind.Enabled and (fmFind.edFind.Focused or fmFind.edRep.Focused);
+
   DoFindMarkingInit(AMode);
   cnt:= FFinder.DoAction_CountAll(true);
   DoFindMarkingInit(markingNone);
 
   FinderUpdateEditor(false);
   MsgStatus(
-    Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), cnt])+FinderOptionsToHint(FFinder),
+    Format(msgStatusFindCount, [Utf8Encode(FFinder.StrFind), cnt])+FinderOptionsToHint(FFinder, false),
     true);
 
-  UpdateAppForSearch(false, false, true, true); //hide search progressbar
+  UpdateAppForSearch(false, false, true, true, bFocusFindDlg); //hide search progressbar
 end;
 
 
@@ -859,7 +873,7 @@ begin
     AContinue:= false;
 end;
 
-function TfmMain.FinderOptionsToHint(AFinder: TATEditorFinder): string;
+function TfmMain.FinderOptionsToHint(AFinder: TATEditorFinder; AIsReplace: boolean): string;
 const
   Sep=', ';
 begin
@@ -872,7 +886,9 @@ begin
   if AFinder.IsSearchWrapped then Result:= Result+msgFinderHintSearchWrapped+Sep;
   if AFinder.OptInSelection then Result:= Result+msgFinderHintInSel+Sep;
   if AFinder.OptFromCaret then Result:= Result+msgFinderHintFromCaret+Sep;
-  if AFinder.OptPreserveCase then Result:= Result+msgFinderHintPresCase+Sep;
+  if AIsReplace then
+    if AFinder.OptPreserveCase then Result:= Result+msgFinderHintPresCase+Sep;
+
   if SEndsWith(Result, Sep) then
     SetLength(Result, Length(Result)-Length(Sep));
   Result:= ' ('+Result+')';
@@ -881,7 +897,7 @@ end;
 procedure TfmMain.FinderGetHiAllIndexes(AFinder: TATEditorFinder; out AIndex, ACount: integer);
 var
   Ed: TATSynEdit;
-  Pnt: TPoint;
+  MatchPos: TPoint;
   ItemPtr: PATMarkerItem;
   NTagValue: Int64;
   iItem: integer;
@@ -894,8 +910,18 @@ begin
 
   NTagValue:= UiOps.FindHiAll_TagValue;
 
-  Pnt:= AFinder.MatchEdPos;
-  if Pnt.Y<0 then exit;
+  //take minimum if MatchEdPos / MatchEdEnd
+  if IsPosSorted(
+    AFinder.MatchEdPos.X,
+    AFinder.MatchEdPos.Y,
+    AFinder.MatchEdEnd.X,
+    AFinder.MatchEdEnd.Y,
+    false)
+  then
+    MatchPos:= AFinder.MatchEdPos
+  else
+    MatchPos:= AFinder.MatchEdEnd;
+  if MatchPos.Y<0 then exit;
 
   for iItem:= 0 to Ed.Attribs.Count-1 do
   begin
@@ -903,8 +929,11 @@ begin
     if ItemPtr^.Tag<>NTagValue then Continue;
     Inc(ACount);
     if AIndex<0 then
-      if ItemPtr^.PosY=Pnt.Y then
-        if ItemPtr^.PosX=Pnt.X then
+      if ItemPtr^.PosY=MatchPos.Y then
+        //exact X pos is OK
+        if (ItemPtr^.PosX=MatchPos.X) or
+          //not exact X pos can be also OK: when searching backwards for 'dd' with line 'ddd'
+          (AFinder.OptBack and (ItemPtr^.PosX<MatchPos.X) and (ItemPtr^.PosX+ItemPtr^.SelX>MatchPos.X)) then
           AIndex:= ACount-1;
   end;
 end;
@@ -919,12 +948,12 @@ begin
     Result:= Format(' [%d/%d]', [NCurrent+1, NTotal])
 end;
 
-procedure TfmMain.FinderShowResult(ok: boolean; AFinder: TATEditorFinder);
+procedure TfmMain.FinderShowResult(ok, AIsReplace: boolean; AFinder: TATEditorFinder);
 begin
   if ok then
   begin
     MsgStatus(
-      msgStatusFoundNextMatch+FinderGetHiAllIndexesString(AFinder)+FinderOptionsToHint(AFinder),
+      msgStatusFoundNextMatch+FinderGetHiAllIndexesString(AFinder)+FinderOptionsToHint(AFinder, AIsReplace),
       true);
 
     AFinder.Editor.EndUpdate;
@@ -944,7 +973,7 @@ begin
     MsgStatusErrorInRegex
   else
     MsgStatus(
-      msgCannotFindMatch+FinderOptionsToHint(AFinder)+': '+Utf8Encode(AFinder.StrFind),
+      msgCannotFindMatch+FinderOptionsToHint(AFinder, AIsReplace)+': '+Utf8Encode(AFinder.StrFind),
       true);
 end;
 
@@ -953,7 +982,7 @@ begin
   if ok then
     MsgStatus(msgStatusFoundNextMatch{+FinderGetHiAllIndexesString}, true)
   else
-    FinderShowResult(false, AFinder);
+    FinderShowResult(false, false, AFinder);
 end;
 
 procedure TfmMain.FinderShowMatchesCount(AMatchCount, ATime: integer);
@@ -1047,7 +1076,7 @@ begin
     UiOps.FindIndentHorz,
     UiOps.FindIndentVert,
     false{place caret},
-    true{unfold}
+    TATEditorActionIfFolded.Unfold{unfold}
     );
   Ed.Update(true);
 
@@ -1091,6 +1120,14 @@ procedure TfmMain.FinderOnGetToken(Sender: TObject; AX, AY: integer; out AKind: 
 begin
   AKind:= EditorGetTokenKind(Sender as TATSynEdit, AX, AY)
 end;
+
+procedure TfmMain.FinderOnWrapAtEdge(Sender: TObject);
+begin
+  if UiOps.FindWrapAtEdge_ThemeItem='' then exit;
+  if Assigned(fmFind) and fmFind.Visible then
+    fmFind.IsInputColored:= true;
+end;
+
 
 procedure TfmMain.FinderUpdateEditor(AUpdateText: boolean; AUpdateStatusbar: boolean=true);
 var
@@ -1219,7 +1256,7 @@ begin
       oTokens:= PyLong_FromLong(Ord(fmFind.bTokens.ItemIndex));
     end;
 
-    Result:= Py_BuildValue('{sOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsO}',
+    Result:= Py_BuildValue('{sOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsOsO}',
       'find', PyUnicodeFromString(FFinder.StrFind),
       'rep', PyUnicodeFromString(FFinder.StrReplace),
 
@@ -1237,6 +1274,7 @@ begin
       'op_fromcaret', PyBool_FromLong(Ord(FFinder.OptFromCaret)),
       'op_insel', PyBool_FromLong(Ord(FFinder.OptInSelection)),
       'op_wrap', PyBool_FromLong(Ord(FFinder.OptWrapped)),
+      'op_wrap_c', PyBool_FromLong(Ord(FFinder.OptWrappedConfirm)),
       'op_tokens', PyLong_FromLong(Ord(FFinder.OptTokens)),
       'op_prescase', PyBool_FromLong(Ord(FFinder.OptPreserveCase)),
 
@@ -1344,6 +1382,8 @@ begin
         FFinder.OptInSelection:= AppStrToBool(SValue);
       'op_wrap':
         FFinder.OptWrapped:= AppStrToBool(SValue);
+      'op_wrap_c':
+        FFinder.OptWrappedConfirm:= AppStrToBool(SValue);
       'op_tokens':
         FFinder.OptTokens:= TATFinderTokensAllowed(StrToIntDef(SValue, 0));
       'op_prescase':
@@ -1517,7 +1557,7 @@ begin
   NCmd:= Ed.Keymap.GetCommandFromShortcut(ShortCut(AKey, AShiftState), KeyHistory);
   if IsCommandHandledFromFindDialog(NCmd) then
   begin
-    Ed.DoCommand(NCmd, cInvokeHotkey);
+    Ed.DoCommand(NCmd, TATCommandInvoke.Hotkey);
     Result:= true;
   end;
 end;

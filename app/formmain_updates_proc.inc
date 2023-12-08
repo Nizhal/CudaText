@@ -154,7 +154,7 @@ begin
 
   UpdateToolbarButton(ToolbarMain, cCommand_ToggleOverwrite, Ed.ModeOverwrite, bEditor);
   UpdateToolbarButton(ToolbarMain, cCommand_ToggleReadOnly, Ed.ModeReadOnly, bEditor);
-  UpdateToolbarButton(ToolbarMain, cCommand_ToggleWordWrap, Ed.OptWrapMode<>cWrapOff, bEditor);
+  UpdateToolbarButton(ToolbarMain, cCommand_ToggleWordWrap, Ed.OptWrapMode<>TATEditorWrapMode.ModeOff, bEditor);
   UpdateToolbarButton(ToolbarMain, cCommand_ToggleMinimap, Ed.OptMinimapVisible, bEditor);
   UpdateToolbarButton(ToolbarMain, cCommand_ToggleMicromap, Ed.OptMicromapVisible, bEditor);
   UpdateToolbarButton(ToolbarMain, cCommand_ToggleRuler, Ed.OptRulerVisible, bEditor);
@@ -207,6 +207,7 @@ begin
   //hide hints for pictures/viewer
   AStatus.ShowHint:= FrameKind=efkEditor;
 
+  //for FrameKind<>Editor
   if FrameKind<>efkEditor then
   begin
     case FrameKind of
@@ -219,7 +220,12 @@ begin
 
     case FrameKind of
       efkBinaryViewer:
-        S:= cEncConvNames[F.Binary.TextEncoding];
+      begin
+        if F.Binary.TextEncoding=eidUTF8 then
+          S:= cEncNameUtf8_NoBom
+        else
+          S:= cEncConvNames[F.Binary.TextEncoding];
+      end
       else
         S:= '';
     end;
@@ -247,10 +253,20 @@ begin
     DoStatusbarTextByTag(AStatus, StatusbarTag_TabSize, S);
 
     DoStatusbarTextByTag(AStatus, StatusbarTag_InsOvr, '');
+
+    case FrameKind of
+      efkBinaryViewer:
+        S:= msgStatusbarWrapStates[Ord(F.Binary.TextWrap)]
+      else
+        S:= '';
+    end;
+    DoStatusbarTextByTag(AStatus, StatusbarTag_WrapMode, S);
+
     exit;
   end;
+  //end for FrameKind<>Editor
 
-  //------
+  //for FrameKind=Editor
   case EditorGetSelectionKind(Ed) of
     selkindSmallSel:
       fmt:= UiOps.StatusSmallSel;
@@ -271,9 +287,9 @@ begin
 
   //------
   case Ed.Strings.Endings of
-    cEndWin: S:= msgEndWin;
-    cEndUnix: S:= msgEndUnix;
-    cEndMac: S:= msgEndMac;
+    TATLineEnds.Windows: S:= msgEndWin;
+    TATLineEnds.Unix: S:= msgEndUnix;
+    TATLineEnds.Mac: S:= msgEndMac;
     else S:= '?';
   end;
   DoStatusbarTextByTag(AStatus, StatusbarTag_LineEnds, S);
@@ -411,11 +427,16 @@ end;
 procedure TfmMain.UpdateEnabledAll(b: boolean);
 begin
   Groups.Enabled:= b;
+
+  //fixes issue #5125
+  AppPanels[cPaneOut].PanelGrouper.Enabled:= b;
+  AppPanels[cPaneSide].PanelGrouper.Enabled:= b;
+
   if Assigned(fmFind) then
     fmFind.Enabled:= b;
 end;
 
-procedure TfmMain.UpdateAppForSearch(AStart, AEdLock, AFindMode, AUpdateEnableAll: boolean);
+procedure TfmMain.UpdateAppForSearch(AStart, AEdLock, AFindMode, AUpdateEnableAll, AFocusFindDlg: boolean);
 var
   Frame: TEditorFrame;
   Ed: TATSynEdit;
@@ -454,7 +475,12 @@ begin
     end;
 
     if Assigned(fmFind) and fmFind.Visible and fmFind.Enabled then
-      fmFind.UpdateFocus(AFindMode)
+    begin
+      if AFocusFindDlg then
+        fmFind.UpdateFocus(AFindMode);
+      //else
+      //  raise Exception.Create('unexpected AFocusFindDlg=False');
+    end
     else
       Frame.SetFocus;
   end;
@@ -504,17 +530,28 @@ begin
     F.Ed1.Font.Quality:= EditorOps.OpFontQuality;
     F.Ed2.Font.Quality:= EditorOps.OpFontQuality;
 
+    F.Ed1.Update;
+    if F.Splitted then
+      F.Ed2.Update;
+
+    if (F.FrameKind=efkBinaryViewer) and Assigned(F.Binary) then
+    begin
+      F.Binary.Font.Name:= EditorOps.OpFontName;
+      F.Binary.Font.Size:= EditorOps.OpFontSize;
+      F.Binary.Font.Quality:= EditorOps.OpFontQuality;
+      F.Binary.Invalidate;
+    end;
+
+    {
+    //2023.11: block commented, to not reset newly applied font from DoOps_LoadOptionsLexerSpecific
     DoOps_LoadOptionsLexerSpecific(F, F.Ed1);
     if not F.EditorsLinked then
       DoOps_LoadOptionsLexerSpecific(F, F.Ed2);
+      }
   end;
 
   if Assigned(fmFind) then
     fmFind.UpdateFonts;
-
-  fmOutput.Ed.Font.Name:= EditorOps.OpFontName;
-  fmOutput.Ed.Font.Size:= EditorOps.OpFontSize;
-  fmOutput.Ed.Font.Quality:= EditorOps.OpFontQuality;
 
   fmValidate.Ed.Font.Name:= EditorOps.OpFontName;
   fmValidate.Ed.Font.Size:= EditorOps.OpFontSize;
@@ -539,7 +576,7 @@ begin
 
   //dont set font for PanelLeft/PanelBottom, id effects
   CodeTree.Tree.Font.Name:= UiOps.VarFontName;
-  CodeTree.Tree.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
+  CodeTree.Tree.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize) * UiOps.TreeFontScale div 100;
 
   CodeTreeFilterInput.Font.Name:= EditorOps.OpFontName;
   CodeTreeFilterInput.Font.Size:= EditorOps.OpFontSize;
@@ -576,7 +613,9 @@ end;
 
 procedure TfmMain.DoApplyFont_Output;
 begin
-  //empty now
+  fmOutput.Ed.Font.Name:= UiOps.OutputFontName;
+  fmOutput.Ed.Font.Size:= UiOps.OutputFontSize;
+  fmOutput.Ed.Update;
 end;
 
 procedure TfmMain.UpdateMenuRecents(sub: TMenuItem);
@@ -625,6 +664,7 @@ var
   Frame: TEditorFrame;
   SFileName: string;
 begin
+  //Ed=nil means: don't add string item, but limit the max count in the list (param MaxItems)
   if Ed=nil then
   begin
     SAddStringToHistory('', AppListRecents, UiOps.MaxHistoryMenu);
@@ -702,10 +742,10 @@ begin
   EditorApplyOps(F.Ed1, Op, AForceApply, not F.TabSizeChanged, Groups.Mode=gmOne);
   EditorApplyOps(F.Ed2, Op, AForceApply, not F.TabSizeChanged, Groups.Mode=gmOne);
 
-  F.Adapter[F.Ed1].DynamicHiliteEnabled:= Op.OpLexerDynamicHiliteEnabled;
+  F.Adapter[F.Ed1].DynamicHiliteEnabled:= Op.OpLexerDynamicHiliteMaxLines>0;
   F.Adapter[F.Ed1].DynamicHiliteMaxLines:= Op.OpLexerDynamicHiliteMaxLines;
 
-  F.Adapter[F.Ed2].DynamicHiliteEnabled:= Op.OpLexerDynamicHiliteEnabled;
+  F.Adapter[F.Ed2].DynamicHiliteEnabled:= Op.OpLexerDynamicHiliteMaxLines>0;
   F.Adapter[F.Ed2].DynamicHiliteMaxLines:= Op.OpLexerDynamicHiliteMaxLines;
 
   if not F.BracketHiliteUserChanged then
@@ -886,9 +926,7 @@ begin
   UpdateMenuItemHotkey(mnuApple_About, cmd_HelpAbout);
 
   UpdateMenuItemHotkey(mnuFileEnc, cmd_MenuEnc);
-  UpdateMenuItemHotkey(mnuFileEndWin, cmd_LineEndWin);
-  UpdateMenuItemHotkey(mnuFileEndUn, cmd_LineEndUnix);
-  UpdateMenuItemHotkey(mnuFileEndMac, cmd_LineEndMac);
+  UpdateMenuItemHotkey(mnuFileEnds, cmd_MenuEnds);
 
   UpdateMenuItemHotkey(mnuFileNew, cmd_FileNew);
   UpdateMenuItemHotkey(mnuFileNewMenu, cmd_FileNewMenu);
@@ -1077,7 +1115,7 @@ begin
   if F=nil then exit;
   Ed:= F.Editor;
 
-  UpdateMenuItemChecked(mnuViewWrap, mnuViewWrap_Alt, Ed.OptWrapMode<>cWrapOff);
+  UpdateMenuItemChecked(mnuViewWrap, mnuViewWrap_Alt, F.WordWrap<>TATEditorWrapMode.ModeOff);
   UpdateMenuItemChecked(mnuViewNums, mnuViewNums_Alt, Ed.Gutter.Items[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagNumbers)].Visible);
   UpdateMenuItemChecked(mnuViewFold, mnuViewFold_Alt, Ed.Gutter.Items[Ed.Gutter.FindIndexByTag(ATEditorOptions.GutterTagFolding)].Visible);
   UpdateMenuItemChecked(mnuViewRuler, mnuViewRuler_Alt, Ed.OptRulerVisible);
@@ -1172,7 +1210,15 @@ begin
 
   if AConsiderTreeVisible then
     if not AppPanels[cPaneSide].Visible then
+    begin
+      RunTreeHelper(
+        Frame,
+        nil, //ATree
+        true, //PascalHelpers, only they give folding yet
+        false //PythonHelpers
+        );
       exit;
+    end;
 
   if not Frame.EnabledCodeTree[Ed] then
   begin
@@ -1197,7 +1243,7 @@ begin
     if not Assigned(FCodetreeBuffer) then
       FCodetreeBuffer:= TTreeView.Create(Self);
 
-    if not RunTreeHelper(Frame, FCodetreeBuffer) then
+    if not RunTreeHelper(Frame, FCodetreeBuffer, true, true) then
       if Assigned(Ada) then
       begin
         //Tick:= GetTickCount64;
@@ -1216,7 +1262,7 @@ begin
     DoTreeviewCopy(FCodetreeBuffer, CodeTree.Tree);
 
     //force update scrollbar
-    CodeTree.Tree.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize);
+    CodeTree.Tree.Font.Size:= ATEditorScaleFont(UiOps.VarFontSize) * UiOps.TreeFontScale div 100;
     CodeTree.Tree.Perform(CM_CHANGED, 0, 0);
 
     DoCodetree_UpdateVersion(Ed);
@@ -1374,16 +1420,16 @@ procedure TfmMain.DoOps_LoadSidebarIcons;
 const
   cCallerAPI = 'DoOps_LoadSidebarIcons';
 var
-  Parts: TRegexParts;
   Str: string;
   NTick: QWord;
+  W, H: integer;
 begin
   NTick:= GetTickCount64;
 
-  SRegexFindParts('.+_(\d+)x(\d+)', UiOps.SidebarTheme, Parts);
+  if not ParseNameWithWidthAndHeight(UiOps.SidebarTheme, W, H) then exit;
 
-  ImageListSide.Width:= StrToIntDef(Parts[1].Str, ImageListSide.Width);
-  ImageListSide.Height:= StrToIntDef(Parts[2].Str, ImageListSide.Height);
+  ImageListSide.Width:= W;
+  ImageListSide.Height:= H;
   ImageListSide.Clear;
 
   Str:= AppDir_DataSidebarIcons+DirectorySeparator+UiOps.SidebarTheme;
@@ -1414,16 +1460,16 @@ end;
 
 procedure TfmMain.DoOps_LoadCodetreeIcons;
 var
-  Parts: TRegexParts;
   SPath, SItem: string;
   Sep: TATStringSeparator;
+  W, H: integer;
 begin
-  SRegexFindParts('.+_(\d+)x(\d+)', UiOps.TreeTheme, Parts);
+  if not ParseNameWithWidthAndHeight(UiOps.TreeTheme, W, H) then exit;
 
   if not Assigned(ImageListTree) then
     raise Exception.Create('ImageListTree nil');
-  ImageListTree.Width:= StrToIntDef(Parts[1].Str, 16);
-  ImageListTree.Height:= StrToIntDef(Parts[2].Str, 16);
+  ImageListTree.Width:= W;
+  ImageListTree.Height:= H;
   ImageListTree.Clear;
 
   SPath:= AppDir_DataCodetreeIcons+DirectorySeparator+UiOps.TreeTheme;
@@ -1444,14 +1490,14 @@ procedure TfmMain.DoOps_LoadToolbarIcons;
 const
   cCallerAPI = 'DoOps_LoadToolbarIcons';
 var
-  Parts: TRegexParts;
   Str: string;
   Img: TImageList;
   NTick: QWord;
+  W, H: integer;
 begin
   NTick:= GetTickCount64;
 
-  SRegexFindParts('.+_(\d+)x(\d+)', UiOps.ToolBarTheme, Parts);
+  if not ParseNameWithWidthAndHeight(UiOps.ToolBarTheme, W, H) then exit;
 
   Str:= AppDir_DataToolbarIcons+DirectorySeparator+UiOps.ToolBarTheme;
   if not DirectoryExists(Str) then
@@ -1462,8 +1508,8 @@ begin
   end;
 
   Img:= ToolbarMain.Images;
-  Img.Width:= StrToIntDef(Parts[1].Str, 24);
-  Img.Height:= StrToIntDef(Parts[2].Str, 24);
+  Img.Width:= W;
+  Img.Height:= H;
   Img.Clear;
 
   Str+= DirectorySeparator;
@@ -1691,5 +1737,17 @@ begin
       true //AllowProximity
       );
   end;
+end;
+
+procedure TfmMain.UpdateMenuSidebarButton(AWhenAutoShow: boolean);
+begin
+  if ToolbarSideTop.ButtonCount>0 then
+    with ToolbarSideTop.Buttons[0] do
+      if OnClick=@DoSidebar_MainMenuClick then
+        case UiOps.ShowSidebarMenuButton of
+          0: Visible:= false;
+          1: Visible:= true;
+          2: Visible:= AWhenAutoShow;
+        end;
 end;
 

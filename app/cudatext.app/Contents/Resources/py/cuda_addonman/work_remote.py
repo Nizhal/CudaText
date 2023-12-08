@@ -12,6 +12,11 @@ from cudax_lib import get_translation
 _   = get_translation(__file__)  # i18n
 
 def get_url(url, fn, del_first=False):
+
+    if opt.sf_mirror:
+        if url.startswith('https://sourceforge.net/projects/'):
+            url += '/download?use_mirror='+opt.sf_mirror
+
     fn_temp = fn+'.download'
     if os.path.isfile(fn_temp):
         os.remove(fn_temp)
@@ -66,7 +71,8 @@ def get_plugin_zip(url):
     if is_file_html(fn):
         os.remove(fn)
     
-    return fn
+    if os.path.isfile(fn):
+        return fn
 
 
 def file_aged(fn):
@@ -95,7 +101,13 @@ def get_channel(url):
     if not os.path.isfile(temp_fn): return
 
     text = open(temp_fn, encoding='utf8').read()
-    d = json.loads(text)
+    
+    try:
+        d = json.loads(text)
+    except Exception as e:
+        app.msg_box(_('Cannot parse JSON file:\n{}\n{}').format(temp_fn, str(e)),
+                app.MB_OK + app.MB_ICONERROR)
+        return
 
     RE = r'http.+/(\w+)\.(.+?)\.zip'
     for item in d:

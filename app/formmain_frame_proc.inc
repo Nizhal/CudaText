@@ -48,7 +48,8 @@ begin
     //sbrCaret: don't add here, it makes editor repaint slower on mouse selection; issue #4917
     sbrViewerScroll,
     sbrInsOvr,
-    sbrZoom:
+    sbrZoom,
+    sbrPictureResize:
       begin
         //some events only need the fast update of the statusbar
         UpdateStatusbar_RealWork;
@@ -262,7 +263,7 @@ begin
 
   //if it's user.json, reread app config (using timer!)
   if SameFileName(fn, AppFile_OptionsUser) then
-    CurrentEditor.DoCommand(cmd_OpsReloadAndApply, cInvokeAppInternal);
+    CurrentEditor.DoCommand(cmd_OpsReloadAndApply, TATCommandInvoke.AppInternal);
 end;
 
 
@@ -270,7 +271,7 @@ procedure TfmMain.FrameOnInitAdapter(Sender: TObject);
 begin
   with Sender as TATAdapterEControl do
   begin
-    DynamicHiliteEnabled:= EditorOps.OpLexerDynamicHiliteEnabled;
+    DynamicHiliteEnabled:= EditorOps.OpLexerDynamicHiliteMaxLines>0;
     DynamicHiliteMaxLines:= EditorOps.OpLexerDynamicHiliteMaxLines;
 
     OnParseDone:= @FrameParseDone;
@@ -290,11 +291,12 @@ begin
   Ed:= Ada.Editor;
 
   //restoring of folded state from history is here, after parsing done
-  if Ed.FoldingAsStringTodo<>'' then
-  begin
-    Ed.FoldingAsString:= Ed.FoldingAsStringTodo;
-    Ed.FoldingAsStringTodo:= '';
-  end;
+  if not TreeHelperInPascal(nil, Ada.GetLexerName, nil) then
+    if Ed.FoldingAsStringTodo<>'' then
+    begin
+      Ed.FoldingAsString:= Ed.FoldingAsStringTodo;
+      Ed.FoldingAsStringTodo:= '';
+    end;
 
   //do on_lexer_parsed only if parsing was long
   if Ada.LexerParsingElapsed>=UiOps.LexerParsingMinTimeForEvent then

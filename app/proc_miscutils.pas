@@ -27,12 +27,14 @@ uses
   ATSynEdit_Finder,
   ATStringProc,
   ATStringProc_Separator,
+  ATStringProc_HtmlColor,
   ATListbox,
   ATPanelSimple,
   ATButtons,
   ATGauge,
   ATFlatToolbar,
   ATBinHex,
+  ATImageBox,
   ec_SyntAnal,
   ec_syntax_format,
   proc_globdata,
@@ -87,8 +89,9 @@ procedure DoTreeviewJump(ATree: TTreeView; AMode: TAppTreeGoto);
 procedure DoTreeviewFoldLevel(ATree: TTreeView; ALevel: integer);
 procedure DoTreeviewCopy(Src, Dst: TTreeView);
 
-procedure DoApplyThemeToTreeview(C: TTreeview; AThemed, AChangeShowRoot: boolean);
-procedure DoApplyThemeToToolbar(C: TATFlatToolbar);
+procedure ApplyThemeToTreeview(C: TTreeview; AThemed, AChangeShowRoot: boolean);
+procedure ApplyThemeToToolbar(C: TATFlatToolbar);
+procedure ApplyThemeToImageBox(AImageBox: TATImageBox);
 
 function ConvertTwoPointsToDiffPoint(APrevPnt, ANewPnt: TPoint): TPoint;
 function ConvertShiftStateToString(const Shift: TShiftState): string;
@@ -105,7 +108,7 @@ function AppAlignmentToString(const V: TAlignment): string;
 function AppGetLeveledPath(const AFileName: string; ALevel: integer): string;
 
 function ViewerGotoFromString(V: TATBinHex; SInput: string): boolean;
-procedure ViewerApplyTheme(V: TATBinHex);
+procedure ApplyThemeToViewer(V: TATBinHex);
 
 function ExtractFileName_Fixed(const FileName: string): string;
 function ExtractFileDir_Fixed(const FileName: string): string;
@@ -156,6 +159,8 @@ var
 
 procedure InitHtmlTags;
 procedure StringsDeduplicate(L: TStringList; CaseSens: boolean);
+function StringsTrailingText(L: TStringList; AItemCount: integer): string;
+function ConvertCssColorToTColor(const S: string): TColor;
 
 
 implementation
@@ -452,7 +457,7 @@ begin
 end;
 
 
-procedure DoApplyThemeToTreeview(C: TTreeview; AThemed, AChangeShowRoot: boolean);
+procedure ApplyThemeToTreeview(C: TTreeview; AThemed, AChangeShowRoot: boolean);
 var
   Op: TTreeViewOptions;
 begin
@@ -513,7 +518,7 @@ end;
 
 
 
-procedure DoApplyThemeToToolbar(C: TATFlatToolbar);
+procedure ApplyThemeToToolbar(C: TATFlatToolbar);
 begin
   C.Color:= GetAppColor(apclTabBg);
   C.Invalidate;
@@ -664,15 +669,17 @@ begin
     V.PosAt(Num);
 end;
 
-procedure ViewerApplyTheme(V: TATBinHex);
+procedure ApplyThemeToViewer(V: TATBinHex);
 var
   St: TecSyntaxFormat;
 begin
   V.Font.Name:= EditorOps.OpFontName;
   V.Font.Size:= EditorOps.OpFontSize;
+  V.Font.Quality:= EditorOps.OpFontQuality;
   V.Font.Color:= GetAppColor(apclEdTextFont);
   V.FontGutter.Name:= EditorOps.OpFontName;
   V.FontGutter.Size:= EditorOps.OpFontSize;
+  V.FontGutter.Quality:= EditorOps.OpFontQuality;
   V.FontGutter.Color:= GetAppColor(apclEdGutterFont);
   V.Color:= GetAppColor(apclEdTextBg);
   V.TextColorGutter:= GetAppColor(apclEdGutterBg);
@@ -690,6 +697,15 @@ begin
 
   St:= GetAppStyle(apstPale1);
   V.TextColorLines:= St.Font.Color;
+end;
+
+
+procedure ApplyThemeToImageBox(AImageBox: TATImageBox);
+begin
+  if Assigned(AImageBox) then
+  begin
+    AImageBox.Color:= GetAppColor(apclEdTextBg);
+  end;
 end;
 
 
@@ -908,6 +924,8 @@ begin
     Result+= 'o';
   if F.OptWrapped then
     Result+= 'a';
+  if F.OptWrappedConfirm then
+    Result+= 'A';
   if F.OptPreserveCase then
     Result+= 'P';
   if F.OptTokens<>cTokensAll then
@@ -926,6 +944,7 @@ begin
   F.OptInSelection:= Pos('s', S)>0;
   F.OptConfirmReplace:= Pos('o', S)>0;
   F.OptWrapped:= Pos('a', S)>0;
+  F.OptWrappedConfirm:= Pos('A', S)>0;
   F.OptPreserveCase:= Pos('P', S)>0;
   F.OptTokens:= cTokensAll;
 
@@ -1141,7 +1160,7 @@ begin
   for i:= 0 to ALevel do
   begin
     N:= RPosEx(DirectorySeparator, AFileName, N-1);
-    if N<0 then
+    if N<=0 then
       Break;
   end;
   Result:= Copy(AFileName, N+1, MaxInt);
@@ -1427,6 +1446,64 @@ begin
 
   F.Left:= Max(R.Left, Min(R.Right-F.Width, F.Left));
   F.Top:= Max(R.Top, Min(R.Bottom-F.Height, F.Top));
+end;
+
+function StringsTrailingText(L: TStringList; AItemCount: integer): string;
+var
+  i: integer;
+begin
+  Result:= '';
+  for i:= Max(0, L.Count-AItemCount) to L.Count-1 do
+  begin
+    Result+= L[i];
+    if i<L.Count-1 then
+      Result+= #10;
+  end;
+end;
+
+function ConvertCssColorToTColor(const S: string): TColor;
+var
+  NLen, i: integer;
+begin
+  Result:= clNone;
+  if Length(S)<4 then exit;
+
+  i:= 1;
+  case S[i] of
+    '#':
+      begin
+        //find #rgb, #rrggbb
+        if IsCharHexDigit(S[i+1]) then
+        begin
+          Result:= TATHtmlColorParserA.ParseTokenRGB(@S[i+1], NLen, clNone);
+          Inc(NLen);
+        end;
+      end;
+    'r':
+      begin
+        //find rgb(...), rgba(...)
+        if (S[i+1]='g') and
+          (S[i+2]='b') and
+          ((i=1) or not IsCharWord(S[i-1], ATEditorOptions.DefaultNonWordChars)) //word boundary
+        then
+        begin
+          Result:= TATHtmlColorParserA.ParseFunctionRGB(S, i, NLen);
+          //bFoundBrackets:= true;
+        end;
+      end;
+    'h':
+      begin
+        //find hsl(...), hsla(...)
+        if (S[i+1]='s') and
+          (S[i+2]='l') and
+          ((i=1) or not IsCharWord(S[i-1], ATEditorOptions.DefaultNonWordChars)) //word boundary
+        then
+        begin
+          Result:= TATHtmlColorParserA.ParseFunctionHSL(S, i, NLen);
+          //bFoundBrackets:= true;
+        end;
+      end;
+  end;
 end;
 
 

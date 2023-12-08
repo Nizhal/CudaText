@@ -22,8 +22,7 @@ procedure AppCopyDir(const DirSrc, DirTarget: string);
 
 function AppIsFileContentText(const fn: string;
   BufSizeKb: integer;
-  BufSizeWords: integer;
-  DetectOEM: boolean): Boolean;
+  BufSizeWords: integer): boolean;
 
 function AppIsFileReadonly(const fn: string): boolean;
 
@@ -155,10 +154,12 @@ begin
 end;
 
 
+{
 type
   TFreqTable = array[$80 .. $FF] of Integer;
+}
 
-function IsAsciiControlChar(n: integer): boolean; inline;
+function IsAsciiControlChar(n: byte): boolean; inline;
 const
   cAllowedControlChars: set of byte = [
     7, //Bell
@@ -174,17 +175,17 @@ begin
   Result:= (n < 32) and not (byte(n) in cAllowedControlChars);
 end;
 
-function AppIsFileContentText(const fn: string; BufSizeKb: integer;
-  BufSizeWords: integer;
-  DetectOEM: boolean): Boolean;
+function AppIsFileContentText(const fn: string;
+  BufSizeKb: integer;
+  BufSizeWords: integer): boolean;
+  //DetectOEM: boolean; out IsOEM: boolean;
 const
   cBadBytesAtEndAllowed = 2;
 var
   Buffer: PAnsiChar;
   BufSize, BytesRead, i: DWORD;
-  n: Integer;
-  Table: TFreqTable;
-  TableSize: Integer;
+  //Table: TFreqTable;
+  //TableSize: Integer;
   Str: TFileStream;
   IsLE: boolean;
   bReadAllFile: boolean;
@@ -197,9 +198,11 @@ begin
   if BufSizeKb<=0 then Exit;
   BufSize:= BufSizeKb*1024;
 
+  {
   //Init freq table
   TableSize:= 0;
   FillChar(Table{%H-}, SizeOf(Table), 0);
+  }
 
   try
     try
@@ -227,20 +230,18 @@ begin
 
         //Test UTF-16 signature
         if (Buffer[0]=#$ff) and (Buffer[1]=#$fe) then
-          exit(true);
+          exit(True);
         if (Buffer[0]=#$fe) and (Buffer[1]=#$ff) then
-          exit(true);
+          exit(True);
         //Test UTF-32 BE signature
         if (BytesRead>=8) and (Buffer[0]=#0) and (Buffer[1]=#0) and (Buffer[2]=#$fe) and (Buffer[3]=#$ff) then
-          exit(true);
+          exit(True);
 
         Result:= True;
         for i:= 0 to BytesRead - 1 do
         begin
-          n:= Ord(Buffer[i]);
-
           //If control chars present, then non-text
-          if IsAsciiControlChar(n) then
+          if IsAsciiControlChar(Ord(Buffer[i])) then
             //ignore bad bytes at the end, https://github.com/Alexey-T/CudaText/issues/2959
             if not (bReadAllFile and (i>=BytesRead-cBadBytesAtEndAllowed)) then
             begin
@@ -248,6 +249,7 @@ begin
               Break
             end;
 
+          {
           //Calculate freq table
           if DetectOEM then
             if (n >= Low(Table)) and (n <= High(Table)) then
@@ -255,9 +257,11 @@ begin
               Inc(TableSize);
               Inc(Table[n]);
             end;
+            }
         end;
       end;
 
+    {
     //Analyze table
     if DetectOEM then
       if Result and (TableSize > 0) then
@@ -267,11 +271,11 @@ begin
           if ((i >= $B0) and (i <= $DF)) or (i = $FF) or (i = $A9) then
             if Table[i] >= 18 then
             begin
-              //IsOEM:= True;
+              IsOEM:= True;
               Break
             end;
         end;
-
+    }
   finally
     if Assigned(Buffer) then
       FreeMem(Buffer);

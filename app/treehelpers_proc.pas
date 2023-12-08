@@ -26,34 +26,57 @@ uses
   TreeHelper_Markdown,
   TreeHelper_MediaWiki,
   TreeHelper_Ini,
-  TreeHelper_reST;
+  TreeHelper_reST,
+  TreeHelper_Textile,
+  TreeHelper_WikidPad;
 
 //--------------------------------------------------------------
+//calling function with Ed=nil and Data=nil allows to check:
+//is lexer supported by Pascal tree-helpers
 function TreeHelperInPascal(Ed: TATSynEdit; const ALexer: string;
   Data: TATTreeHelperRecords): boolean;
 begin
   Result:= false;
-  Data.Clear;
+  if Assigned(Data) then
+    Data.Clear;
+
   case ALexer of
     'Ini files ^':
       begin
         Result:= true;
-        TTreeHelperIni.GetHeaders(Ed, Data);
+        if Assigned(Ed) then
+          TTreeHelperIni.GetHeaders(Ed, Data);
       end;
     'Markdown':
       begin
         Result:= true;
-        TTreeHelperMarkdown.GetHeaders(Ed, Data);
+        if Assigned(Ed) then
+          TTreeHelperMarkdown.GetHeaders(Ed, Data);
       end;
     'MediaWiki':
       begin
         Result:= true;
-        TTreeHelperMediawiki.GetHeaders(Ed, Data);
+        if Assigned(Ed) then
+          TTreeHelperMediawiki.GetHeaders(Ed, Data);
       end;
     'reStructuredText':
       begin
         Result:= true;
-        TTreeHelperRest.GetHeaders(Ed, Data);
+        if Assigned(Ed) then
+          TTreeHelperRest.GetHeaders(Ed, Data);
+      end;
+    'WikidPad',
+    'WikidPad ^':
+      begin
+        Result:= true;
+        if Assigned(Ed) then
+          TTreeHelperWikidpad.GetHeaders(Ed, Data);
+      end;
+    'Textile':
+      begin
+        Result:= true;
+        if Assigned(Ed) then
+          TTreeHelperTextile.GetHeaders(Ed, Data);
       end;
   end;
 end;

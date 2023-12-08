@@ -122,7 +122,6 @@ begin
     IfThen(plCaption.Visible, plCaption.Height) +
     ATEditorScale(2*edInput.BorderSpacing.Around) +
     edInput.Height;
-  edInput.Text:= '';
 
   ButtonCancel.Width:= ButtonCancel.Height;
 end;
@@ -148,6 +147,7 @@ begin
 
   edInput.OptCaretBlinkEnabled:= EditorOps.OpCaretBlinkEn;
   edInput.OptCaretBlinkTime:= EditorOps.OpCaretBlinkTime;
+  edInput.OptMaxLen:= 80;
 
   IsDoubleBuffered:= UiOps.DoubleBuffered;
 end;
